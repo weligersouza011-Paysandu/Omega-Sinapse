@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const express = require('express');
 const prisma = require('./config/prisma');
 const orcamentoRoutes = require('./routes/orcamentoRoutes');
@@ -57,6 +58,32 @@ app.use('/api/usuarios', autenticar, usuarioRoutes);
 // Ciclo operacional de execução (obras): status, planejador, OSI e Ata de Partida.
 app.use('/api/obras', autenticar, obraRoutes);
 app.use('/api/uploads', autenticar, uploadRoutes);
+
+// ---------------------------------------------------------------------------
+// Front-end (build do Vite) — deploy unificado
+// Em produção, o build do front-end deve existir em `frontend/dist`.
+// Em desenvolvimento, o Vite continua rodando separadamente em :5173.
+// ---------------------------------------------------------------------------
+const frontendDist = path.join(__dirname, '..', 'frontend', 'dist');
+const frontendIndex = path.join(frontendDist, 'index.html');
+
+app.use(express.static(frontendDist));
+
+// SPA fallback: qualquer rota não-API que não seja um arquivo estático recebe
+// o index.html, permitindo que o React Router assuma o roteamento no cliente.
+app.get('*', (req, res, next) => {
+  // Mantém o contrato JSON para rotas de API inexistentes.
+  if (req.path === '/api' || req.path.startsWith('/api/')) {
+    return next();
+  }
+
+  return res.sendFile(frontendIndex, (err) => {
+    if (!err) return undefined;
+    // Sem build do front-end, deixa o 404 padrão da API responder.
+    if (err.code === 'ENOENT') return next();
+    return next(err);
+  });
+});
 
 // 404 + tratamento global de erros (sempre por último)
 app.use(notFoundHandler);

@@ -17,7 +17,7 @@
 export const MODO_DEMO = false;
 
 /** Acesso sem login (temporário). */
-export const BYPASS_LOGIN = true;
+export const BYPASS_LOGIN = false;
 
 /**
  * Usuário injetado na sessão quando `BYPASS_LOGIN` está ativo.

@@ -143,8 +143,12 @@ npm run dev              # http://localhost:5173
 Em desenvolvimento, o **proxy do Vite** encaminha tudo que começa com `/api`
 para `http://localhost:3000` — não é necessário configurar CORS.
 
-Em produção (static site), defina `VITE_API_URL` com a URL completa da API,
-incluindo o sufixo `/api`:
+No deploy unificado (padrão), o Express serve os arquivos de `frontend/dist` e
+o front-end usa a URL relativa `/api` — não é necessário definir
+`VITE_API_URL` nem configurar CORS.
+
+Se o front-end for publicado como **Static Site separado**, defina
+`VITE_API_URL` com a URL completa da API, incluindo o sufixo `/api`:
 
 ```env
 VITE_API_URL=https://synapse-api.onrender.com/api
@@ -165,12 +169,13 @@ npm run preview        # serve o build localmente para conferência
 
 1. Faça o push do repositório para o GitHub/GitLab.
 2. No Render: **New + → Blueprint** e aponte para o repositório — o `render.yaml`
-   cria os dois serviços automaticamente:
-   - `synapse-api` (Web Service Node) — `npm install` + `npm run prisma:deploy && npm start`
-   - `synapse-web` (Static Site Vite) — `npm install && npm run build`
+   cria um único Web Service Node (`synapse-api`) que serve a API e o front-end
+   compilado:
+   - **Build:** `npm install --include=dev && npm run build:frontend:install && npm run build`
+   - **Start:** `npm run prisma:deploy && npm start`
+   - O front-end fica na mesma URL da API (ex.: `https://synapse-api.onrender.com`).
 3. Preencha no painel as variáveis marcadas como `sync: false`:
    - `DATABASE_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-   - `VITE_API_URL` (URL pública da API + `/api`)
 4. `JWT_SECRET` é gerado automaticamente pelo Render.
 5. Após o primeiro deploy, crie o usuário ADMIN apontando para o banco de produção
    (rode o `npm run criar-usuario` localmente com a `DATABASE_URL` de produção).

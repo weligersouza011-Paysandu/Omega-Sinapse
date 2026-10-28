@@ -1,17 +1,13 @@
 # =============================================================================
-# Render Blueprint — Synapse (Omega Track)
-# Deploy de 2 serviços:
-#   1) synapse-api -> Web Service Node (Express + Prisma + Neon)
-#   2) synapse-web -> Static Site (React + Vite)
+# Render Blueprint — Synapse (deploy unificado)
+# Um único Web Service Node serve a API e o front-end React compilado em
+# `frontend/dist`.
 #
 # Uso: no painel do Render, New + > Blueprint > aponte para este repositório.
 # As variáveis marcadas com `sync: false` devem ser preenchidas no painel.
 # =============================================================================
 
 services:
-  # ---------------------------------------------------------------------------
-  # API (Node/Express + Prisma)
-  # ---------------------------------------------------------------------------
   - type: web
     name: synapse-api
     runtime: node
@@ -19,7 +15,8 @@ services:
     region: oregon
     branch: main
     rootDir: .
-    buildCommand: npm install && npm run build:backend
+    # Instala as dependências do front-end (Vite) e gera o build em frontend/dist.
+    buildCommand: npm install --include=dev && npm run build:frontend:install && npm run build
     # `migrate deploy` garante o schema atualizado antes de aceitar tráfego.
     startCommand: npm run prisma:deploy && npm start
     healthCheckPath: /health
@@ -47,24 +44,3 @@ services:
         value: 1920
       - key: UPLOAD_WEBP_QUALITY
         value: 80
-
-  # ---------------------------------------------------------------------------
-  # Front-end (React + Vite) — Static Site
-  # ---------------------------------------------------------------------------
-  - type: web
-    name: synapse-web
-    runtime: static
-    branch: main
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
-    autoDeploy: true
-    envVars:
-      # URL pública da API + sufixo /api (ex.: https://synapse-api.onrender.com/api)
-      - key: VITE_API_URL
-        sync: false
-    routes:
-      # SPA (react-router): qualquer rota desconhecida volta para o index.html
-      - type: rewrite
-        source: /*
-        destination: /index.html
