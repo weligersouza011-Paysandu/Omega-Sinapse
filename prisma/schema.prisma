@@ -78,6 +78,19 @@ model Usuario {
 }
 
 // -----------------------------------------------------------------------------
+// Configurações internas do sistema (nunca expostas pela API)
+// -----------------------------------------------------------------------------
+model ConfiguracaoSistema {
+  /// Identificador da configuração (ex.: "jwt_secret").
+  chave      String   @id @db.VarChar(100)
+  valor      String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@map("configuracoes_sistema")
+}
+
+// -----------------------------------------------------------------------------
 // Orçamentos
 // -----------------------------------------------------------------------------
 model Orcamento {

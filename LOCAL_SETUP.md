@@ -176,7 +176,10 @@ npm run preview        # serve o build localmente para conferência
    - O front-end fica na mesma URL da API (ex.: `https://synapse-api.onrender.com`).
 3. Preencha no painel as variáveis marcadas como `sync: false`:
    - `DATABASE_URL`, `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`
-4. `JWT_SECRET` é gerado automaticamente pelo Render.
+4. `JWT_SECRET` é opcional: se não for definido, o Synapse gera um segredo
+   aleatório no primeiro login e o persiste na tabela `configuracoes_sistema`
+   (a migração já é aplicada pelo `prisma:deploy`). Definir a variável é o modo
+   recomendado, mas o login não depende mais dela para funcionar.
 5. Após o primeiro deploy, crie o usuário ADMIN apontando para o banco de produção
    (rode o `npm run criar-usuario` localmente com a `DATABASE_URL` de produção).
 6. Configure um monitor de disponibilidade (Cron-job.org, UptimeRobot etc.) para
@@ -226,9 +229,10 @@ O token expirou (padrão 8h). O `axios` limpa o `localStorage` e redireciona par
 `/login` automaticamente.
 
 **Login retorna 500 mesmo com e-mail e senha corretos**
-O `JWT_SECRET` não está definido no ambiente de produção. No Render, abra
-**Environment** do serviço e adicione `JWT_SECRET` com um segredo longo e aleatório
-(pode copiar o valor do `.env` local). Depois, faça um novo deploy/restart.
+Confirme se a migração `configuracoes_sistema` foi aplicada (`npm run prisma:status`).
+Se `JWT_SECRET` estiver definido no ambiente, ele tem prioridade; caso contrário,
+o Synapse gera e persiste um segredo no banco automaticamente. Para regenerar,
+defina `JWT_SECRET` no painel do provedor e reinicie o serviço.
 
 **403 ao gravar `art` ou `planejador_id`**
 Regra de negócio (RBAC): `art` exige perfil PLANEJADOR/SUPERVISOR/ADMIN e

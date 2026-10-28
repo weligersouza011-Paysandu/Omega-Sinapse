@@ -3,6 +3,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const AppError = require('../errors/AppError');
+const { obterJwtSecret } = require('../config/jwtSecret');
 const usuarioRepository = require('../repositories/usuarioRepository');
 
 const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
@@ -14,10 +15,8 @@ function estaVazio(valor) {
 }
 
 /** Gera o JWT com o payload { id, nome, matricula, email, perfil } exigido pelo middleware. */
-function gerarToken(usuario) {
-  if (!process.env.JWT_SECRET) {
-    throw new AppError(500, 'JWT_SECRET não configurado no servidor.');
-  }
+async function gerarToken(usuario) {
+  const secret = await obterJwtSecret();
   return jwt.sign(
     {
       id: usuario.id,
@@ -26,7 +25,7 @@ function gerarToken(usuario) {
       email: usuario.email,
       perfil: usuario.perfil,
     },
-    process.env.JWT_SECRET,
+    secret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
   );
 }
@@ -61,7 +60,7 @@ async function login({ identificador, matricula, email, senha }) {
     throw new AppError(403, 'Usuário inativo. Procure um administrador.');
   }
 
-  const token = gerarToken(usuario);
+  const token = await gerarToken(usuario);
 
   return {
     token,

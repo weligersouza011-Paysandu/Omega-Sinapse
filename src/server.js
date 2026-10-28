@@ -9,7 +9,7 @@ const PORT = Number(process.env.PORT || 3000);
 
 if (!process.env.JWT_SECRET) {
   console.warn(
-    '[synapse] AVISO: JWT_SECRET não configurado. O login retornará erro até que essa variável seja definida no ambiente.'
+    '[synapse] JWT_SECRET não configurado no ambiente. Um segredo será gerado e persistido na tabela "configuracoes_sistema" no primeiro login.'
   );
 }
 

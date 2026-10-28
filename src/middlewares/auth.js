@@ -2,6 +2,7 @@
 
 const jwt = require('jsonwebtoken');
 const AppError = require('../errors/AppError');
+const { obterJwtSecret } = require('../config/jwtSecret');
 
 /** Perfis aceitos pelo sistema (RBAC). */
 const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
@@ -47,7 +48,7 @@ function extrairToken(req) {
  * Valida o JWT e popula `req.user = { id, perfil, nome, email }`.
  * O payload esperado do token é: { sub | id, perfil, nome?, email? }
  */
-function autenticar(req, res, next) {
+async function autenticar(req, res, next) {
   // Acesso temporário: ignora o JWT e injeta o usuário ADMIN padrão.
   if (BYPASS_ATIVO) {
     req.user = usuarioBypass();
@@ -60,12 +61,15 @@ function autenticar(req, res, next) {
     return next(new AppError(401, 'Token de autenticação ausente.'));
   }
 
-  if (!process.env.JWT_SECRET) {
-    return next(new AppError(500, 'JWT_SECRET não configurado no servidor.'));
+  let secret;
+  try {
+    secret = await obterJwtSecret();
+  } catch (err) {
+    return next(err);
   }
 
   try {
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, secret);
 
     const id = Number(payload.sub !== undefined ? payload.sub : payload.id);
     const perfil = payload.perfil;
