@@ -1,0 +1,70 @@
+# =============================================================================
+# Render Blueprint — Synapse (Omega Track)
+# Deploy de 2 serviços:
+#   1) synapse-api -> Web Service Node (Express + Prisma + Neon)
+#   2) synapse-web -> Static Site (React + Vite)
+#
+# Uso: no painel do Render, New + > Blueprint > aponte para este repositório.
+# As variáveis marcadas com `sync: false` devem ser preenchidas no painel.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # API (Node/Express + Prisma)
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: synapse-api
+    runtime: node
+    plan: free
+    region: oregon
+    branch: main
+    rootDir: .
+    buildCommand: npm install && npm run build:backend
+    # `migrate deploy` garante o schema atualizado antes de aceitar tráfego.
+    startCommand: npm run prisma:deploy && npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: CLOUDINARY_FOLDER
+        value: synapse/orcamentos
+      - key: UPLOAD_MAX_BYTES
+        value: 10485760
+      - key: UPLOAD_MAX_WIDTH
+        value: 1920
+      - key: UPLOAD_WEBP_QUALITY
+        value: 80
+
+  # ---------------------------------------------------------------------------
+  # Front-end (React + Vite) — Static Site
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: synapse-web
+    runtime: static
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    autoDeploy: true
+    envVars:
+      # URL pública da API + sufixo /api (ex.: https://synapse-api.onrender.com/api)
+      - key: VITE_API_URL
+        sync: false
+    routes:
+      # SPA (react-router): qualquer rota desconhecida volta para o index.html
+      - type: rewrite
+        source: /*
+        destination: /index.html

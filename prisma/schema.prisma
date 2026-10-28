@@ -1,0 +1,193 @@
+// =============================================================================
+// Synapse - Módulo de Orçamentos + Autenticação
+// Schema Prisma (PostgreSQL / Neon)
+//
+// O Prisma é a ÚNICA fonte de verdade do banco de dados.
+// Fluxo em desenvolvimento:  npm run prisma:migrate
+// Fluxo em produção (Render): npm run prisma:deploy
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Perfis de acesso (RBAC) reconhecidos pelo sistema.
+enum PerfilUsuario {
+  ORCAMENTISTA
+  PLANEJADOR
+  SUPERVISOR
+  ADMIN
+}
+
+/// Fluxo operacional do orçamento (validado pelo processo de engenharia).
+/// Ordem natural do ciclo: levantamento → envio → aprovação → planejamento → OSI.
+enum StatusOrcamento {
+  /// Estado inicial: levantamento em campo.
+  VISITA_TECNICA
+  /// Estruturado e enviado ao cliente para análise.
+  AGUARDANDO_APROVACAO
+  /// Aprovado pelo cliente — gatilho do Supervisão de Planejamento.
+  APROVADO
+  /// Desaprovado ou cancelado.
+  DESATIVADO
+  /// Fase intermediária: acionamento do planejamento.
+  ENCAMINHADO_OSI
+  /// Ordem de Serviço Interna emitida.
+  OSI_EMITIDA
+}
+
+/// Ciclo de vida operacional da obra (governança ISO 9001).
+/// Isola a execução em campo do ciclo comercial do orçamento.
+enum StatusObra {
+  /// Aprovada e com documentação de partida pendente (OSI e/ou Ata).
+  PARA_INICIAR
+  /// Serviço em execução em campo.
+  EM_ANDAMENTO
+  /// Execução interrompida temporariamente.
+  PARALISADA
+  /// Serviço concluído.
+  CONCLUIDA
+}
+
+// -----------------------------------------------------------------------------
+// Usuários (autenticação JWT)
+// -----------------------------------------------------------------------------
+model Usuario {
+  id         Int           @id @default(autoincrement())
+  nome       String        @db.VarChar(255)
+  matricula  String?       @unique @db.VarChar(30)
+  email      String        @unique @db.VarChar(255)
+  senha_hash String        @db.VarChar(255)
+  perfil     PerfilUsuario @default(ORCAMENTISTA)
+  ativo      Boolean       @default(true)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+
+  orcamentos_orcamentista Orcamento[]        @relation("Orcamentista")
+  orcamentos_planejador   Orcamento[]        @relation("Planejador")
+  revisoes                OrcamentoRevisao[]
+  obras_planejador        Obra[]             @relation("ObraPlanejador")
+  obras_osi_emitidas      Obra[]             @relation("ObraOsiEmissor")
+
+  @@map("usuarios")
+}
+
+// -----------------------------------------------------------------------------
+// Orçamentos
+// -----------------------------------------------------------------------------
+model Orcamento {
+  id                    Int             @id @default(autoincrement())
+  /// Programa de Engenharia / PEP — obrigatório (regra ISO 9001).
+  pep                   String          @db.VarChar(100)
+  cliente               String?         @db.VarChar(255)
+  /// Solicitação de Serviço.
+  ss                    String?         @db.VarChar(60)
+  descricao             String?
+  endereco              String?
+  documentos_referencia String?
+  status                StatusOrcamento @default(VISITA_TECNICA)
+  /// Valor vigente — atualizado a cada revisão registrada.
+  valor                 Decimal         @default(0) @db.Decimal(14, 2)
+  /// Só pode ser gravado por PLANEJADOR, SUPERVISOR ou ADMIN (validado no service).
+  art                   String?         @db.VarChar(120)
+  /// Autor do orçamento.
+  orcamentista_id       Int?
+  /// Só pode ser atribuído por SUPERVISOR ou ADMIN (validado no service).
+  planejador_id         Int?
+  /// URL Cloudinary da foto principal — obrigatória.
+  foto_1                String
+  foto_2                String?
+  foto_3                String?
+  created_at            DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+
+  orcamentista Usuario? @relation("Orcamentista", fields: [orcamentista_id], references: [id], onDelete: SetNull)
+  planejador   Usuario? @relation("Planejador", fields: [planejador_id], references: [id], onDelete: SetNull)
+  revisoes     OrcamentoRevisao[]
+  fiscais      OrcamentoFiscal[]
+  obra         Obra?
+
+  @@index([status])
+  @@index([pep])
+  @@map("orcamentos")
+}
+
+// -----------------------------------------------------------------------------
+// Fiscais do orçamento (N por orçamento — nome + contato)
+// -----------------------------------------------------------------------------
+model OrcamentoFiscal {
+  id           Int      @id @default(autoincrement())
+  orcamento_id Int
+  nome         String   @db.VarChar(255)
+  /// Telefone e/ou e-mail de contato do fiscal.
+  contato      String?  @db.VarChar(255)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  orcamento Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
+
+  @@index([orcamento_id])
+  @@index([nome])
+  @@map("orcamento_fiscais")
+}
+
+// -----------------------------------------------------------------------------
+// Histórico de revisões de valor (versionamento sequencial)
+// -----------------------------------------------------------------------------
+model OrcamentoRevisao {
+  id             Int      @id @default(autoincrement())
+  orcamento_id   Int
+  /// 0 = Rev 00, 1 = Rev 01, ...
+  numero_revisao Int
+  valor          Decimal  @db.Decimal(14, 2)
+  /// Justificativa obrigatória da alteração de valor.
+  observacao     String
+  /// Quem gerou a revisão.
+  usuario_id     Int?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  orcamento Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
+  usuario   Usuario?  @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@unique([orcamento_id, numero_revisao], name: "uq_revisao_por_orcamento")
+  @@map("orcamento_revisoes")
+}
+
+// -----------------------------------------------------------------------------
+// Obras — ciclo operacional de execução (ISO 9001)
+//
+// Relação 1:1 com o orçamento aprovado. O orçamento carrega o ciclo comercial
+// (levantamento → aprovação); esta tabela carrega a governança de execução:
+// documento de partida (OSI + Ata de Reunião) e o ciclo de vida em campo.
+// -----------------------------------------------------------------------------
+model Obra {
+  id              Int        @id @default(autoincrement())
+  orcamento_id    Int        @unique
+  /// Ciclo de vida operacional em campo.
+  status          StatusObra @default(PARA_INICIAR)
+  /// Técnico Planejador responsável — atribuído por Gestor/Supervisor.
+  planejador_id   Int?
+  /// Número da Ordem de Serviço Interna (OSI).
+  osi_numero      String?    @db.VarChar(60)
+  osi_emitida_em  DateTime?  @db.Timestamptz(6)
+  /// Usuário que registrou a emissão da OSI.
+  osi_emitida_por Int?
+  /// URL Cloudinary da Ata de Reunião de Partida (Kick-off).
+  ata_partida_url String?
+  /// Observações gerais do planejamento.
+  observacoes     String?
+  created_at      DateTime   @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+
+  orcamento           Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
+  planejador          Usuario?  @relation("ObraPlanejador", fields: [planejador_id], references: [id], onDelete: SetNull)
+  osi_emitida_usuario Usuario?  @relation("ObraOsiEmissor", fields: [osi_emitida_por], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([planejador_id])
+  @@map("obras")
+}

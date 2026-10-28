@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Entrada suave dos cards do Kanban (aplicada quando o card é montado na coluna). */
+@keyframes kanban-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-slate-100 text-slate-800 antialiased;
+  }
+}
+
+@layer components {
+  .campo {
+    @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800
+           placeholder:text-slate-400 shadow-sm transition
+           focus:border-omega-500 focus:outline-none focus:ring-2 focus:ring-omega-500/25
+           disabled:cursor-not-allowed disabled:bg-slate-100;
+  }
+
+  .rotulo {
+    @apply mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold
+           transition focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:cursor-not-allowed
+           disabled:opacity-60;
+  }
+
+  .btn-primario {
+    @apply btn bg-omega-600 text-white shadow-sm hover:bg-omega-700 focus:ring-omega-500/40;
+  }
+
+  .btn-neutro {
+    @apply btn border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 focus:ring-slate-300;
+  }
+
+  .btn-perigo {
+    @apply btn border border-red-200 bg-red-50 text-red-700 hover:bg-red-100 focus:ring-red-300;
+  }
+
+  .card {
+    @apply rounded-lg border border-slate-200 bg-white shadow-sm;
+  }
+
+  .animar-kanban {
+    animation: kanban-entrada 220ms ease-out;
+  }
+}
+
+/* ==========================================================================
+   Impressão da OSI (Ctrl + P)
+   O documento é montado em um portal cujo nó é filho direto do <body>
+   (#osi-impressao-root). Na impressão tudo o mais é ocultado, deixando apenas
+   a folha A4 — o mesmo CSS serve para "Salvar como PDF" do navegador.
+   ========================================================================== */
+@page {
+  size: A4 portrait;
+  margin: 14mm;
+}
+
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body > *:not(#osi-impressao-root) {
+    display: none !important;
+  }
+
+  #osi-impressao-root {
+    position: static !important;
+    inset: auto !important;
+    display: block !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+  }
+
+  #osi-impressao-root .nao-imprimir {
+    display: none !important;
+  }
+
+  #osi-impressao-rolagem {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
+
+  #osi-impressao {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+}

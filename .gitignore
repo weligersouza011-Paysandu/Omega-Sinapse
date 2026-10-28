@@ -1,0 +1,10 @@
+node_modules/
+.env
+frontend/node_modules/
+frontend/dist/
+frontend/.env.local
+npm-debug.log*
+.DS_Store
+
+# Dados locais de importação (planilhas e fotos de clientes) — não versionar
+13/

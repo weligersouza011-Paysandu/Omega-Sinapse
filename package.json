@@ -1,0 +1,42 @@
+{
+  "name": "synapse-backend",
+  "version": "1.0.0",
+  "description": "Synapse - Back-end Core (Express + Prisma + Neon PostgreSQL) - Módulo de Orçamentos",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "build": "npm run build:backend && npm run build:frontend",
+    "build:backend": "prisma generate",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:frontend:install": "npm --prefix frontend ci --include=dev",
+    "heroku-postbuild": "npm run build:frontend:install && npm run build:frontend",
+    "criar-usuario": "node src/scripts/criarUsuario.js",
+    "importar:historico": "node scripts/importarHistorico.js",
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:status": "prisma migrate status",
+    "prisma:format": "prisma format",
+    "prisma:studio": "prisma studio"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "bcryptjs": "^2.4.3",
+    "cloudinary": "^2.11.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.5.0",
+    "sharp": "^0.35.5",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0",
+    "prisma": "^5.22.0"
+  }
+}
