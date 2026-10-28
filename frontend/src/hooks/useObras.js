@@ -24,9 +24,103 @@ export async function listarObras(filtros = {}) {
   return data;
 }
 
-/** Busca uma obra por ID (com projeto, fiscais e histórico de revisões). */
+/** Busca uma obra por ID (com projeto, fiscais, revisões e detalhamento). */
 export async function obterObra(id) {
   const { data } = await api.get(`/obras/${id}`);
+  return data;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Detalhamento da obra (localizações, Curva S, RDO, tarefas e mídias)        */
+/* -------------------------------------------------------------------------- */
+
+export async function criarLocalizacaoObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/localizacoes`, dados);
+  return data;
+}
+
+export async function atualizarLocalizacaoObra(obraId, localizacaoId, dados) {
+  const { data } = await api.put(`/obras/${obraId}/localizacoes/${localizacaoId}`, dados);
+  return data;
+}
+
+export async function removerLocalizacaoObra(obraId, localizacaoId) {
+  const { data } = await api.delete(`/obras/${obraId}/localizacoes/${localizacaoId}`);
+  return data;
+}
+
+export async function criarAvancoFisico(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/avanco-fisico`, dados);
+  return data;
+}
+
+export async function atualizarAvancoFisico(obraId, avancoId, dados) {
+  const { data } = await api.put(`/obras/${obraId}/avanco-fisico/${avancoId}`, dados);
+  return data;
+}
+
+export async function removerAvancoFisico(obraId, avancoId) {
+  const { data } = await api.delete(`/obras/${obraId}/avanco-fisico/${avancoId}`);
+  return data;
+}
+
+export async function criarRelatorioObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/relatorios`, dados);
+  return data;
+}
+
+export async function atualizarRelatorioObra(obraId, relatorioId, dados) {
+  const { data } = await api.put(`/obras/${obraId}/relatorios/${relatorioId}`, dados);
+  return data;
+}
+
+export async function removerRelatorioObra(obraId, relatorioId) {
+  const { data } = await api.delete(`/obras/${obraId}/relatorios/${relatorioId}`);
+  return data;
+}
+
+export async function criarAtividadeObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/atividades`, dados);
+  return data;
+}
+
+export async function atualizarAtividadeObra(obraId, atividadeId, dados) {
+  const { data } = await api.put(`/obras/${obraId}/atividades/${atividadeId}`, dados);
+  return data;
+}
+
+export async function removerAtividadeObra(obraId, atividadeId) {
+  const { data } = await api.delete(`/obras/${obraId}/atividades/${atividadeId}`);
+  return data;
+}
+
+export async function criarOcorrenciaObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/ocorrencias`, dados);
+  return data;
+}
+
+export async function removerOcorrenciaObra(obraId, ocorrenciaId) {
+  const { data } = await api.delete(`/obras/${obraId}/ocorrencias/${ocorrenciaId}`);
+  return data;
+}
+
+export async function criarComentarioObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/comentarios`, dados);
+  return data;
+}
+
+export async function removerComentarioObra(obraId, comentarioId) {
+  const { data } = await api.delete(`/obras/${obraId}/comentarios/${comentarioId}`);
+  return data;
+}
+
+export async function criarMidiaObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/midias`, dados);
+  return data;
+}
+
+export async function removerMidiaObra(obraId, midiaId) {
+  const { data } = await api.delete(`/obras/${obraId}/midias/${midiaId}`);
   return data;
 }
 
@@ -61,6 +155,20 @@ export async function enviarDocumento(arquivo) {
   formulario.append('documento', arquivo);
 
   const { data } = await api.post('/uploads/documento', formulario, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return data;
+}
+
+/**
+ * Envia até 3 imagens (campo "fotos") e devolve as URLs já otimizadas.
+ * Usado no cadastro de fotos do detalhamento da obra.
+ */
+export async function enviarFotosObra(arquivos = []) {
+  const formulario = new FormData();
+  arquivos.forEach((arquivo) => formulario.append('fotos', arquivo));
+
+  const { data } = await api.post('/uploads/fotos', formulario, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return data;
@@ -247,4 +355,49 @@ export function usePlanejadores(ativo = true) {
   }, [ativo]);
 
   return { planejadores, carregando };
+}
+
+/**
+ * Carrega o detalhamento completo de uma obra e expõe `setObra` para que as
+ * mutações (que devolvem a obra consolidada) atualizem a página sem refetch.
+ */
+export function useObraDetalhe(obraId) {
+  const [obra, setObra] = useState(null);
+  const [carregando, setCarregando] = useState(Boolean(obraId));
+  const [erro, setErro] = useState('');
+  const [gatilho, setGatilho] = useState(0);
+
+  useEffect(() => {
+    if (!obraId) {
+      setObra(null);
+      setCarregando(false);
+      return undefined;
+    }
+
+    let cancelado = false;
+    setCarregando(true);
+    setErro('');
+
+    obterObra(obraId)
+      .then((dados) => {
+        if (!cancelado) setObra(dados);
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErro(err.message || 'Não foi possível carregar a obra.');
+          setObra(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCarregando(false);
+      });
+
+    return () => {
+      cancelado = true;
+    };
+  }, [obraId, gatilho]);
+
+  const recarregar = useCallback(() => setGatilho((valor) => valor + 1), []);
+
+  return { obra, carregando, erro, recarregar, setObra };
 }

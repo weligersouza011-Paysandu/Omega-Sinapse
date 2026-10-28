@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Columns3, LayoutGrid, UserRound } from 'lucide-react';
 import CardObra from '../components/CardObra.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import EtiquetasPendencia from '../components/EtiquetasPendencia.jsx';
-import ModalDetalhesObra from '../components/ModalDetalhesObra.jsx';
 import QuadroKanban from '../components/QuadroKanban.jsx';
 import SeletorPlanejador from '../components/SeletorPlanejador.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -49,6 +49,7 @@ const TEXTOS_QUADRO = {
 export default function Obras() {
   const { usuario } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [visao, setVisao] = useState('cards');
   const [pagina, setPagina] = useState(1);
@@ -56,7 +57,6 @@ export default function Obras() {
   const [buscaAplicada, setBuscaAplicada] = useState('');
   const [status, setStatus] = useState('');
   const [pendencia, setPendencia] = useState('');
-  const [idDetalhe, setIdDetalhe] = useState(null);
 
   const podeAtribuirPlanejador = PERFIS_QUE_ATRIBUEM.includes(usuario?.perfil);
   const { planejadores, carregando: carregandoPlanejadores } = usePlanejadores(
@@ -294,7 +294,7 @@ export default function Obras() {
                 <CardObra
                   key={obra.id}
                   orcamento={obra}
-                  onClick={() => setIdDetalhe(obra.id)}
+                  onClick={() => navigate(`/obras/${obra.id}`)}
                   planejadores={planejadores}
                   carregandoPlanejadores={carregandoPlanejadores}
                   onAtribuirPlanejador={podeAtribuirPlanejador ? atribuirPlanejador : undefined}
@@ -308,7 +308,7 @@ export default function Obras() {
             carregando={quadro.carregando}
             erro={quadro.erro}
             onRecarregar={quadro.recarregar}
-            onAbrirDetalhe={(id) => setIdDetalhe(id)}
+            onAbrirDetalhe={(id) => navigate(`/obras/${id}`)}
             opcoes={STATUS_OBRA_OPCOES}
             aoMover={moverStatus}
             textos={TEXTOS_QUADRO}
@@ -365,13 +365,6 @@ export default function Obras() {
           </div>
         ) : null}
       </div>
-
-      <ModalDetalhesObra
-        aberto={Boolean(idDetalhe)}
-        obraId={idDetalhe}
-        onFechar={() => setIdDetalhe(null)}
-        onAtualizado={recarregarTudo}
-      />
     </>
   );
 }

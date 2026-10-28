@@ -54,6 +54,40 @@ enum StatusObra {
   CONCLUIDA
 }
 
+/// Natureza da localização da obra: ponto geográfico ou trecho linear (km).
+enum TipoLocalizacaoObra {
+  PONTO
+  TRECHO
+}
+
+/// Situação do Relatório Diário de Obra (RDO).
+enum StatusRelatorioObra {
+  RASCUNHO
+  ENVIADO
+  APROVADO
+}
+
+/// Situação de uma atividade/tarefa da obra.
+enum StatusAtividadeObra {
+  PENDENTE
+  EM_ANDAMENTO
+  CONCLUIDA
+}
+
+/// Gravidade de uma ocorrência registrada em campo.
+enum GravidadeOcorrencia {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+/// Tipo de mídia anexada à obra/relatório.
+enum TipoMidiaObra {
+  FOTO
+  VIDEO
+}
+
 // -----------------------------------------------------------------------------
 // Usuários (autenticação JWT)
 // -----------------------------------------------------------------------------
@@ -73,6 +107,8 @@ model Usuario {
   revisoes                OrcamentoRevisao[]
   obras_planejador        Obra[]             @relation("ObraPlanejador")
   obras_osi_emitidas      Obra[]             @relation("ObraOsiEmissor")
+  relatorios_autor        ObraRelatorio[]    @relation("RelatorioAutor")
+  comentarios_autor       ObraComentario[]   @relation("ComentarioAutor")
 
   @@map("usuarios")
 }
@@ -119,8 +155,8 @@ model Orcamento {
   created_at            DateTime        @default(now()) @db.Timestamptz(6)
   updated_at            DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
 
-  orcamentista Usuario? @relation("Orcamentista", fields: [orcamentista_id], references: [id], onDelete: SetNull)
-  planejador   Usuario? @relation("Planejador", fields: [planejador_id], references: [id], onDelete: SetNull)
+  orcamentista Usuario?           @relation("Orcamentista", fields: [orcamentista_id], references: [id], onDelete: SetNull)
+  planejador   Usuario?           @relation("Planejador", fields: [planejador_id], references: [id], onDelete: SetNull)
   revisoes     OrcamentoRevisao[]
   fiscais      OrcamentoFiscal[]
   obra         Obra?
@@ -200,7 +236,181 @@ model Obra {
   planejador          Usuario?  @relation("ObraPlanejador", fields: [planejador_id], references: [id], onDelete: SetNull)
   osi_emitida_usuario Usuario?  @relation("ObraOsiEmissor", fields: [osi_emitida_por], references: [id], onDelete: SetNull)
 
+  localizacoes  ObraLocalizacao[]
+  avanco_fisico ObraAvancoFisico[]
+  relatorios    ObraRelatorio[]
+  atividades    ObraAtividade[]
+  ocorrencias   ObraOcorrencia[]
+  comentarios   ObraComentario[]
+  midias        ObraMidia[]
+
   @@index([status])
   @@index([planejador_id])
   @@map("obras")
+}
+
+// -----------------------------------------------------------------------------
+// Múltiplas localizações da obra (pontos geográficos ou trechos em km)
+// -----------------------------------------------------------------------------
+model ObraLocalizacao {
+  id         Int                 @id @default(autoincrement())
+  obra_id    Int
+  descricao  String              @db.VarChar(255)
+  tipo       TipoLocalizacaoObra @default(PONTO)
+  /// Coordenadas do ponto ou do início do trecho.
+  latitude   Decimal?            @db.Decimal(10, 7)
+  longitude  Decimal?            @db.Decimal(10, 7)
+  /// Quilometragem inicial/final para obras lineares (tubulações, ferrovias).
+  km_inicial Decimal?            @db.Decimal(10, 3)
+  km_final   Decimal?            @db.Decimal(10, 3)
+  /// Referência livre (ex.: "KM 12+350", "Portão Norte", "Travessia do rio").
+  referencia String?             @db.VarChar(120)
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra Obra @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@map("obra_localizacoes")
+}
+
+// -----------------------------------------------------------------------------
+// Avanço físico semanal (base histórica da Curva S)
+// -----------------------------------------------------------------------------
+model ObraAvancoFisico {
+  id               Int      @id @default(autoincrement())
+  obra_id          Int
+  data             DateTime @db.Date
+  semana           Int
+  /// Avanço previsto no período (percentual da obra).
+  fisico_prev      Decimal  @default(0) @db.Decimal(6, 2)
+  /// Linha de base prevista no período.
+  fisico_lb_prev   Decimal  @default(0) @db.Decimal(6, 2)
+  /// Avanço realizado no período.
+  fisico_real      Decimal  @default(0) @db.Decimal(6, 2)
+  /// Tendência acumulada.
+  fisico_tend_acum Decimal  @default(0) @db.Decimal(6, 2)
+  /// Previsto acumulado.
+  fisico_prev_acum Decimal  @default(0) @db.Decimal(6, 2)
+  /// Realizado acumulado.
+  fisico_real_acum Decimal  @default(0) @db.Decimal(6, 2)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra Obra @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@unique([obra_id, semana], name: "uq_avanco_semana_por_obra")
+  @@index([obra_id])
+  @@map("obra_avanco_fisico")
+}
+
+// -----------------------------------------------------------------------------
+// Relatório Diário de Obra (RDO) — cabeçalho do registro de campo
+// -----------------------------------------------------------------------------
+model ObraRelatorio {
+  id         Int                 @id @default(autoincrement())
+  obra_id    Int
+  data       DateTime            @db.Date
+  titulo     String              @db.VarChar(200)
+  resumo     String?
+  status     StatusRelatorioObra @default(RASCUNHO)
+  autor_id   Int?
+  created_at DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra        Obra             @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  autor       Usuario?         @relation("RelatorioAutor", fields: [autor_id], references: [id], onDelete: SetNull)
+  atividades  ObraAtividade[]
+  ocorrencias ObraOcorrencia[]
+  comentarios ObraComentario[]
+  midias      ObraMidia[]
+
+  @@index([obra_id])
+  @@index([data])
+  @@map("obra_relatorios")
+}
+
+// -----------------------------------------------------------------------------
+// Atividades / tarefas da obra (podem pertencer a um RDO ou ser avulsas)
+// -----------------------------------------------------------------------------
+model ObraAtividade {
+  id           Int                 @id @default(autoincrement())
+  obra_id      Int
+  relatorio_id Int?
+  titulo       String              @db.VarChar(200)
+  descricao    String?
+  status       StatusAtividadeObra @default(PENDENTE)
+  responsavel  String?             @db.VarChar(120)
+  prazo        DateTime?           @db.Date
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra      Obra           @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  relatorio ObraRelatorio? @relation(fields: [relatorio_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([relatorio_id])
+  @@index([status])
+  @@map("obra_atividades")
+}
+
+// -----------------------------------------------------------------------------
+// Ocorrências registradas em campo (podem pertencer a um RDO)
+// -----------------------------------------------------------------------------
+model ObraOcorrencia {
+  id           Int                 @id @default(autoincrement())
+  obra_id      Int
+  relatorio_id Int?
+  descricao    String
+  gravidade    GravidadeOcorrencia @default(MEDIA)
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra      Obra           @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  relatorio ObraRelatorio? @relation(fields: [relatorio_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([relatorio_id])
+  @@map("obra_ocorrencias")
+}
+
+// -----------------------------------------------------------------------------
+// Comentários da obra (podem pertencer a um RDO)
+// -----------------------------------------------------------------------------
+model ObraComentario {
+  id           Int      @id @default(autoincrement())
+  obra_id      Int
+  relatorio_id Int?
+  autor_id     Int?
+  texto        String
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  obra      Obra           @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  relatorio ObraRelatorio? @relation(fields: [relatorio_id], references: [id], onDelete: Cascade)
+  autor     Usuario?       @relation("ComentarioAutor", fields: [autor_id], references: [id], onDelete: SetNull)
+
+  @@index([obra_id])
+  @@index([relatorio_id])
+  @@map("obra_comentarios")
+}
+
+// -----------------------------------------------------------------------------
+// Fotos e vídeos da obra (podem pertencer a um RDO)
+// -----------------------------------------------------------------------------
+model ObraMidia {
+  id           Int           @id @default(autoincrement())
+  obra_id      Int
+  relatorio_id Int?
+  tipo         TipoMidiaObra @default(FOTO)
+  url          String
+  legenda      String?       @db.VarChar(255)
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+
+  obra      Obra           @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  relatorio ObraRelatorio? @relation(fields: [relatorio_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([relatorio_id])
+  @@index([tipo])
+  @@map("obra_midias")
 }

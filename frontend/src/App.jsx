@@ -7,6 +7,7 @@ import Login from './pages/Login.jsx';
 import DashboardOrcamentos from './pages/DashboardOrcamentos.jsx';
 import DashboardOrcamentosBI from './pages/DashboardOrcamentosBI.jsx';
 import Obras from './pages/Obras.jsx';
+import DetalheObra from './pages/DetalheObra.jsx';
 import Planejamento6WLA from './pages/Planejamento6WLA.jsx';
 import CurvaS from './pages/CurvaS.jsx';
 import MapaObras from './pages/MapaObras.jsx';
@@ -103,6 +104,7 @@ export default function App() {
         <Route path="/" element={<Navigate to="/orcamentos" replace />} />
         <Route path="/orcamentos" element={<DashboardOrcamentos />} />
         <Route path="/obras" element={<Obras />} />
+        <Route path="/obras/:id" element={<DetalheObra />} />
         <Route
           path="/usuarios"
           element={
