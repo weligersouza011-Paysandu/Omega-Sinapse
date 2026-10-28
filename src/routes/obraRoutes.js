@@ -3,6 +3,7 @@
 const { Router } = require('express');
 const obraController = require('../controllers/obraController');
 const obraDetalheController = require('../controllers/obraDetalheController');
+const dashboardController = require('../controllers/dashboardController');
 const { autorizar } = require('../middlewares/auth');
 
 const router = Router();
@@ -46,6 +47,11 @@ router.delete('/:id/comentarios/:comentarioId', obraDetalheController.removerCom
 // Fotos e vídeos.
 router.post('/:id/midias', obraDetalheController.criarMidia);
 router.delete('/:id/midias/:midiaId', obraDetalheController.removerMidia);
+
+// Restrições 6WLA (tabela do Dashboard de Planejamento).
+router.post('/:id/restricoes', dashboardController.criarRestricao);
+router.put('/:id/restricoes/:restricaoId', dashboardController.atualizarRestricao);
+router.delete('/:id/restricoes/:restricaoId', dashboardController.removerRestricao);
 
 // GET    /api/obras/:id        -> detalhe da obra (projeto, fiscais, revisões,
 // localizações, avanço físico e RDOs)

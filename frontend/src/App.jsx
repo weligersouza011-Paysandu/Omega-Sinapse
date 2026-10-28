@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RotaPorPerfil from './components/RotaPorPerfil.jsx';
@@ -8,7 +8,7 @@ import DashboardOrcamentos from './pages/DashboardOrcamentos.jsx';
 import DashboardOrcamentosBI from './pages/DashboardOrcamentosBI.jsx';
 import Obras from './pages/Obras.jsx';
 import DetalheObra from './pages/DetalheObra.jsx';
-import Planejamento6WLA from './pages/Planejamento6WLA.jsx';
+import DashboardPlanejamento from './pages/DashboardPlanejamento.jsx';
 import CurvaS from './pages/CurvaS.jsx';
 import MapaObras from './pages/MapaObras.jsx';
 import UsuariosPage from './pages/UsuariosPage.jsx';
@@ -40,8 +40,21 @@ const AMBIENTE = MODO_DEMO
  * evita que a grid de cards force overflow horizontal quando a Sidebar expande.
  */
 function AppLayout() {
-  const [recolhido, setRecolhido] = useState(false);
+  // Em telas menores (tablets e notebooks compactos) a Sidebar inicia recolhida
+  // para preservar a área útil dos dashboards; o usuário ainda pode expandi-la.
+  const [recolhido, setRecolhido] = useState(() =>
+    typeof window === 'undefined' ? false : window.innerWidth < 1280
+  );
   const local = useLocation();
+
+  useEffect(() => {
+    const consulta = window.matchMedia('(max-width: 1279px)');
+    const aoMudar = (evento) => setRecolhido(evento.matches);
+
+    setRecolhido(consulta.matches);
+    consulta.addEventListener('change', aoMudar);
+    return () => consulta.removeEventListener('change', aoMudar);
+  }, []);
 
   const moduloAtual =
     MODULOS.find((modulo) => local.pathname.startsWith(modulo.rota)) || MODULOS[0];
@@ -114,7 +127,7 @@ export default function App() {
           }
         />
         <Route path="/orcamentos/dashboard" element={<DashboardOrcamentosBI />} />
-        <Route path="/planejamento" element={<Planejamento6WLA />} />
+        <Route path="/planejamento" element={<DashboardPlanejamento />} />
         <Route path="/curva-s" element={<CurvaS />} />
         <Route path="/mapa" element={<MapaObras />} />
       </Route>

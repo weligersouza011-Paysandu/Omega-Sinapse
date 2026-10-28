@@ -31,6 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 const { PrismaClient } = require('@prisma/client');
+const { OSI_POR_OBRA } = require('../src/config/osiImportadas');
 
 const prisma = new PrismaClient();
 
@@ -46,25 +47,7 @@ const CASAS = 2;
  * a mesma numeração do SS (ex.: OSI-009/25 pertence ao SS008/25). Por isso o
  * vínculo foi conferido manualmente pela descrição da obra.
  */
-const MAPA_OSI = Object.freeze({
-  'OSI-001/26': 6,
-  'OSI-002/25': 15,
-  'OSI-002/26': 2,
-  'OSI-003/26': 29,
-  'OSI-004/26': 3,
-  'OSI-005/26': 5,
-  'OSI-008/24': 13,
-  'OSI-009/25': 9,
-  'OSI-010/25': 8,
-  'OSI-011/25': 23,
-  'OSI-012/26': 14,
-  'OSI-013/25': 28,
-  'OSI-014/26': 4,
-  'OSI-015/25': 24,
-  'OSI-017/25': 22,
-  'OSI-018/25': 21,
-  'OSI-019/25': 20,
-});
+const MAPA_OSI = OSI_POR_OBRA;
 
 const CAMPOS_SEMANAIS = ['prev', 'lb', 'real', 'tend'];
 const CAMPOS_PERCENTUAL = ['prev', 'lb', 'real', 'tend', 'prevAc', 'realAc'];

@@ -21,6 +21,9 @@ const PERFIS_QUE_EMITEM_OSI = [PERFIS.PLANEJADOR, PERFIS.SUPERVISOR, PERFIS.ADMI
 /** Ciclo de vida operacional da obra (espelha o enum StatusObra do schema). */
 const STATUS_VALIDOS = ['PARA_INICIAR', 'EM_ANDAMENTO', 'PARALISADA', 'CONCLUIDA'];
 
+/** Carteiras do dashboard executivo (espelha o enum CategoriaObra do schema). */
+const CATEGORIAS_VALIDAS = ['CADEIA_DE_AJUDA', 'CARTEIRA_DA_COORDENACAO'];
+
 const STATUS_INICIAL = 'PARA_INICIAR';
 
 /**
@@ -182,6 +185,26 @@ async function atualizarObra(idParam, payload, usuario) {
       }
 
       dados.planejador_id = planejadorId;
+    }
+  }
+
+  // ------------------------------------------------------------- Categoria
+  if (temCampo(payload, 'categoria')) {
+    if (!PERFIS_QUE_ATRIBUEM_PLANEJADOR.includes(usuario.perfil)) {
+      throw new AppError(403, 'Apenas perfis SUPERVISOR ou ADMIN podem classificar a obra.');
+    }
+
+    if (estaVazio(payload.categoria)) {
+      dados.categoria = null;
+    } else {
+      const categoria = String(payload.categoria).trim().toUpperCase();
+      if (!CATEGORIAS_VALIDAS.includes(categoria)) {
+        throw new AppError(
+          400,
+          `Categoria inválida. Valores aceitos: ${CATEGORIAS_VALIDAS.join(', ')}.`
+        );
+      }
+      dados.categoria = categoria;
     }
   }
 

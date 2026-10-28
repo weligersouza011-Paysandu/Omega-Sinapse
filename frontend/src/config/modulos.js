@@ -27,10 +27,10 @@ export const MODULOS = [
   {
     id: 'planejamento',
     rota: '/planejamento',
-    label: 'Planejamento / 6WLA',
-    descricao: 'Tabela de restrições e 6 Week Lookahead (MS Project).',
-    ativo: false,
-    icone: 'M4 6h16v14H4V6Zm0 4h16M9 3v4M15 3v4M8 14h8',
+    label: 'Dashboard de Planejamento',
+    descricao: 'Indicadores, mapa, Curva S e restrições 6WLA.',
+    ativo: true,
+    icone: 'M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Z',
   },
   {
     id: 'curva-s',

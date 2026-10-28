@@ -8,6 +8,7 @@ const uploadRoutes = require('./routes/uploadRoutes');
 const authRoutes = require('./routes/authRoutes');
 const usuarioRoutes = require('./routes/usuarioRoutes');
 const obraRoutes = require('./routes/obraRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
 const { autenticar } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
@@ -57,6 +58,8 @@ app.use('/api/orcamentos', autenticar, orcamentoRoutes);
 app.use('/api/usuarios', autenticar, usuarioRoutes);
 // Ciclo operacional de execução (obras): status, planejador, OSI e Ata de Partida.
 app.use('/api/obras', autenticar, obraRoutes);
+// Dashboard executivo de planejamento (obras, mapa, Curva S e restrições 6WLA).
+app.use('/api/dashboard', autenticar, dashboardRoutes);
 app.use('/api/uploads', autenticar, uploadRoutes);
 
 // ---------------------------------------------------------------------------

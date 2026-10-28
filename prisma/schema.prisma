@@ -54,6 +54,22 @@ enum StatusObra {
   CONCLUIDA
 }
 
+/// Carteira de planejamento à qual a obra pertence no dashboard executivo.
+enum CategoriaObra {
+  /// Serviços de apoio / cadeia de ajuda.
+  CADEIA_DE_AJUDA
+  /// Obras sob gestão direta da coordenação.
+  CARTEIRA_DA_COORDENACAO
+}
+
+/// Situação de uma restrição da metodologia 6WLA (lookahead de 6 semanas).
+enum StatusRestricao {
+  PENDENTE
+  EM_ANDAMENTO
+  RESOLVIDA
+  CANCELADA
+}
+
 /// Natureza da localização da obra: ponto geográfico ou trecho linear (km).
 enum TipoLocalizacaoObra {
   PONTO
@@ -214,23 +230,25 @@ model OrcamentoRevisao {
 // documento de partida (OSI + Ata de Reunião) e o ciclo de vida em campo.
 // -----------------------------------------------------------------------------
 model Obra {
-  id              Int        @id @default(autoincrement())
-  orcamento_id    Int        @unique
+  id              Int            @id @default(autoincrement())
+  orcamento_id    Int            @unique
   /// Ciclo de vida operacional em campo.
-  status          StatusObra @default(PARA_INICIAR)
+  status          StatusObra     @default(PARA_INICIAR)
+  /// Carteira do dashboard de planejamento (Cadeia de Ajuda ou Coordenação).
+  categoria       CategoriaObra?
   /// Técnico Planejador responsável — atribuído por Gestor/Supervisor.
   planejador_id   Int?
   /// Número da Ordem de Serviço Interna (OSI).
-  osi_numero      String?    @db.VarChar(60)
-  osi_emitida_em  DateTime?  @db.Timestamptz(6)
+  osi_numero      String?        @db.VarChar(60)
+  osi_emitida_em  DateTime?      @db.Timestamptz(6)
   /// Usuário que registrou a emissão da OSI.
   osi_emitida_por Int?
   /// URL Cloudinary da Ata de Reunião de Partida (Kick-off).
   ata_partida_url String?
   /// Observações gerais do planejamento.
   observacoes     String?
-  created_at      DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime   @default(now()) @updatedAt @db.Timestamptz(6)
+  created_at      DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
 
   orcamento           Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
   planejador          Usuario?  @relation("ObraPlanejador", fields: [planejador_id], references: [id], onDelete: SetNull)
@@ -240,6 +258,7 @@ model Obra {
   avanco_fisico ObraAvancoFisico[]
   relatorios    ObraRelatorio[]
   atividades    ObraAtividade[]
+  restricoes    ObraRestricao[]
   ocorrencias   ObraOcorrencia[]
   comentarios   ObraComentario[]
   midias        ObraMidia[]
@@ -352,6 +371,38 @@ model ObraAtividade {
   @@index([relatorio_id])
   @@index([status])
   @@map("obra_atividades")
+}
+
+// -----------------------------------------------------------------------------
+// Restrições 6WLA (lookahead de 6 semanas) — tabela de constraints do dashboard
+// -----------------------------------------------------------------------------
+model ObraRestricao {
+  id                  Int             @id @default(autoincrement())
+  obra_id             Int
+  /// Etapa/frente de serviço (ex.: "Mobilização", "Tubulação").
+  etapa               String?         @db.VarChar(120)
+  /// Atividade impactada pela restrição.
+  atividade           String          @db.VarChar(200)
+  /// Descrição objetiva do impedimento.
+  descricao           String
+  /// Plano de ação para remoção da restrição (Q1/RFT).
+  plano_acao          String?
+  /// Responsável pela remoção da restrição.
+  responsavel         String?         @db.VarChar(120)
+  /// Empresa responsável (ex.: Vale, Omega Service).
+  empresa_responsavel String?         @db.VarChar(120)
+  status              StatusRestricao @default(PENDENTE)
+  /// Prazo (QUANDO) para remoção da restrição.
+  prazo               DateTime?       @db.Date
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra Obra @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id])
+  @@index([status])
+  @@index([prazo])
+  @@map("obra_restricoes")
 }
 
 // -----------------------------------------------------------------------------
