@@ -1,5 +1,16 @@
-import { useState } from 'react';
-import { ExternalLink, MapPin, Pencil, Plus, Route, Trash2, X } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  ExternalLink,
+  Loader2,
+  Map as MapIcon,
+  MapPin,
+  MousePointerClick,
+  Pencil,
+  Plus,
+  Route,
+  Trash2,
+  X,
+} from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import {
@@ -7,6 +18,10 @@ import {
   criarLocalizacaoObra,
   removerLocalizacaoObra,
 } from '../../hooks/useObras.js';
+import { geocodificarReverso } from '../../utils/geocodificacao.js';
+import { coordenadasDe } from '../../utils/coordenadas.js';
+
+const MapaLocalizacoes = lazy(() => import('./MapaLocalizacoes.jsx'));
 
 const FORM_VAZIO = {
   tipo: 'PONTO',
@@ -28,6 +43,18 @@ function formatarNumero(valor, casas = 3) {
   });
 }
 
+/** Placeholder exibido enquanto o chunk do Leaflet é carregado. */
+function MapaCarregando({ altura = 'h-72' }) {
+  return (
+    <div
+      className={`${altura} flex w-full items-center justify-center gap-2 bg-slate-100 text-xs font-medium text-slate-500`}
+    >
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+      Carregando mapa…
+    </div>
+  );
+}
+
 /**
  * Gestão de múltiplas localizações da obra: pontos geográficos (lat/long) e
  * trechos lineares (quilometragem), com inclusão, edição e remoção.
@@ -39,14 +66,37 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
   const [formAberto, setFormAberto] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
+  const [buscandoEndereco, setBuscandoEndereco] = useState(false);
+  const [sugestaoEndereco, setSugestaoEndereco] = useState('');
+  const requisicaoEndereco = useRef(null);
 
   const localizacoes = obra?.localizacoes || [];
+
+  const localizacoesComCoordenadas = useMemo(
+    () => localizacoes.filter((localizacao) => coordenadasDe(localizacao) !== null).length,
+    [localizacoes]
+  );
+
+  useEffect(
+    () => () => {
+      requisicaoEndereco.current?.abort();
+    },
+    []
+  );
 
   function alterar(campo, valor) {
     setForm((atual) => ({ ...atual, [campo]: valor }));
   }
 
+  function cancelarBuscaEndereco() {
+    requisicaoEndereco.current?.abort();
+    requisicaoEndereco.current = null;
+    setBuscandoEndereco(false);
+    setSugestaoEndereco('');
+  }
+
   function limparFormulario() {
+    cancelarBuscaEndereco();
     setForm(FORM_VAZIO);
     setEditandoId(null);
     setFormAberto(false);
@@ -54,6 +104,7 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
   }
 
   function iniciarEdicao(localizacao) {
+    cancelarBuscaEndereco();
     setEditandoId(localizacao.id);
     setForm({
       tipo: localizacao.tipo || 'PONTO',
@@ -66,6 +117,56 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
     });
     setFormAberto(true);
     setErro('');
+  }
+
+  /**
+   * Clique (ou arraste) no mapa: atualiza as coordenadas do formulário e
+   * consulta o endereço aproximado no Nominatim. A sugestão só preenche a
+   * descrição automaticamente quando o campo ainda está vazio.
+   */
+  function selecionarNoMapa({ latitude, longitude }) {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
+
+    const descricaoEstavaVazia = !form.descricao.trim();
+    setForm((atual) => ({
+      ...atual,
+      latitude: latitude.toFixed(6),
+      longitude: longitude.toFixed(6),
+    }));
+    setSugestaoEndereco('');
+
+    requisicaoEndereco.current?.abort();
+    const controlador = new AbortController();
+    requisicaoEndereco.current = controlador;
+    setBuscandoEndereco(true);
+
+    geocodificarReverso(latitude, longitude, { signal: controlador.signal })
+      .then((resultado) => {
+        if (!resultado.endereco || controlador.signal.aborted) return;
+
+        setSugestaoEndereco(resultado.endereco);
+        if (descricaoEstavaVazia) {
+          setForm((atual) =>
+            atual.descricao.trim() ? atual : { ...atual, descricao: resultado.endereco }
+          );
+        }
+      })
+      .catch((falha) => {
+        // A geocodificação é opcional: falhas não bloqueiam o cadastro.
+        if (falha.name !== 'AbortError') {
+          setSugestaoEndereco('');
+        }
+      })
+      .finally(() => {
+        if (requisicaoEndereco.current === controlador) {
+          setBuscandoEndereco(false);
+        }
+      });
+  }
+
+  function aplicarSugestao() {
+    if (!sugestaoEndereco) return;
+    setForm((atual) => ({ ...atual, descricao: sugestaoEndereco }));
   }
 
   async function salvar(evento) {
@@ -147,6 +248,31 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
 
       {formAberto && podeEditar ? (
         <form onSubmit={salvar} className="mb-4 rounded-lg border border-omega-100 bg-omega-50/50 p-3">
+          <div className="mb-3 overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <Suspense fallback={<MapaCarregando altura="h-64 sm:h-80" />}>
+              <MapaLocalizacoes
+                localizacoes={localizacoes}
+                selecionada={form}
+                onSelecionar={selecionarNoMapa}
+                chaveFoco={editandoId ?? 'novo'}
+                altura="h-64 sm:h-80"
+              />
+            </Suspense>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <MousePointerClick className="h-3.5 w-3.5 text-omega-600" aria-hidden="true" />
+                Clique no mapa para marcar o ponto e arraste o marcador para ajustar.
+              </span>
+              {form.latitude !== '' && form.longitude !== '' ? (
+                <span className="font-mono text-[10px] font-semibold text-slate-600">
+                  {formatarNumero(form.latitude, 6)}, {formatarNumero(form.longitude, 6)}
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400">Nenhum ponto selecionado</span>
+              )}
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <label className="rotulo" htmlFor="locTipo">Tipo</label>
@@ -172,6 +298,25 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
                 onChange={(e) => alterar('descricao', e.target.value)}
                 disabled={salvando}
               />
+              {buscandoEndereco ? (
+                <p className="mt-1 inline-flex items-center gap-1 text-[10px] text-slate-400">
+                  <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                  Buscando endereço do ponto…
+                </p>
+              ) : null}
+              {sugestaoEndereco ? (
+                <p className="mt-1 text-[10px] leading-snug text-slate-500">
+                  Sugestão do mapa:{' '}
+                  <button
+                    type="button"
+                    onClick={aplicarSugestao}
+                    className="text-left font-semibold text-omega-700 hover:underline"
+                    title="Usar esta descrição"
+                  >
+                    {sugestaoEndereco}
+                  </button>
+                </p>
+              ) : null}
             </div>
 
             <div>
@@ -269,6 +414,33 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
             </button>
           </div>
         </form>
+      ) : null}
+
+      {!formAberto && localizacoesComCoordenadas > 0 ? (
+        <div className="mb-4 overflow-hidden rounded-lg border border-slate-200 bg-white">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2">
+            <p className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-700">
+              <MapIcon className="h-3.5 w-3.5 text-omega-600" aria-hidden="true" />
+              Mapa da obra
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-omega-500" aria-hidden="true" />
+                Pontos
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-full bg-violet-500" aria-hidden="true" />
+                Trechos
+              </span>
+              <span className="font-semibold text-slate-600">
+                {localizacoesComCoordenadas} no mapa
+              </span>
+            </div>
+          </div>
+          <Suspense fallback={<MapaCarregando />}>
+            <MapaLocalizacoes localizacoes={localizacoes} altura="h-72" />
+          </Suspense>
+        </div>
       ) : null}
 
       {localizacoes.length === 0 ? (

@@ -27,6 +27,19 @@
 }
 
 @layer components {
+  /* Confina os panes do Leaflet ao contêiner do mapa, para não sobrepor
+     cabeçalhos, menus e modais da aplicação. */
+  .mapa-leaflet {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+  }
+
+  .mapa-leaflet.leaflet-container {
+    font-family: inherit;
+    background: #e2e8f0;
+  }
+
   .campo {
     @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800
            placeholder:text-slate-400 shadow-sm transition

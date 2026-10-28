@@ -381,7 +381,7 @@ export default function DetalheObra() {
               </div>
             </section>
 
-            <LocalizacoesObra obra={obra} podeEditar={false} onObraAtualizada={aplicarAtualizacao} />
+            <LocalizacoesObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
 
             <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <div className="card p-4">
