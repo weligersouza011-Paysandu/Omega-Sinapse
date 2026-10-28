@@ -13,6 +13,7 @@
     "heroku-postbuild": "npm run build:frontend:install && npm run build:frontend",
     "criar-usuario": "node src/scripts/criarUsuario.js",
     "importar:historico": "node scripts/importarHistorico.js",
+    "importar:pasta13": "node scripts/importarPasta13.js",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",

@@ -134,6 +134,13 @@ function dataDe(valor, campo) {
   return data;
 }
 
+/** Formata uma data UTC como dd/mm/aaaa para mensagens de conflito. */
+function formatarDataBR(data) {
+  const valor = data instanceof Date ? data : new Date(data);
+  if (Number.isNaN(valor.getTime())) return String(data);
+  return valor.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+}
+
 function dataOpcional(payload, campo) {
   if (!temCampo(payload, campo)) return undefined;
   if (estaVazio(payload[campo])) return null;
@@ -286,8 +293,8 @@ function montarAvanco(payload, existente = null, { parcial = false } = {}) {
 
   if (!parcial || temCampo(payload, 'semana')) {
     const semana = Number(payload.semana);
-    if (!Number.isInteger(semana) || semana <= 0 || semana > 9999) {
-      throw new AppError(400, 'O campo "semana" deve ser um inteiro positivo.');
+    if (!Number.isInteger(semana) || semana <= 0 || semana > 53) {
+      throw new AppError(400, 'O campo "semana" deve ser um inteiro entre 1 e 53.');
     }
     dados.semana = semana;
   }
@@ -309,11 +316,11 @@ function montarAvanco(payload, existente = null, { parcial = false } = {}) {
 }
 
 /**
- * Preenche os acumulados não informados a partir da semana anterior.
- * Assim o usuário pode lançar apenas o avanço da semana (Prev/Real).
+ * Preenche os acumulados não informados a partir da medição anterior.
+ * Assim o usuário pode lançar apenas o avanço do período (Prev/Real).
  */
 async function completarAcumulados(obraId, dados, ignorarId = null) {
-  const anterior = await obraRepository.buscarAvancoAnterior(obraId, dados.semana, ignorarId);
+  const anterior = await obraRepository.buscarAvancoAnterior(obraId, dados.data, ignorarId);
 
   if (!temCampo(dados, 'fisico_prev_acum')) {
     dados.fisico_prev_acum = arredondar(
@@ -340,11 +347,11 @@ async function criarAvanco(idParam, payload = {}, usuario) {
 
   const dados = montarAvanco(payload);
 
-  const existente = await obraRepository.buscarAvancoPorSemana(obraId, dados.semana);
+  const existente = await obraRepository.buscarAvancoPorData(obraId, dados.data);
   if (existente) {
     throw new AppError(
       409,
-      `Já existe uma medição para a semana ${dados.semana}. Edite o registro existente.`
+      `Já existe uma medição para ${formatarDataBR(dados.data)}. Edite o registro existente.`
     );
   }
 
@@ -366,10 +373,13 @@ async function atualizarAvanco(idParam, avancoIdParam, payload = {}, usuario) {
 
   const dados = montarAvanco(payload, existente, { parcial: true });
 
-  if (temCampo(dados, 'semana') && dados.semana !== existente.semana) {
-    const conflito = await obraRepository.buscarAvancoPorSemana(obraId, dados.semana);
+  if (temCampo(dados, 'data')) {
+    const conflito = await obraRepository.buscarAvancoPorData(obraId, dados.data);
     if (conflito && conflito.id !== avancoId) {
-      throw new AppError(409, `Já existe uma medição para a semana ${dados.semana}.`);
+      throw new AppError(
+        409,
+        `Já existe uma medição para ${formatarDataBR(dados.data)}.`
+      );
     }
   }
 

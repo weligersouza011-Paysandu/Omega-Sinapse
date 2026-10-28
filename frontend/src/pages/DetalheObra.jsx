@@ -35,6 +35,7 @@ import {
   formatarDataHora,
   formatarMoeda,
   formatarPercentual,
+  formatarSemana,
 } from '../utils/formatters.js';
 
 const PERFIS_ESCRITA = ['PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
@@ -219,7 +220,7 @@ export default function DetalheObra() {
               <p className="text-xs text-slate-500">Avanço físico acumulado ao longo das semanas lançadas.</p>
             </div>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-              {obra.avanco_resumo?.semanas || 0} semana(s)
+              {obra.avanco_resumo?.semanas || 0} medição(ões)
             </span>
           </header>
           <CurvaSChart linhas={obra.avanco_fisico || []} />
@@ -229,7 +230,7 @@ export default function DetalheObra() {
           <h2 className="mb-3 text-sm font-bold text-slate-800">Resumo executivo</h2>
           <dl className="space-y-2">
             {[
-              ['Semana atual', semanaAtual ? `S${semanaAtual}` : 'Sem medições'],
+              ['Semana atual', semanaAtual ? formatarSemana(semanaAtual, obra.avanco_resumo?.data_atual) : 'Sem medições'],
               ['Data da última medição', obra.avanco_resumo?.data_atual ? formatarData(obra.avanco_resumo.data_atual) : '—'],
               ['Previsto acumulado', formatarPercentual(obra.avanco_resumo?.previsto_acum || 0, 2)],
               ['Realizado acumulado', formatarPercentual(obra.avanco_resumo?.real_acum || 0, 2)],
@@ -259,7 +260,7 @@ export default function DetalheObra() {
         <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h2 className="text-sm font-bold text-slate-800">Avanço Físico Geral</h2>
-            <p className="text-xs text-slate-500">Histórico semanal com valores de previsão, linha de base e realizado.</p>
+            <p className="text-xs text-slate-500">Histórico de medições com valores de previsão, linha de base e realizado.</p>
           </div>
           {podeEditar ? (
             <button type="button" className="btn-neutro" onClick={() => selecionarAba('configuracao')}>

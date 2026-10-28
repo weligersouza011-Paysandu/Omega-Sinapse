@@ -34,7 +34,7 @@ const INCLUDE_DETALHE = {
     },
   },
   localizacoes: { orderBy: [{ created_at: 'asc' }, { id: 'asc' }] },
-  avanco_fisico: { orderBy: [{ semana: 'asc' }, { id: 'asc' }] },
+  avanco_fisico: { orderBy: [{ data: 'asc' }, { id: 'asc' }] },
   relatorios: {
     orderBy: [{ data: 'desc' }, { id: 'desc' }],
     include: {
@@ -132,13 +132,18 @@ function mapearRelatorio(relatorio) {
 }
 
 /**
- * Resumo acumulado da Curva S: a última semana é o retrato atual da obra.
+ * Resumo acumulado da Curva S: a última data é o retrato atual da obra.
+ *
+ * A ordenação é feita pela data (e não pela semana) porque as semanas ISO se
+ * repetem em obras plurianuais. `lb_prev_acum` é a soma das linhas de base
+ * semanais, já que o modelo não possui uma coluna de LB acumulada.
  */
 function resumirAvanco(linhas = []) {
   if (!Array.isArray(linhas) || linhas.length === 0) {
     return {
       semanas: 0,
       semana_atual: null,
+      ano_atual: null,
       data_atual: null,
       previsto_acum: 0,
       real_acum: 0,
@@ -148,19 +153,30 @@ function resumirAvanco(linhas = []) {
     };
   }
 
-  const ordenadas = [...linhas].sort((a, b) => a.semana - b.semana);
+  const ordenadas = [...linhas].sort((a, b) => {
+    const diferenca = new Date(a.data) - new Date(b.data);
+    return diferenca !== 0 ? diferenca : Number(a.id || 0) - Number(b.id || 0);
+  });
   const ultima = ordenadas[ordenadas.length - 1];
+  const dataAtual = ultima.data ? new Date(ultima.data) : null;
   const previstoAcum = numero(ultima.fisico_prev_acum);
   const realAcum = numero(ultima.fisico_real_acum);
+  const lbPrevAcum = ordenadas.reduce(
+    (total, linha) => total + numero(linha.fisico_lb_prev),
+    0
+  );
 
   return {
     semanas: ordenadas.length,
     semana_atual: ultima.semana,
+    ano_atual: dataAtual && !Number.isNaN(dataAtual.getTime())
+      ? dataAtual.getUTCFullYear()
+      : null,
     data_atual: ultima.data,
     previsto_acum: previstoAcum,
     real_acum: realAcum,
     tendencia_acum: numero(ultima.fisico_tend_acum),
-    lb_prev_acum: numero(ultima.fisico_lb_prev),
+    lb_prev_acum: Number(lbPrevAcum.toFixed(2)),
     desvio: Number((realAcum - previstoAcum).toFixed(2)),
   };
 }
@@ -437,16 +453,16 @@ async function removerAvanco(obraId, id) {
   return resultado.count > 0;
 }
 
-async function buscarAvancoPorSemana(obraId, semana) {
+async function buscarAvancoPorData(obraId, data) {
   return prisma.obraAvancoFisico.findUnique({
-    where: { uq_avanco_semana_por_obra: { obra_id: obraId, semana } },
+    where: { uq_avanco_data_por_obra: { obra_id: obraId, data } },
   });
 }
 
 async function buscarUltimoAvanco(obraId, ignorarId = null) {
   return prisma.obraAvancoFisico.findFirst({
     where: { obra_id: obraId, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
-    orderBy: [{ semana: 'desc' }, { id: 'desc' }],
+    orderBy: [{ data: 'desc' }, { id: 'desc' }],
   });
 }
 
@@ -454,28 +470,28 @@ async function buscarAvanco(obraId, id) {
   return prisma.obraAvancoFisico.findFirst({ where: { id, obra_id: obraId } });
 }
 
-async function buscarAvancoAnterior(obraId, semana, ignorarId = null) {
+async function buscarAvancoAnterior(obraId, data, ignorarId = null) {
   return prisma.obraAvancoFisico.findFirst({
     where: {
       obra_id: obraId,
-      semana: { lt: semana },
+      data: { lt: data },
       ...(ignorarId ? { id: { not: ignorarId } } : {}),
     },
-    orderBy: [{ semana: 'desc' }, { id: 'desc' }],
+    orderBy: [{ data: 'desc' }, { id: 'desc' }],
   });
 }
 
 async function listarAvanco(obraId) {
   return prisma.obraAvancoFisico.findMany({
     where: { obra_id: obraId },
-    orderBy: [{ semana: 'asc' }, { id: 'asc' }],
+    orderBy: [{ data: 'asc' }, { id: 'asc' }],
   });
 }
 
 /**
- * Recalcula os acumulados de todas as semanas da obra a partir dos valores
- * semanais. Mantém a Curva S consistente quando uma semana é criada, editada
- * ou removida no meio do histórico.
+ * Recalcula os acumulados de todas as medições da obra a partir dos valores
+ * semanais, na ordem cronológica. Mantém a Curva S consistente quando uma
+ * medição é criada, editada ou removida no meio do histórico.
  */
 async function recalcularAcumulados(obraId) {
   const linhas = await listarAvanco(obraId);
@@ -615,7 +631,7 @@ module.exports = {
   criarAvanco,
   atualizarAvanco,
   removerAvanco,
-  buscarAvancoPorSemana,
+  buscarAvancoPorData,
   buscarUltimoAvanco,
   buscarAvanco,
   buscarAvancoAnterior,

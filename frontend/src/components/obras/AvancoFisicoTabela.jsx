@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import { formatarData, formatarPercentual } from '../../utils/formatters.js';
+import { formatarData, formatarPercentual, formatarSemana } from '../../utils/formatters.js';
 
 const COLUNAS = [
   { chave: 'fisico_prev', rotulo: 'Físico_Prev' },
@@ -21,7 +21,10 @@ export default function AvancoFisicoTabela({
   onRemover,
   compacta = false,
 }) {
-  const ordenadas = [...linhas].sort((a, b) => a.semana - b.semana);
+  const ordenadas = [...linhas].sort((a, b) => {
+    const diferenca = new Date(a.data) - new Date(b.data);
+    return diferenca !== 0 ? diferenca : Number(a.id || 0) - Number(b.id || 0);
+  });
 
   return (
     <div className="overflow-x-auto rounded-lg border border-slate-200">
@@ -52,10 +55,10 @@ export default function AvancoFisicoTabela({
 
         <tbody className="divide-y divide-slate-100 bg-white">
           {ordenadas.map((linha) => (
-            <tr key={linha.id ?? linha.semana} className="align-middle hover:bg-slate-50">
+            <tr key={linha.id ?? `${linha.data}-${linha.semana}`} className="align-middle hover:bg-slate-50">
               <td className="whitespace-nowrap px-3 py-2 text-slate-600">{formatarData(linha.data)}</td>
               <td className="whitespace-nowrap px-3 py-2 font-semibold text-omega-700">
-                S{linha.semana}
+                {formatarSemana(linha.semana, linha.data)}
               </td>
               {COLUNAS.map((coluna) => (
                 <td
@@ -74,7 +77,7 @@ export default function AvancoFisicoTabela({
                       type="button"
                       onClick={() => onEditar?.(linha)}
                       title="Editar medição"
-                      aria-label={`Editar medição da semana ${linha.semana}`}
+                      aria-label={`Editar medição de ${formatarSemana(linha.semana, linha.data)}`}
                       className="rounded p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-omega-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-omega-500/40"
                     >
                       <Pencil className="h-4 w-4" aria-hidden="true" />
@@ -83,7 +86,7 @@ export default function AvancoFisicoTabela({
                       type="button"
                       onClick={() => onRemover?.(linha)}
                       title="Remover medição"
-                      aria-label={`Remover medição da semana ${linha.semana}`}
+                      aria-label={`Remover medição de ${formatarSemana(linha.semana, linha.data)}`}
                       className="rounded p-1.5 text-slate-500 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
                     >
                       <Trash2 className="h-4 w-4" aria-hidden="true" />

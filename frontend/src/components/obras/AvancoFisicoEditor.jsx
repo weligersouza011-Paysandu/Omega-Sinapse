@@ -8,12 +8,14 @@ import {
   criarAvancoFisico,
   removerAvancoFisico,
 } from '../../hooks/useObras.js';
-import { dataLocalISO, dataParaInput } from '../../utils/formatters.js';
+import { dataLocalISO, dataParaInput, formatarSemana, semanaISO } from '../../utils/formatters.js';
 
 function formularioVazio(linhas = []) {
-  const ordenadas = [...linhas].sort((a, b) => a.semana - b.semana);
+  const ordenadas = [...linhas].sort((a, b) => {
+    const diferenca = new Date(a.data) - new Date(b.data);
+    return diferenca !== 0 ? diferenca : Number(a.id || 0) - Number(b.id || 0);
+  });
   const ultima = ordenadas[ordenadas.length - 1];
-  const proximaSemana = ultima ? Number(ultima.semana) + 1 : 1;
 
   let proximaData = dataLocalISO();
   if (ultima?.data) {
@@ -24,7 +26,7 @@ function formularioVazio(linhas = []) {
 
   return {
     data: proximaData,
-    semana: String(proximaSemana),
+    semana: String(semanaISO(proximaData)),
     fisico_prev: '',
     fisico_lb_prev: '',
     fisico_real: '',
@@ -34,8 +36,8 @@ function formularioVazio(linhas = []) {
 /**
  * Editor do avanço físico semanal (base da Curva S).
  *
- * O usuário lança apenas os percentuais da semana (previsto, linha de base e
- * realizado); os acumulados são preenchidos pelo back-end a partir da semana
+ * O usuário lança apenas os percentuais do período (previsto, linha de base e
+ * realizado); os acumulados são preenchidos pelo back-end a partir da medição
  * anterior. A tabela reaproveitada exibe todo o histórico.
  */
 export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtualizada }) {
@@ -46,14 +48,25 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
   const [salvando, setSalvando] = useState(false);
 
   const linhas = useMemo(
-    () => [...(obra?.avanco_fisico || [])].sort((a, b) => a.semana - b.semana),
+    () => [...(obra?.avanco_fisico || [])].sort((a, b) => {
+      const diferenca = new Date(a.data) - new Date(b.data);
+      return diferenca !== 0 ? diferenca : Number(a.id || 0) - Number(b.id || 0);
+    }),
     [obra?.avanco_fisico]
   );
 
   const ultima = linhas[linhas.length - 1] || null;
 
   function alterar(campo, valor) {
-    setForm((atual) => ({ ...atual, [campo]: valor }));
+    setForm((atual) => {
+      if (campo !== 'data') return { ...atual, [campo]: valor };
+      const semana = semanaISO(valor);
+      return {
+        ...atual,
+        data: valor,
+        semana: semana > 0 ? String(semana) : atual.semana,
+      };
+    });
   }
 
   function abrirNovo() {
@@ -72,7 +85,7 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
     setEditandoId(linha.id);
     setForm({
       data: dataParaInput(linha.data),
-      semana: String(linha.semana),
+      semana: String(linha.semana || semanaISO(linha.data)),
       fisico_prev: String(linha.fisico_prev ?? ''),
       fisico_lb_prev: String(linha.fisico_lb_prev ?? ''),
       fisico_real: String(linha.fisico_real ?? ''),
@@ -119,7 +132,8 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
   }
 
   async function remover(linha) {
-    if (!window.confirm(`Remover a medição da semana ${linha.semana}?`)) return;
+    const rotulo = formatarSemana(linha.semana, linha.data);
+    if (!window.confirm(`Remover a medição de ${rotulo}?`)) return;
 
     try {
       const atualizada = await removerAvancoFisico(obra.id, linha.id);
@@ -136,11 +150,11 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
         <div>
           <h3 className="flex items-center gap-2 text-sm font-bold text-slate-800">
             <Gauge className="h-4 w-4 text-omega-600" aria-hidden="true" />
-            Avanço físico semanal
+            Avanço físico por medição
           </h3>
           <p className="text-xs text-slate-500">
-            Lance os percentuais da semana. Os acumulados são calculados automaticamente a partir da
-            semana anterior.
+            Lance os percentuais do período. Os acumulados são calculados automaticamente a partir da
+            medição anterior.
           </p>
         </div>
 
@@ -151,14 +165,14 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
             onClick={() => (formAberto ? limpar() : abrirNovo())}
           >
             {formAberto ? <X className="h-4 w-4" aria-hidden="true" /> : <Plus className="h-4 w-4" aria-hidden="true" />}
-            {formAberto ? 'Cancelar' : 'Lançar semana'}
+            {formAberto ? 'Cancelar' : 'Lançar medição'}
           </button>
         ) : null}
       </header>
 
       {ultima ? (
         <p className="mb-3 rounded-md bg-slate-50 px-3 py-2 text-xs text-slate-600">
-          Semana atual: <strong>S{ultima.semana}</strong> · Realizado acumulado{' '}
+          Última medição: <strong>{formatarSemana(ultima.semana, ultima.data)}</strong> · Realizado acumulado{' '}
           <strong>{Number(ultima.fisico_real_acum || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%</strong>{' '}
           · Previsto acumulado{' '}
           <strong>{Number(ultima.fisico_prev_acum || 0).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%</strong>
@@ -181,17 +195,19 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
             </div>
 
             <div>
-              <label className="rotulo" htmlFor="avSemana">Semana *</label>
+              <label className="rotulo" htmlFor="avSemana">Semana (ISO)</label>
               <input
                 id="avSemana"
                 type="number"
                 min="1"
+                max="53"
                 step="1"
                 className="campo"
                 value={form.semana}
                 onChange={(e) => alterar('semana', e.target.value)}
                 disabled={salvando}
               />
+              <p className="mt-1 text-[10px] text-slate-400">Calculada pela data.</p>
             </div>
 
             <div>
@@ -255,7 +271,7 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
               </button>
               <button type="submit" className="btn-primario" disabled={salvando}>
                 {salvando ? <Spinner tamanho="sm" /> : <Check className="h-4 w-4" aria-hidden="true" />}
-                {editandoId ? 'Salvar alterações' : 'Lançar semana'}
+                {editandoId ? 'Salvar alterações' : 'Lançar medição'}
               </button>
             </div>
           </div>
@@ -272,7 +288,7 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
       {podeEditar && linhas.length > 0 ? (
         <p className="mt-2 inline-flex items-center gap-1 text-[11px] text-slate-400">
           <Pencil className="h-3 w-3" aria-hidden="true" />
-          Edite ou remova uma semana pela coluna de ações da tabela.
+          Edite ou remova uma medição pela coluna de ações da tabela.
         </p>
       ) : null}
 
@@ -280,14 +296,14 @@ export default function AvancoFisicoEditor({ obra, podeEditar = false, onObraAtu
         <div className="mt-2 flex justify-end">
           <button type="button" className="btn-neutro" onClick={abrirNovo}>
             <Plus className="h-4 w-4" aria-hidden="true" />
-            Lançar próxima semana
+            Lançar próxima medição
           </button>
         </div>
       ) : null}
 
       {linhas.length === 0 && !formAberto ? (
         <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-          Nenhuma medição registrada. Lance a primeira semana para gerar a Curva S da obra.
+          Nenhuma medição registrada. Lance a primeira medição para gerar a Curva S da obra.
         </div>
       ) : null}
     </section>

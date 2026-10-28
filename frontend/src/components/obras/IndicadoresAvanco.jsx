@@ -1,5 +1,5 @@
 import { Gauge, TrendingDown, TrendingUp } from 'lucide-react';
-import { formatarData, formatarPercentual } from '../../utils/formatters.js';
+import { formatarData, formatarPercentual, formatarSemana } from '../../utils/formatters.js';
 
 /**
  * Cards de soma geral do avanço físico: o retrato acumulado da última semana
@@ -18,7 +18,9 @@ export default function IndicadoresAvanco({ resumo = {} }) {
       chave: 'real',
       label: 'Realizado acumulado',
       valor: formatarPercentual(real, 2),
-      detalhe: temDados ? `Semana ${resumo.semana_atual} · ${formatarData(resumo.data_atual)}` : 'Sem medições',
+      detalhe: temDados
+        ? `${formatarSemana(resumo.semana_atual, resumo.data_atual)} · ${formatarData(resumo.data_atual)}`
+        : 'Sem medições',
       classe: 'text-omega-700',
       Icone: Gauge,
       cor: 'bg-omega-50 text-omega-700 ring-omega-100',

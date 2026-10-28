@@ -299,7 +299,7 @@ model ObraAvancoFisico {
 
   obra Obra @relation(fields: [obra_id], references: [id], onDelete: Cascade)
 
-  @@unique([obra_id, semana], name: "uq_avanco_semana_por_obra")
+  @@unique([obra_id, data], name: "uq_avanco_data_por_obra", map: "obra_avanco_fisico_obra_id_data_key")
   @@index([obra_id])
   @@map("obra_avanco_fisico")
 }

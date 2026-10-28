@@ -91,3 +91,41 @@ export function dataParaInput(valor) {
   const data = new Date(valor);
   return Number.isNaN(data.getTime()) ? '' : dataLocalISO(data);
 }
+
+/**
+ * Calcula a semana ISO 8601 (1..53) de uma data no formato aaaa-mm-dd.
+ * Retorna 0 quando a data é inválida.
+ */
+export function semanaISO(valor) {
+  const texto = dataParaInput(valor);
+  if (!texto) return 0;
+
+  const data = new Date(`${texto}T12:00:00.000Z`);
+  if (Number.isNaN(data.getTime())) return 0;
+
+  const alvo = new Date(data.valueOf());
+  const diaDaSemana = (data.getUTCDay() + 6) % 7;
+  alvo.setUTCDate(alvo.getUTCDate() - diaDaSemana + 3);
+
+  const primeiraQuinta = new Date(Date.UTC(alvo.getUTCFullYear(), 0, 4));
+  return 1 + Math.round((alvo - primeiraQuinta) / 604800000);
+}
+
+/** Ano (UTC) de uma data ISO. */
+export function anoDaData(valor) {
+  const texto = dataParaInput(valor);
+  if (!texto) return null;
+  const data = new Date(`${texto}T12:00:00.000Z`);
+  return Number.isNaN(data.getTime()) ? null : data.getUTCFullYear();
+}
+
+/**
+ * Rótulo curto da semana com o ano, para diferenciar ciclos plurianuais:
+ * `S17/2025`, `S17/2026`. Sem data válida, retorna apenas `S17`.
+ */
+export function formatarSemana(semana, valorData) {
+  const numero = Number(semana);
+  if (!Number.isFinite(numero) || numero <= 0) return '—';
+  const ano = anoDaData(valorData);
+  return ano ? `S${numero}/${ano}` : `S${numero}`;
+}

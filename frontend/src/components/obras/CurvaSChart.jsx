@@ -9,7 +9,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { formatarData, formatarPercentual } from '../../utils/formatters.js';
+import { formatarData, formatarPercentual, formatarSemana } from '../../utils/formatters.js';
 
 /** Tooltip com os percentuais no padrão brasileiro. */
 function TooltipCurvaS({ active, payload, label }) {
@@ -17,7 +17,10 @@ function TooltipCurvaS({ active, payload, label }) {
 
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-bold text-slate-700">{label}</p>
+      <p className="mb-1 font-bold text-slate-700">
+        {label}
+        {payload[0]?.payload?.dataFormatada ? ` · ${payload[0].payload.dataFormatada}` : ''}
+      </p>
       {payload.map((serie) => (
         <p key={serie.dataKey} className="flex items-center gap-2 text-slate-600">
           <span
@@ -35,14 +38,18 @@ function TooltipCurvaS({ active, payload, label }) {
 
 /**
  * Curva S do avanço físico: comparativo entre previsto, realizado e tendência
- * acumulados ao longo das semanas lançadas na obra.
+ * acumulados ao longo das medições lançadas na obra. A ordenação é feita pela
+ * data, pois as semanas ISO se repetem em obras plurianuais.
  */
 export default function CurvaSChart({ linhas = [] }) {
   const dados = [...linhas]
-    .sort((a, b) => a.semana - b.semana)
+    .sort((a, b) => {
+      const diferenca = new Date(a.data) - new Date(b.data);
+      return diferenca !== 0 ? diferenca : Number(a.id || 0) - Number(b.id || 0);
+    })
     .map((linha) => ({
       ...linha,
-      rotulo: `S${linha.semana}`,
+      rotulo: formatarSemana(linha.semana, linha.data),
       dataFormatada: formatarData(linha.data),
     }));
 
@@ -68,6 +75,7 @@ export default function CurvaSChart({ linhas = [] }) {
             tick={{ fontSize: 11, fill: '#64748b' }}
             tickLine={false}
             axisLine={{ stroke: '#cbd5e1' }}
+            minTickGap={24}
           />
           <YAxis
             domain={[0, 100]}
