@@ -129,7 +129,7 @@ export async function fazerLogin(credenciais) {
   }
 
   const { data } = await api.post('/auth/login', {
-    identificador: credenciais.identificador ?? credenciais.email ?? credenciais.matricula,
+    email: credenciais.email ?? credenciais.identificador ?? credenciais.matricula,
     senha: credenciais.senha,
   });
   return data;

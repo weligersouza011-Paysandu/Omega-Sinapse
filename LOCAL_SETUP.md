@@ -225,6 +225,11 @@ Rode manualmente: `npm run prisma:generate`.
 O token expirou (padrão 8h). O `axios` limpa o `localStorage` e redireciona para
 `/login` automaticamente.
 
+**Login retorna 500 mesmo com e-mail e senha corretos**
+O `JWT_SECRET` não está definido no ambiente de produção. No Render, abra
+**Environment** do serviço e adicione `JWT_SECRET` com um segredo longo e aleatório
+(pode copiar o valor do `.env` local). Depois, faça um novo deploy/restart.
+
 **403 ao gravar `art` ou `planejador_id`**
 Regra de negócio (RBAC): `art` exige perfil PLANEJADOR/SUPERVISOR/ADMIN e
 `planejador_id` exige SUPERVISOR/ADMIN.

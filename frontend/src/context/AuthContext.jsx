@@ -34,8 +34,8 @@ export function AuthProvider({ children }) {
     }
   }, [usuario]);
 
-  /** Autentica na API (matrícula ou e-mail) e guarda token + usuário. */
-  const login = useCallback(async (identificador, senha) => {
+  /** Autentica na API (e-mail) e guarda token + usuário. */
+  const login = useCallback(async (email, senha) => {
     if (BYPASS_LOGIN) {
       setUsuario(USUARIO_BYPASS);
       return USUARIO_BYPASS;
@@ -43,7 +43,7 @@ export function AuthProvider({ children }) {
 
     setCarregando(true);
     try {
-      const data = await fazerLogin({ identificador, senha });
+      const data = await fazerLogin({ email, senha });
       salvarToken(data.token);
       setUsuario(data.usuario);
       return data.usuario;

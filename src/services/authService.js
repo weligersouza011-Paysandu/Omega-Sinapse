@@ -40,13 +40,13 @@ async function login({ identificador, matricula, email, senha }) {
   const login = String(identificador ?? matricula ?? email ?? '').trim();
 
   if (estaVazio(login) || estaVazio(senha)) {
-    throw new AppError(400, 'Informe a matrícula (ou e-mail) e a senha para autenticar.');
+    throw new AppError(400, 'Informe o e-mail e a senha para autenticar.');
   }
 
   const usuario = await usuarioRepository.findByLogin(login);
 
   // Mesma mensagem para usuário inexistente e senha incorreta (evita enumeração de contas).
-  const credenciaisInvalidas = new AppError(401, 'Matrícula/e-mail ou senha inválidos.');
+  const credenciaisInvalidas = new AppError(401, 'E-mail ou senha inválidos.');
 
   if (!usuario) {
     throw credenciaisInvalidas;

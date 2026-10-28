@@ -100,7 +100,9 @@ function errorHandler(err, req, res, next) {
   if (status >= 500) {
     console.error(`[erro] ${req.method} ${req.originalUrl}:`, err);
   }
-  if (status === 500) {
+  // Erros inesperados (não controlados) nunca expõem detalhes internos.
+  // AppError 500 é usado para falhas de configuração explícitas (ex.: JWT_SECRET).
+  if (status === 500 && !(err instanceof AppError)) {
     mensagem = 'Erro interno do servidor.';
   }
 

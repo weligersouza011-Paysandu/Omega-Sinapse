@@ -8,7 +8,7 @@ export default function Login() {
   const navegar = useNavigate();
   const local = useLocation();
 
-  const [identificador, setIdentificador] = useState('');
+  const [email, setEmail] = useState('');
   const [senha, setSenha] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -21,14 +21,19 @@ export default function Login() {
     evento.preventDefault();
     setErro('');
 
-    if (!identificador.trim() || !senha.trim()) {
-      setErro('Informe a matrícula (ou e-mail) e a senha.');
+    if (!email.trim() || !senha.trim()) {
+      setErro('Informe o e-mail e a senha.');
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErro('Informe um e-mail válido.');
       return;
     }
 
     setEnviando(true);
     try {
-      await login(identificador.trim(), senha);
+      await login(email.trim(), senha);
       const destino = local.state?.de || '/';
       navegar(destino, { replace: true });
     } catch (err) {
@@ -61,17 +66,20 @@ export default function Login() {
 
           <form className="mt-6 space-y-4" onSubmit={aoEnviar} noValidate>
             <div>
-              <label className="rotulo" htmlFor="identificador">
-                Matrícula ou E-mail
+              <label className="rotulo" htmlFor="email">
+                E-mail
               </label>
               <input
-                id="identificador"
-                type="text"
-                autoComplete="username"
+                id="email"
+                type="email"
+                autoComplete="email"
+                inputMode="email"
+                autoCapitalize="none"
+                spellCheck={false}
                 className="campo"
-                placeholder="23574 ou nome@omega.com"
-                value={identificador}
-                onChange={(e) => setIdentificador(e.target.value)}
+                placeholder="nome@omegaservice.com.br"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 disabled={enviando}
               />
             </div>
