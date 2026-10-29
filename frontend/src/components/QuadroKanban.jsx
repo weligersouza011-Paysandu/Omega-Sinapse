@@ -45,6 +45,18 @@ function Capa({ url, pep }) {
   );
 }
 
+/**
+ * Persistência padrão da troca de status (orçamento comercial).
+ *
+ * O componente aciona `aoMover(id, novoStatus)`; a API de orçamentos espera um
+ * objeto de campos (`{ status }`), então este adaptador é obrigatório — enviar
+ * a string direta faria o back-end ignorar a mudança (o card voltaria de
+ * coluna). O módulo de Obras injeta o seu próprio `aoMover`.
+ */
+function moverStatusPadrao(id, novoStatus) {
+  return atualizarOrcamento(id, { status: novoStatus });
+}
+
 /** Textos padrão do quadro comercial (sobrescrevíveis via prop `textos`). */
 const TEXTOS_PADRAO = {
   rotuloItem: 'orçamento',
@@ -91,7 +103,7 @@ export default function QuadroKanban({
   onRecarregar,
   onAbrirDetalhe,
   onEditar,
-  aoMover = atualizarOrcamento,
+  aoMover = moverStatusPadrao,
   renderInfo,
   renderRodape,
   opcoes = OPCOES_COMERCIAL,
