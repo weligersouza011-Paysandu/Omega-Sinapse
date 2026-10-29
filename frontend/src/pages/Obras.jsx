@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Columns3, LayoutGrid, UserRound } from 'lucide-react';
+import { Columns3, LayoutGrid, Table, UserRound } from 'lucide-react';
 import CardObra from '../components/CardObra.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import EtiquetasPendencia from '../components/EtiquetasPendencia.jsx';
+import ListaTabela from '../components/ListaTabela.jsx';
 import QuadroKanban from '../components/QuadroKanban.jsx';
 import SeletorPlanejador from '../components/SeletorPlanejador.jsx';
 import Spinner from '../components/Spinner.jsx';
@@ -26,6 +27,7 @@ const PERFIS_QUE_ATRIBUEM = ['SUPERVISOR', 'ADMIN'];
 const VISOES = [
   { id: 'cards', label: 'Cards', Icone: LayoutGrid },
   { id: 'kanban', label: 'Kanban', Icone: Columns3 },
+  { id: 'list', label: 'Lista', Icone: Table },
 ];
 
 /** Rótulos do quadro operacional (o Kanban é compartilhado com Orçamentos). */
@@ -63,13 +65,15 @@ export default function Obras() {
     podeAtribuirPlanejador
   );
 
+  // Cards e Lista compartilham a mesma consulta paginada/filtrada; o Kanban
+  // usa o hook do quadro (sem paginação).
   const cards = useObras({
     busca: buscaAplicada,
     status,
     pendencia,
     pagina,
     limit: LIMITE,
-    ativo: visao === 'cards',
+    ativo: visao === 'cards' || visao === 'list',
   });
 
   const quadro = useQuadroObras({
@@ -129,11 +133,13 @@ export default function Obras() {
   }
 
   const exibindoCards = visao === 'cards';
-  const itensDaVisao = exibindoCards ? cards.itens : quadro.itens;
-  const carregando = exibindoCards ? cards.carregando : quadro.carregando;
-  const erro = exibindoCards ? cards.erro : quadro.erro;
+  const exibindoLista = visao === 'list';
+  const exibindoKanban = visao === 'kanban';
+  const itensDaVisao = exibindoKanban ? quadro.itens : cards.itens;
+  const carregando = exibindoKanban ? quadro.carregando : cards.carregando;
+  const erro = exibindoKanban ? quadro.erro : cards.erro;
 
-  const totalObras = exibindoCards ? cards.total : quadro.itens.length;
+  const totalObras = exibindoKanban ? quadro.itens.length : cards.total;
   const totalPendentes = itensDaVisao.filter((obra) => obra.pendencias && !obra.pendencias.completa).length;
   const valorTotal = itensDaVisao.reduce((soma, obra) => soma + (Number(obra.valor) || 0), 0);
 
@@ -181,7 +187,7 @@ export default function Obras() {
         <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              {exibindoCards ? 'Obras no filtro' : 'Obras no quadro'}
+              {exibindoKanban ? 'Obras no quadro' : 'Obras no filtro'}
             </p>
             <p className="text-2xl font-bold text-slate-800">{totalObras}</p>
           </div>
@@ -199,7 +205,7 @@ export default function Obras() {
 
           <div className="card px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Valor acumulado {exibindoCards ? 'da página' : 'do quadro'}
+              Valor acumulado {exibindoKanban ? 'do quadro' : 'da página'}
             </p>
             <p className="text-2xl font-bold text-omega-700">{formatarMoeda(valorTotal)}</p>
           </div>
@@ -261,7 +267,7 @@ export default function Obras() {
         </section>
 
         {/* O Kanban trata o erro dentro do próprio quadro (com retry). */}
-        {erro && exibindoCards ? (
+        {erro && !exibindoKanban ? (
           <div
             role="alert"
             className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
@@ -302,6 +308,13 @@ export default function Obras() {
               ))}
             </div>
           )
+        ) : exibindoLista ? (
+          <ListaTabela
+            itens={cards.itens}
+            carregando={carregando}
+            rotuloItem="obra"
+            onAbrirDetalhe={(id) => navigate(`/obras/${id}`)}
+          />
         ) : (
           <QuadroKanban
             itens={quadro.itens}
@@ -341,7 +354,7 @@ export default function Obras() {
           />
         )}
 
-        {exibindoCards && cards.totalPaginas > 1 ? (
+        {!exibindoKanban && cards.totalPaginas > 1 ? (
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
               type="button"

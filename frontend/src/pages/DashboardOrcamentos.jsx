@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Columns3, LayoutGrid } from 'lucide-react';
+import { Columns3, LayoutGrid, Table } from 'lucide-react';
 import AbasOrcamentos from '../components/AbasOrcamentos.jsx';
 import CardObra from '../components/CardObra.jsx';
+import ListaTabela from '../components/ListaTabela.jsx';
 import QuadroKanban from '../components/QuadroKanban.jsx';
 import ModalNovoOrcamento from '../components/ModalNovoOrcamento.jsx';
 import ModalDetalhesOrcamento from '../components/ModalDetalhesOrcamento.jsx';
@@ -16,6 +17,7 @@ const LIMITE = 12;
 const VISOES = [
   { id: 'cards', label: 'Cards', Icone: LayoutGrid },
   { id: 'kanban', label: 'Kanban', Icone: Columns3 },
+  { id: 'list', label: 'Lista', Icone: Table },
 ];
 
 export default function DashboardOrcamentos() {
@@ -32,13 +34,15 @@ export default function DashboardOrcamentos() {
   const [idDetalhe, setIdDetalhe] = useState(null);
   const [idEdicao, setIdEdicao] = useState(null);
 
+  // Cards e Lista compartilham a mesma consulta paginada/filtrada; o Kanban
+  // usa o hook do quadro (sem paginação).
   const cards = useOrcamentos({
     busca: buscaAplicada,
     status,
     escopo,
     pagina,
     limit: LIMITE,
-    ativo: visao === 'cards',
+    ativo: visao === 'cards' || visao === 'list',
   });
 
   const quadro = useQuadroOrcamentos({
@@ -79,8 +83,10 @@ export default function DashboardOrcamentos() {
 
   const valorTotalPagina = cards.itens.reduce((soma, item) => soma + (Number(item.valor) || 0), 0);
   const exibindoCards = visao === 'cards';
-  const carregando = exibindoCards ? cards.carregando : quadro.carregando;
-  const erro = exibindoCards ? cards.erro : quadro.erro;
+  const exibindoLista = visao === 'list';
+  const exibindoKanban = visao === 'kanban';
+  const carregando = exibindoKanban ? quadro.carregando : cards.carregando;
+  const erro = exibindoKanban ? quadro.erro : cards.erro;
 
   return (
     <>
@@ -93,7 +99,7 @@ export default function DashboardOrcamentos() {
           <div>
             <h2 className="text-xl font-bold text-slate-800">Obras e Orçamentos</h2>
             <p className="text-sm text-slate-500">
-              {exibindoCards
+              {!exibindoKanban
                 ? `${cards.total} orçamento(s) encontrado(s)${
                     cards.itens.length > 0 ? ` · ${formatarMoeda(valorTotalPagina)} nesta página` : ''
                   }`
@@ -192,7 +198,7 @@ export default function DashboardOrcamentos() {
         </section>
 
         {/* O Kanban trata o erro dentro do próprio quadro (com retry). */}
-        {erro && exibindoCards ? (
+        {erro && !exibindoKanban ? (
           <div
             role="alert"
             className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
@@ -231,6 +237,14 @@ export default function DashboardOrcamentos() {
               ))}
             </div>
           )
+        ) : exibindoLista ? (
+          <ListaTabela
+            itens={cards.itens}
+            carregando={carregando}
+            rotuloItem="orçamento"
+            onAbrirDetalhe={(id) => setIdDetalhe(id)}
+            onEditar={(orcamento) => setIdEdicao(orcamento.id)}
+          />
         ) : (
           <QuadroKanban
             itens={quadro.itens}
@@ -242,7 +256,7 @@ export default function DashboardOrcamentos() {
           />
         )}
 
-        {exibindoCards && cards.totalPaginas > 1 ? (
+        {!exibindoKanban && cards.totalPaginas > 1 ? (
           <div className="mt-6 flex items-center justify-center gap-3">
             <button
               type="button"
