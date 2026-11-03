@@ -68,13 +68,6 @@ export function formatarPercentual(valor, casas = 1) {
   })}%`;
 }
 
-/** Converte um decimal opcional em número (ou null). */
-export function numeroOuNulo(valor) {
-  if (valor === null || valor === undefined || valor === '') return null;
-  const numero = Number(valor);
-  return Number.isFinite(numero) ? numero : null;
-}
-
 /** Retorna a data local no formato aaaa-mm-dd (para inputs type="date"). */
 export function dataLocalISO(data = new Date()) {
   const ano = data.getFullYear();

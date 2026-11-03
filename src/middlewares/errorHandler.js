@@ -87,6 +87,15 @@ function errorHandler(err, req, res, next) {
     }
   }
 
+  // Erros do body-parser (express.json/urlencoded): corpo malformado ou grande demais.
+  if (err.type === 'entity.parse.failed') {
+    status = 400;
+    mensagem = 'Corpo da requisição inválido: JSON malformado.';
+  } else if (err.type === 'entity.too.large') {
+    status = 413;
+    mensagem = 'Corpo da requisição excede o tamanho máximo permitido.';
+  }
+
   // Erros do Multer (upload): tamanho excedido, campo inesperado, etc.
   if (err.name === 'MulterError') {
     status = 400;

@@ -85,9 +85,6 @@ export const OPCOES_COMERCIAL = STATUS_OPCOES.filter((opcao) => STATUS_COMERCIAL
  */
 export const STATUS_OBRAS = ['APROVADO', 'ENCAMINHADO_OSI', 'OSI_EMITIDA'];
 
-/** Opções de status do ciclo de execução, na ordem oficial do processo. */
-export const OPCOES_OBRAS = STATUS_OPCOES.filter((opcao) => STATUS_OBRAS.includes(opcao.value));
-
 /**
  * Ciclo de vida OPERACIONAL da obra (espelha o enum StatusObra do back-end).
  *
@@ -125,9 +122,6 @@ export const STATUS_OBRA_OPCOES = [
     hex: '#10b981',
   },
 ];
-
-/** Status operacional inicial de toda obra recém-aprovada. */
-export const STATUS_OBRA_INICIAL = 'PARA_INICIAR';
 
 /**
  * Régua de pendências documentais obrigatórias (ISO 9001) — usada no filtro

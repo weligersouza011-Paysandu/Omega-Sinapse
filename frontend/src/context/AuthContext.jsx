@@ -27,10 +27,14 @@ export function AuthProvider({ children }) {
     // No acesso temporário o usuário é fixo e não deve ser persistido.
     if (BYPASS_LOGIN) return;
 
-    if (usuario) {
-      localStorage.setItem(USUARIO_KEY, JSON.stringify(usuario));
-    } else {
-      localStorage.removeItem(USUARIO_KEY);
+    try {
+      if (usuario) {
+        localStorage.setItem(USUARIO_KEY, JSON.stringify(usuario));
+      } else {
+        localStorage.removeItem(USUARIO_KEY);
+      }
+    } catch {
+      // Armazenamento indisponível: a sessão segue apenas em memória.
     }
   }, [usuario]);
 

@@ -1,17 +1,30 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RotaPorPerfil from './components/RotaPorPerfil.jsx';
 import Sidebar from './components/Sidebar.jsx';
+import Spinner from './components/Spinner.jsx';
 import Login from './pages/Login.jsx';
 import DashboardOrcamentos from './pages/DashboardOrcamentos.jsx';
-import DashboardOrcamentosBI from './pages/DashboardOrcamentosBI.jsx';
-import Obras from './pages/Obras.jsx';
-import DetalheObra from './pages/DetalheObra.jsx';
-import DashboardPlanejamento from './pages/DashboardPlanejamento.jsx';
-import CurvaS from './pages/CurvaS.jsx';
-import MapaObras from './pages/MapaObras.jsx';
-import UsuariosPage from './pages/UsuariosPage.jsx';
+
+// Páginas secundárias (gráficos, mapas, gestão) carregadas sob demanda para
+// reduzir o bundle inicial; a tela padrão (/orcamentos) segue no bundle principal.
+const DashboardOrcamentosBI = lazy(() => import('./pages/DashboardOrcamentosBI.jsx'));
+const Obras = lazy(() => import('./pages/Obras.jsx'));
+const DetalheObra = lazy(() => import('./pages/DetalheObra.jsx'));
+const DashboardPlanejamento = lazy(() => import('./pages/DashboardPlanejamento.jsx'));
+const CurvaS = lazy(() => import('./pages/CurvaS.jsx'));
+const MapaObras = lazy(() => import('./pages/MapaObras.jsx'));
+const UsuariosPage = lazy(() => import('./pages/UsuariosPage.jsx'));
+
+/** Fallback exibido enquanto o código de uma página é baixado. */
+function PaginaCarregando() {
+  return (
+    <div className="flex items-center justify-center py-24 text-slate-400">
+      <Spinner tamanho="lg" />
+    </div>
+  );
+}
 import { MODULOS } from './config/modulos.js';
 import { MODO_DEMO, BYPASS_LOGIN } from './config/demo.js';
 
@@ -87,7 +100,9 @@ function AppLayout() {
         </header>
 
         <main className="flex-1 px-4 py-6 sm:px-6">
-          <Outlet />
+          <Suspense fallback={<PaginaCarregando />}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>

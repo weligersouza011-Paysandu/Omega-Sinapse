@@ -40,11 +40,6 @@ export const OPCOES_PERFIL = PERFIS_OPCOES.map(({ value, label, cor }) => ({
   cor,
 }));
 
-/** Retorna o rótulo oficial do perfil (fallback: valor bruto). */
-export function rotuloPerfil(valor) {
-  return PERFIS_OPCOES.find((perfil) => perfil.value === valor)?.label || valor || '—';
-}
-
 /** Dados visuais do perfil (rótulo + classes da badge). */
 export function obterPerfil(valor) {
   return (

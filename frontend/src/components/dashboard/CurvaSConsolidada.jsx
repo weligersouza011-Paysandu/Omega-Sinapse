@@ -60,7 +60,7 @@ function CartaoEstatistica({ rotulo, valor, classe = 'text-slate-800' }) {
  * O seletor usa a OSI como referência e mantém o recorte dos filtros globais.
  */
 export default function CurvaSConsolidada({ curva = {} }) {
-  const porObra = curva.por_obra || [];
+  const porObra = useMemo(() => curva.por_obra || [], [curva.por_obra]);
   const [selecao, setSelecao] = useState('consolidado');
 
   useEffect(() => {

@@ -81,7 +81,7 @@ export default function DashboardOrcamentosBI() {
     return () => clearTimeout(timer);
   }, [busca]);
 
-  const porStatus = dados?.porStatus || [];
+  const porStatus = useMemo(() => dados?.porStatus || [], [dados?.porStatus]);
   const resumo = dados?.resumo;
   const top = dados?.top || [];
 

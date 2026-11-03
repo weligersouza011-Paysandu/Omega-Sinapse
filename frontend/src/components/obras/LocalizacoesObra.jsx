@@ -70,7 +70,7 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
   const [sugestaoEndereco, setSugestaoEndereco] = useState('');
   const requisicaoEndereco = useRef(null);
 
-  const localizacoes = obra?.localizacoes || [];
+  const localizacoes = useMemo(() => obra?.localizacoes || [], [obra?.localizacoes]);
 
   const localizacoesComCoordenadas = useMemo(
     () => localizacoes.filter((localizacao) => coordenadasDe(localizacao) !== null).length,

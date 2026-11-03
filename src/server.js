@@ -17,11 +17,27 @@ const server = app.listen(PORT, () => {
   console.log(`[synapse] API de Orçamentos ouvindo em http://localhost:${PORT}`);
 });
 
+// Prazo máximo para concluir as requisições em andamento antes de forçar a saída.
+const PRAZO_ENCERRAMENTO_MS = 10000;
+let encerrando = false;
+
 // Encerramento gracioso: desconecta o Prisma antes de sair.
-async function encerrar(sinal) {
+function encerrar(sinal) {
+  if (encerrando) return;
+  encerrando = true;
   console.log(`[synapse] Recebido ${sinal}, encerrando...`);
+
+  setTimeout(() => {
+    console.error('[synapse] Encerramento excedeu o prazo; forçando saída.');
+    process.exit(1);
+  }, PRAZO_ENCERRAMENTO_MS).unref();
+
   server.close(async () => {
-    await prisma.$disconnect();
+    try {
+      await prisma.$disconnect();
+    } catch (err) {
+      console.error('[synapse] Falha ao desconectar o Prisma:', err.message);
+    }
     process.exit(0);
   });
 }

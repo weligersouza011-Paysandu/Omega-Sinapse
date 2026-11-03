@@ -3,15 +3,25 @@ import { BYPASS_LOGIN } from '../config/demo.js';
 
 const TOKEN_KEY = 'synapse.token';
 
+// O armazenamento pode estar indisponível (modo privado, cota, bloqueio do
+// navegador): nesses casos a sessão segue apenas em memória, sem quebrar a UI.
 export function obterToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
 }
 
 export function salvarToken(token) {
-  if (token) {
-    localStorage.setItem(TOKEN_KEY, token);
-  } else {
-    localStorage.removeItem(TOKEN_KEY);
+  try {
+    if (token) {
+      localStorage.setItem(TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch {
+    // Sem persistência disponível.
   }
 }
 
@@ -47,6 +57,13 @@ const MENSAGENS_HTTP = {
   504: 'O servidor demorou demais para responder. Tente novamente.',
 };
 
+/** Mensagens para falhas sem resposta HTTP (rede/timeout). */
+const MENSAGENS_CODIGO = {
+  ERR_NETWORK: 'Não foi possível conectar ao servidor. Verifique se o back-end está rodando.',
+  ECONNABORTED: 'O servidor demorou demais para responder. Tente novamente.',
+  ETIMEDOUT: 'O servidor demorou demais para responder. Tente novamente.',
+};
+
 /**
  * Normaliza os erros da API em um Error com `message` legível e `status`.
  * Em 401 (token expirado/inválido) limpa a sessão e volta para o login.
@@ -59,14 +76,17 @@ api.interceptors.response.use(
     const mensagem =
       dados?.erro ||
       MENSAGENS_HTTP[status] ||
-      (error.code === 'ERR_NETWORK'
-        ? 'Não foi possível conectar ao servidor. Verifique se o back-end está rodando.'
-        : error.message) ||
+      MENSAGENS_CODIGO[error.code] ||
+      error.message ||
       'Erro inesperado.';
 
     if (status === 401 && !BYPASS_LOGIN) {
       salvarToken(null);
-      localStorage.removeItem('synapse.usuario');
+      try {
+        localStorage.removeItem('synapse.usuario');
+      } catch {
+        // Sem persistência disponível.
+      }
       if (window.location.pathname !== '/login') {
         window.location.href = '/login';
       }

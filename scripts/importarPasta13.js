@@ -137,11 +137,6 @@ function semanaISO(data) {
   return 1 + Math.round((alvo - primeiraQuinta) / 604800000);
 }
 
-function formatarDataBR(data) {
-  const [ano, mes, dia] = data.split('-');
-  return `${dia}/${mes}/${ano}`;
-}
-
 function normalizarOsi(valor) {
   return String(valor ?? '').trim().toUpperCase();
 }
