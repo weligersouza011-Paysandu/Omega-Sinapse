@@ -14,8 +14,10 @@ const router = Router();
 // GET    /api/tarefas?usuario_id=&status=&tipo=&obra_id=&de=&ate=&page=&limit=
 router.get('/', tarefaController.listarTarefas);
 
+// GET    /api/tarefas/equipe   -> colaboradores ativos (filtro e atribuição)
 // GET    /api/tarefas/carga-equipe?de=&ate=
-// Declarada antes de "/:id" para não ser capturada pelo parâmetro de rota.
+// Declaradas antes de "/:id" para não serem capturadas pelo parâmetro de rota.
+router.get('/equipe', tarefaController.listarEquipe);
 router.get('/carga-equipe', tarefaController.cargaEquipe);
 
 // POST   /api/tarefas          -> cria (rotinas fixas calculam o próximo vencimento)

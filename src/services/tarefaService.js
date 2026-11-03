@@ -40,8 +40,8 @@ const FUSO = '-03:00';
 const FUSO_OFFSET_MS = -3 * 60 * 60 * 1000;
 const DIA_MS = 24 * 60 * 60 * 1000;
 
-/** Antecedência em que uma tarefa ativa passa ao farol amarelo. */
-const JANELA_ALERTA_MS = 48 * 60 * 60 * 1000;
+/** Antecedência em que uma tarefa ativa passa ao farol amarelo (vence hoje / < 24h). */
+const JANELA_ALERTA_MS = 24 * 60 * 60 * 1000;
 
 const LIMITE_PADRAO = 100;
 const LIMITE_MAXIMO = 500;
@@ -156,7 +156,7 @@ function proximoVencimento(diaRecorrencia, referencia, { estrita = false } = {})
 
 /**
  * Situação de prazo da tarefa e a cor do farol correspondente:
- * VERDE (no prazo), AMARELO (vence em até 48h), VERMELHO (vencida) e
+ * VERDE (no prazo), AMARELO (vence em até 24h), VERMELHO (vencida) e
  * CINZA (encerrada — concluída ou cancelada).
  */
 function avaliarPrazo(tarefa, agora) {
@@ -548,6 +548,11 @@ async function removerTarefa(idParam, usuario) {
   return true;
 }
 
+/** GET /api/tarefas/equipe — colaboradores ativos que podem receber tarefas. */
+async function listarEquipe() {
+  return tarefaRepository.listarResponsaveis();
+}
+
 /**
  * GET /api/tarefas/carga-equipe?de=&ate=
  * Resumo por colaborador: tarefas ativas, concluídas e vencidas. Lista a
@@ -636,6 +641,7 @@ module.exports = {
   atualizarTarefa,
   alterarStatus,
   removerTarefa,
+  listarEquipe,
   cargaEquipe,
   // Regras de domínio expostas para testes.
   proximoVencimento,

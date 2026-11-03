@@ -18,6 +18,9 @@ function acao(metodo, status = 200) {
 /** GET /api/tarefas — lista com filtros e paginação. */
 const listarTarefas = acao((req) => tarefaService.listarTarefas(req.query || {}));
 
+/** GET /api/tarefas/equipe — colaboradores ativos para filtro/atribuição. */
+const listarEquipe = acao(async () => ({ data: await tarefaService.listarEquipe() }));
+
 /** GET /api/tarefas/carga-equipe — resumo de carga por colaborador. */
 const cargaEquipe = acao((req) => tarefaService.cargaEquipe(req.query || {}));
 
@@ -42,6 +45,7 @@ const removerTarefa = acao((req) => tarefaService.removerTarefa(req.params.id, r
 
 module.exports = {
   listarTarefas,
+  listarEquipe,
   cargaEquipe,
   obterTarefa,
   criarTarefa,

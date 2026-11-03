@@ -133,6 +133,15 @@ function listarColaboradores(perfis, idsExtras = []) {
   });
 }
 
+/** Colaboradores ativos (filtro e atribuição de tarefas). */
+function listarResponsaveis() {
+  return prisma.usuario.findMany({
+    where: { ativo: true },
+    select: { id: true, nome: true, perfil: true },
+    orderBy: { nome: 'asc' },
+  });
+}
+
 module.exports = {
   findAll,
   findById,
@@ -142,4 +151,5 @@ module.exports = {
   remove,
   contarCargaEquipe,
   listarColaboradores,
+  listarResponsaveis,
 };

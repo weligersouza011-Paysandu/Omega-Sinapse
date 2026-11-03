@@ -16,6 +16,7 @@ const DashboardPlanejamento = lazy(() => import('./pages/DashboardPlanejamento.j
 const CurvaS = lazy(() => import('./pages/CurvaS.jsx'));
 const MapaObras = lazy(() => import('./pages/MapaObras.jsx'));
 const UsuariosPage = lazy(() => import('./pages/UsuariosPage.jsx'));
+const GestaoDemandasView = lazy(() => import('./pages/GestaoDemandasView.jsx'));
 
 /** Fallback exibido enquanto o código de uma página é baixado. */
 function PaginaCarregando() {
@@ -143,6 +144,7 @@ export default function App() {
         />
         <Route path="/orcamentos/dashboard" element={<DashboardOrcamentosBI />} />
         <Route path="/planejamento" element={<DashboardPlanejamento />} />
+        <Route path="/demandas" element={<GestaoDemandasView />} />
         <Route path="/curva-s" element={<CurvaS />} />
         <Route path="/mapa" element={<MapaObras />} />
       </Route>

@@ -33,6 +33,14 @@ export const MODULOS = [
     icone: 'M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Z',
   },
   {
+    id: 'demandas',
+    rota: '/demandas',
+    label: 'Gestão de Demandas',
+    descricao: 'Rotinas e demandas da equipe, com farol de prazo.',
+    ativo: true,
+    icone: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
+  },
+  {
     id: 'curva-s',
     rota: '/curva-s',
     label: 'Curva S & BI',
