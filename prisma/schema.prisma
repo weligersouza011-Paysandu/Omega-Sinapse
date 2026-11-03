@@ -104,6 +104,41 @@ enum TipoMidiaObra {
   VIDEO
 }
 
+/// Natureza da demanda da equipe de planejamento.
+enum TipoTarefa {
+  /// Rotina semanal fixa (vence sempre no mesmo dia da semana).
+  FIXA_RECORRENTE
+  /// Demanda pontual, com data de vencimento própria.
+  AVULSA
+}
+
+/// Dia da semana de vencimento de uma rotina recorrente.
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+}
+
+/// Situação de uma tarefa da equipe.
+enum StatusTarefa {
+  A_FAZER
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+/// Prioridade de uma tarefa da equipe.
+enum PrioridadeTarefa {
+  BAIXA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
 // -----------------------------------------------------------------------------
 // Usuários (autenticação JWT)
 // -----------------------------------------------------------------------------
@@ -125,6 +160,7 @@ model Usuario {
   obras_osi_emitidas      Obra[]             @relation("ObraOsiEmissor")
   relatorios_autor        ObraRelatorio[]    @relation("RelatorioAutor")
   comentarios_autor       ObraComentario[]   @relation("ComentarioAutor")
+  tarefas                 Tarefa[]           @relation("TarefaResponsavel")
 
   @@map("usuarios")
 }
@@ -262,6 +298,7 @@ model Obra {
   ocorrencias   ObraOcorrencia[]
   comentarios   ObraComentario[]
   midias        ObraMidia[]
+  tarefas       Tarefa[]
 
   @@index([status])
   @@index([planejador_id])
@@ -464,4 +501,40 @@ model ObraMidia {
   @@index([relatorio_id])
   @@index([tipo])
   @@map("obra_midias")
+}
+
+// -----------------------------------------------------------------------------
+// Tarefas da equipe de planejamento (gestão de demandas e carga da equipe)
+//
+// Rotinas fixas semanais e demandas avulsas, com farol de prazo calculado no
+// service. Concluir fora do prazo exige justificativa (validado no service).
+// -----------------------------------------------------------------------------
+model Tarefa {
+  id                   Int              @id @default(autoincrement())
+  titulo               String           @db.VarChar(200)
+  descricao            String?
+  tipo                 TipoTarefa       @default(AVULSA)
+  /// Obrigatório quando tipo = FIXA_RECORRENTE (validado no service).
+  dia_recorrencia      DiaSemana?
+  data_vencimento      DateTime         @db.Timestamptz(6)
+  status               StatusTarefa     @default(A_FAZER)
+  prioridade           PrioridadeTarefa @default(MEDIA)
+  /// Colaborador responsável pela tarefa.
+  usuario_id           Int
+  /// Obra/SS relacionada (opcional).
+  obra_id              Int?
+  /// Preenchida quando a tarefa é concluída após o vencimento.
+  justificativa_atraso String?
+  concluido_em         DateTime?        @db.Timestamptz(6)
+  created_at           DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime         @default(now()) @updatedAt @db.Timestamptz(6)
+
+  usuario Usuario @relation("TarefaResponsavel", fields: [usuario_id], references: [id], onDelete: Restrict)
+  obra    Obra?   @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+
+  @@index([usuario_id, status])
+  @@index([status])
+  @@index([data_vencimento])
+  @@index([obra_id])
+  @@map("tarefas")
 }
