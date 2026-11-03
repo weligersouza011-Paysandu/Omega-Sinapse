@@ -8,15 +8,19 @@ import {
   DIAS_SEMANA,
   PERFIS_GESTORES,
   PRIORIDADES,
+  dataHoraInputLocal,
   dataInputLocal,
   obterStatusDemanda,
 } from '../../utils/demandas.js';
 import { formatarDataHora } from '../../utils/formatters.js';
 
 const TIPOS = [
-  { value: 'AVULSA', label: 'Avulsa', descricao: 'Demanda pontual com data própria' },
-  { value: 'FIXA_RECORRENTE', label: 'Fixa / Rotina', descricao: 'Repete toda semana no mesmo dia' },
+  { value: 'AVULSA', label: 'Avulsa (Pontual)', descricao: 'Entrega única, com data e hora de vencimento' },
+  { value: 'FIXA_RECORRENTE', label: 'Recorrente (Rotina Fixa)', descricao: 'Repete toda semana no mesmo dia' },
 ];
+
+/** Horário sugerido para o vencimento de uma nova demanda avulsa. */
+const HORA_PADRAO = '18:00';
 
 function formularioInicial(tarefa, usuario) {
   if (tarefa) {
@@ -25,7 +29,7 @@ function formularioInicial(tarefa, usuario) {
       descricao: tarefa.descricao || '',
       tipo: tarefa.tipo,
       dia_recorrencia: tarefa.dia_recorrencia || 'SEGUNDA',
-      data_vencimento: dataInputLocal(tarefa.data_vencimento),
+      data_vencimento: dataHoraInputLocal(tarefa.data_vencimento),
       prioridade: tarefa.prioridade,
       usuario_id: String(tarefa.usuario_id),
       obra_id: tarefa.obra_id ? String(tarefa.obra_id) : '',
@@ -36,7 +40,7 @@ function formularioInicial(tarefa, usuario) {
     descricao: '',
     tipo: 'AVULSA',
     dia_recorrencia: 'SEGUNDA',
-    data_vencimento: dataInputLocal(new Date()),
+    data_vencimento: `${dataInputLocal(new Date())}T${HORA_PADRAO}`,
     prioridade: 'MEDIA',
     usuario_id: usuario?.id ? String(usuario.id) : '',
     obra_id: '',
@@ -111,8 +115,10 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
       setErro('Informe o título da demanda.');
       return;
     }
-    if (form.tipo === 'AVULSA' && !form.data_vencimento) {
-      setErro('Informe a data de vencimento.');
+    // O input datetime-local está no fuso do navegador; a API recebe o instante em ISO.
+    const vencimento = form.data_vencimento ? new Date(form.data_vencimento) : null;
+    if (form.tipo === 'AVULSA' && (!vencimento || Number.isNaN(vencimento.getTime()))) {
+      setErro('Informe a data e a hora de vencimento.');
       return;
     }
 
@@ -127,7 +133,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
     if (form.tipo === 'FIXA_RECORRENTE') {
       dados.dia_recorrencia = form.dia_recorrencia;
     } else {
-      dados.data_vencimento = form.data_vencimento;
+      dados.data_vencimento = vencimento.toISOString();
     }
 
     setSalvando(true);
@@ -167,7 +173,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
 
           <div>
             <label className="rotulo" htmlFor="demanda-titulo">
-              Demanda *
+              Título da demanda *
             </label>
             <input
               id="demanda-titulo"
@@ -182,7 +188,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
 
           <div>
             <label className="rotulo" htmlFor="demanda-descricao">
-              Descrição
+              Descrição / Detalhes da execução
             </label>
             <textarea
               id="demanda-descricao"
@@ -194,7 +200,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
           </div>
 
           <div>
-            <span className="rotulo">Tipo *</span>
+            <span className="rotulo">Tipo de demanda *</span>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup">
               {TIPOS.map((tipo) => (
                 <button
@@ -224,7 +230,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
             {form.tipo === 'FIXA_RECORRENTE' ? (
               <div>
                 <label className="rotulo" htmlFor="demanda-dia">
-                  Vence toda *
+                  Dia da semana *
                 </label>
                 <select
                   id="demanda-dia"
@@ -245,11 +251,11 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
             ) : (
               <div>
                 <label className="rotulo" htmlFor="demanda-vencimento">
-                  Vencimento *
+                  Data e hora de vencimento *
                 </label>
                 <input
                   id="demanda-vencimento"
-                  type="date"
+                  type="datetime-local"
                   className="campo"
                   value={form.data_vencimento}
                   onChange={(evento) => alterar('data_vencimento', evento.target.value)}
@@ -299,7 +305,7 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
 
             <div>
               <label className="rotulo" htmlFor="demanda-obra">
-                Obra / SS
+                Obra relacionada (SS/OSI)
               </label>
               <select
                 id="demanda-obra"
@@ -323,10 +329,22 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
             </div>
           </div>
 
-          {tarefa?.justificativa_atraso ? (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              <p className="text-[11px] font-bold uppercase tracking-wide">Justificativa de atraso</p>
-              <p>{tarefa.justificativa_atraso}</p>
+          {tarefa?.concluido_em ? (
+            <div
+              className={[
+                'rounded-md border px-3 py-2 text-sm',
+                tarefa.justificativa_atraso
+                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800',
+              ].join(' ')}
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wide">
+                {tarefa.justificativa_atraso ? 'Concluída em atraso' : 'Concluída no prazo'} ·{' '}
+                {formatarDataHora(tarefa.concluido_em)}
+              </p>
+              {tarefa.justificativa_atraso ? (
+                <p className="mt-0.5 whitespace-pre-line">{tarefa.justificativa_atraso}</p>
+              ) : null}
             </div>
           ) : null}
         </div>

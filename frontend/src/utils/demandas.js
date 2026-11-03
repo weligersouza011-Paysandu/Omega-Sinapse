@@ -45,14 +45,20 @@ export const PRIORIDADES = [
 
 /** Dias da semana na ordem de uma semana de trabalho. */
 export const DIAS_SEMANA = [
-  { value: 'SEGUNDA', label: 'Segunda', curto: 'segunda' },
-  { value: 'TERCA', label: 'Terça', curto: 'terça' },
-  { value: 'QUARTA', label: 'Quarta', curto: 'quarta' },
-  { value: 'QUINTA', label: 'Quinta', curto: 'quinta' },
-  { value: 'SEXTA', label: 'Sexta', curto: 'sexta' },
-  { value: 'SABADO', label: 'Sábado', curto: 'sábado' },
-  { value: 'DOMINGO', label: 'Domingo', curto: 'domingo' },
+  { value: 'SEGUNDA', label: 'Toda Segunda-feira', curto: 'segunda' },
+  { value: 'TERCA', label: 'Toda Terça-feira', curto: 'terça' },
+  { value: 'QUARTA', label: 'Toda Quarta-feira', curto: 'quarta' },
+  { value: 'QUINTA', label: 'Toda Quinta-feira', curto: 'quinta' },
+  { value: 'SEXTA', label: 'Toda Sexta-feira', curto: 'sexta' },
+  { value: 'SABADO', label: 'Todo Sábado', curto: 'sábado' },
+  { value: 'DOMINGO', label: 'Todo Domingo', curto: 'domingo' },
 ];
+
+/**
+ * Capacidade semanal de referência por colaborador (demandas ativas que vencem
+ * na semana). Base da barra de ocupação do painel de carga.
+ */
+export const CAPACIDADE_SEMANAL = 10;
 
 export const FILTROS_TIPO = [
   { value: '', label: 'Todas' },
@@ -89,6 +95,16 @@ export function referenciaObra(obra) {
 export function podeEditar(tarefa, usuario) {
   if (!tarefa || !usuario) return false;
   return PERFIS_GESTORES.includes(usuario.perfil) || tarefa.usuario_id === usuario.id;
+}
+
+/** "aaaa-mm-ddThh:mm" local de uma data (para inputs type="datetime-local"). */
+export function dataHoraInputLocal(valor) {
+  const data = dataInputLocal(valor);
+  if (!data) return '';
+  const instante = new Date(valor);
+  const hora = String(instante.getHours()).padStart(2, '0');
+  const minuto = String(instante.getMinutes()).padStart(2, '0');
+  return `${data}T${hora}:${minuto}`;
 }
 
 /** "aaaa-mm-dd" local de uma data (para inputs type="date"). */

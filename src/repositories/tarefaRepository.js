@@ -92,12 +92,13 @@ async function remove(id) {
 
 /**
  * Contagens agregadas por colaborador para o painel de carga da equipe.
- * @param {{de?:Date, ate?:Date, agora:Date, statusAtivos:string[]}} opcoes
+ * @param {{de?:Date, ate?:Date, agora:Date, fimSemana:Date, statusAtivos:string[]}} opcoes
  */
-async function contarCargaEquipe({ de, ate, agora, statusAtivos }) {
+async function contarCargaEquipe({ de, ate, agora, fimSemana, statusAtivos }) {
   const base = montarWhere({ de, ate });
+  const ativas = { ...base, status: { in: statusAtivos } };
 
-  const [porStatus, vencidas, concluidasComAtraso] = await prisma.$transaction([
+  const [porStatus, vencidas, concluidasComAtraso, fixas, semana] = await prisma.$transaction([
     prisma.tarefa.groupBy({
       by: ['usuario_id', 'status'],
       where: base,
@@ -106,7 +107,7 @@ async function contarCargaEquipe({ de, ate, agora, statusAtivos }) {
     }),
     prisma.tarefa.groupBy({
       by: ['usuario_id'],
-      where: { ...base, status: { in: statusAtivos }, data_vencimento: { lt: agora } },
+      where: { ...ativas, data_vencimento: { lt: agora } },
       _count: { _all: true },
       orderBy: { usuario_id: 'asc' },
     }),
@@ -117,9 +118,22 @@ async function contarCargaEquipe({ de, ate, agora, statusAtivos }) {
       _count: { _all: true },
       orderBy: { usuario_id: 'asc' },
     }),
+    prisma.tarefa.groupBy({
+      by: ['usuario_id'],
+      where: { ...ativas, tipo: 'FIXA_RECORRENTE' },
+      _count: { _all: true },
+      orderBy: { usuario_id: 'asc' },
+    }),
+    // Carga da semana: ativas que vencem até o domingo (inclui as já vencidas).
+    prisma.tarefa.groupBy({
+      by: ['usuario_id'],
+      where: { ...ativas, data_vencimento: { lte: fimSemana } },
+      _count: { _all: true },
+      orderBy: { usuario_id: 'asc' },
+    }),
   ]);
 
-  return { porStatus, vencidas, concluidasComAtraso };
+  return { porStatus, vencidas, concluidasComAtraso, fixas, semana };
 }
 
 /** Usuários ativos de uma lista de perfis + os ids informados (mesmo inativos). */

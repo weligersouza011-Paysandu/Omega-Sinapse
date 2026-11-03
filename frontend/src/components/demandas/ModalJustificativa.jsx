@@ -26,7 +26,7 @@ export default function ModalJustificativa({ tarefa, onConfirmar, onCancelar }) 
   return (
     <ModalBase
       aberto
-      titulo="Concluir demanda fora do prazo"
+      titulo="Justificativa de Conclusão em Atraso"
       subtitulo={tarefa.titulo}
       tamanho="md"
       onFechar={onCancelar}
@@ -47,12 +47,15 @@ export default function ModalJustificativa({ tarefa, onConfirmar, onCancelar }) 
             </label>
             <textarea
               id="justificativa-atraso"
-              className="campo min-h-[96px]"
+              className="campo min-h-[160px] resize-y"
               value={texto}
               onChange={(evento) => setTexto(evento.target.value)}
-              placeholder="Ex.: Aguardando retorno do cliente sobre o escopo revisado."
+              placeholder="Explique o que levou à extrapolação do prazo (dependências, mudanças de escopo, impedimentos de campo...)."
               autoFocus
             />
+            <p className="mt-1 text-[11px] text-slate-400">
+              A justificativa e a data/hora exata do encerramento ficam registradas no histórico da demanda.
+            </p>
           </div>
         </div>
 

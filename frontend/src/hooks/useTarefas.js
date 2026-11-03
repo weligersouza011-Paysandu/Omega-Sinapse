@@ -43,6 +43,11 @@ export async function removerTarefa(id) {
   await api.delete(`/tarefas/${id}`);
 }
 
+export async function obterCargaEquipe() {
+  const { data } = await api.get('/tarefas/carga-equipe');
+  return data;
+}
+
 export async function listarEquipe() {
   const { data } = await api.get('/tarefas/equipe');
   return data.data || [];
@@ -113,4 +118,36 @@ export function useEquipe() {
   }, []);
 
   return { equipe, carregando };
+}
+
+/**
+ * Resumo de carga por colaborador. `atualizacao` é qualquer valor que mude
+ * quando as demandas mudam (ex.: a lista carregada), disparando um novo resumo.
+ */
+export function useCargaEquipe(atualizacao) {
+  const [carga, setCarga] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    obterCargaEquipe()
+      .then((resultado) => {
+        if (!ativo) return;
+        setCarga(resultado);
+        setErro('');
+      })
+      .catch((falha) => {
+        if (ativo) setErro(falha.message || 'Não foi possível carregar a carga da equipe.');
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [atualizacao]);
+
+  return { carga, carregando, erro };
 }

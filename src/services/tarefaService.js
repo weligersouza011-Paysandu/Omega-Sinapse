@@ -150,6 +150,14 @@ function proximoVencimento(diaRecorrencia, referencia, { estrita = false } = {})
   return fimDoDia(alvo.toISOString().slice(0, 10));
 }
 
+/** Fim (domingo 23:59:59.999 local) da semana corrente. */
+function fimDaSemana(agora) {
+  const hoje = hojeLocal(agora);
+  const meiaNoite = new Date(`${hoje}T00:00:00.000Z`);
+  const ateDomingo = (7 - meiaNoite.getUTCDay()) % 7;
+  return fimDoDia(new Date(meiaNoite.getTime() + ateDomingo * DIA_MS).toISOString().slice(0, 10));
+}
+
 /* -------------------------------------------------------------------------- */
 /* Farol de prazo                                                             */
 /* -------------------------------------------------------------------------- */
@@ -566,12 +574,15 @@ async function cargaEquipe(query = {}) {
     throw new AppError(400, 'Período inválido: "de" deve ser anterior ou igual a "ate".');
   }
 
-  const { porStatus, vencidas, concluidasComAtraso } = await tarefaRepository.contarCargaEquipe({
-    de,
-    ate,
-    agora,
-    statusAtivos: STATUS_ATIVOS,
-  });
+  const fimSemana = fimDaSemana(agora);
+  const { porStatus, vencidas, concluidasComAtraso, fixas, semana } =
+    await tarefaRepository.contarCargaEquipe({
+      de,
+      ate,
+      agora,
+      fimSemana,
+      statusAtivos: STATUS_ATIVOS,
+    });
 
   const vazio = () => ({
     a_fazer: 0,
@@ -581,6 +592,10 @@ async function cargaEquipe(query = {}) {
     concluidas_com_atraso: 0,
     canceladas: 0,
     vencidas: 0,
+    /** Rotinas fixas ativas. */
+    fixas: 0,
+    /** Ativas que vencem até o fim da semana (inclui vencidas). */
+    semana: 0,
     total: 0,
   });
   const contagens = new Map();
@@ -606,6 +621,8 @@ async function cargaEquipe(query = {}) {
   for (const linha of concluidasComAtraso) {
     contagemDe(linha.usuario_id).concluidas_com_atraso = linha._count._all;
   }
+  for (const linha of fixas) contagemDe(linha.usuario_id).fixas = linha._count._all;
+  for (const linha of semana) contagemDe(linha.usuario_id).semana = linha._count._all;
 
   const colaboradores = await tarefaRepository.listarColaboradores(PERFIS_EQUIPE, [
     ...contagens.keys(),
@@ -629,6 +646,7 @@ async function cargaEquipe(query = {}) {
   return {
     gerado_em: agora.toISOString(),
     periodo: { de: de ? de.toISOString() : null, ate: ate ? ate.toISOString() : null },
+    fim_semana: fimSemana.toISOString(),
     colaboradores: linhas,
     totais,
   };
@@ -645,6 +663,7 @@ module.exports = {
   cargaEquipe,
   // Regras de domínio expostas para testes.
   proximoVencimento,
+  fimDaSemana,
   avaliarPrazo,
   TIPOS,
   STATUS,

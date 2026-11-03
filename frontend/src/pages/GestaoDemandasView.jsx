@@ -4,17 +4,25 @@ import KanbanDemandas from '../components/demandas/KanbanDemandas.jsx';
 import ListaDemandas from '../components/demandas/ListaDemandas.jsx';
 import ModalDemanda from '../components/demandas/ModalDemanda.jsx';
 import ModalJustificativa from '../components/demandas/ModalJustificativa.jsx';
+import PainelCargaEquipe from '../components/demandas/PainelCargaEquipe.jsx';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
-import { alterarStatusTarefa, removerTarefa, useEquipe, useTarefas } from '../hooks/useTarefas.js';
+import {
+  alterarStatusTarefa,
+  removerTarefa,
+  useCargaEquipe,
+  useEquipe,
+  useTarefas,
+} from '../hooks/useTarefas.js';
 import {
   FILTROS_TIPO,
   exigeJustificativa,
   farolDaTarefa,
   obterStatusDemanda,
 } from '../utils/demandas.js';
+import { formatarDataHora } from '../utils/formatters.js';
 
 const VISOES = [
   { id: 'kanban', label: 'Kanban', Icone: Columns3 },
@@ -59,6 +67,8 @@ export default function GestaoDemandasView() {
 
   const { itens, setItens, carregando, erro, recarregar } = useTarefas({ usuarioId, tipo });
   const { equipe } = useEquipe();
+  // O resumo de carga acompanha qualquer mudança nas demandas carregadas.
+  const cargaEquipe = useCargaEquipe(itens);
 
   const [movendoId, setMovendoId] = useState(null);
   const [pendenteJustificativa, setPendenteJustificativa] = useState(null);
@@ -89,13 +99,25 @@ export default function GestaoDemandasView() {
         const atualizadas = lista.map((item) => (item.id === tarefa.id ? atualizada : item));
         return proxima ? [...atualizadas, proxima] : atualizadas;
       });
-      toast.sucesso(
-        proxima
-          ? `Rotina concluída. Próxima ocorrência agendada para ${new Date(proxima.data_vencimento).toLocaleDateString('pt-BR')}.`
-          : `Status alterado para "${obterStatusDemanda(novoStatus).label}".`
-      );
+      const mensagens = [
+        justificativa
+          ? `Concluída com atraso em ${formatarDataHora(atualizada.concluido_em)}. Justificativa registrada.`
+          : `Status alterado para "${obterStatusDemanda(novoStatus).label}".`,
+      ];
+      if (proxima) {
+        mensagens.push(
+          `Próxima ocorrência agendada para ${new Date(proxima.data_vencimento).toLocaleDateString('pt-BR')}.`
+        );
+      }
+      toast.sucesso(mensagens.join(' '));
     } catch (falha) {
       setItens(anterior);
+      // O relógio do navegador pode divergir do servidor: se a API exigir a
+      // justificativa, o modal é aberto mesmo que o farol local não indicasse atraso.
+      if (!justificativa && falha.detalhes?.campo === 'justificativa_atraso') {
+        setPendenteJustificativa(tarefa);
+        return;
+      }
       toast.erro(falha.message || 'Não foi possível alterar o status.');
     } finally {
       setMovendoId(null);
@@ -176,6 +198,14 @@ export default function GestaoDemandasView() {
           </button>
         </div>
       </div>
+
+      <PainelCargaEquipe
+        carga={cargaEquipe.carga}
+        carregando={cargaEquipe.carregando}
+        erro={cargaEquipe.erro}
+        usuarioSelecionado={usuarioId}
+        onSelecionar={setUsuarioId}
+      />
 
       <section className="card mb-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
         <div className="lg:w-72">

@@ -8,7 +8,7 @@ import {
   podeEditar,
   rotuloTipo,
 } from '../../utils/demandas.js';
-import { formatarData } from '../../utils/formatters.js';
+import { formatarData, formatarDataHora } from '../../utils/formatters.js';
 
 const AGRUPAMENTOS = [
   { id: 'status', label: 'Status' },
@@ -61,7 +61,7 @@ function FrequenciaPrazo({ tarefa }) {
       </div>
     );
   }
-  return <p className="text-xs font-semibold text-slate-700">{formatarData(tarefa.data_vencimento)}</p>;
+  return <p className="text-xs font-semibold text-slate-700">{formatarDataHora(tarefa.data_vencimento)}</p>;
 }
 
 /** Seletor de status inline, colorido pelo status atual. */
