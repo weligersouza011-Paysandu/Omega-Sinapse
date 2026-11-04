@@ -253,6 +253,52 @@ export function useOrcamentos({
 }
 
 /* -------------------------------------------------------------------------- */
+/* Hook da legenda de status                                                  */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Conta os orçamentos de cada status (respeitando a busca por texto) para a
+ * legenda do topo. Usa a própria listagem com `limit: 1` — basta o `total` de
+ * cada consulta — e dispara as consultas em paralelo.
+ * @param {{busca?:string, statuses:string[]}} parametros
+ */
+export function useContagemStatus({ busca = '', statuses = [] } = {}) {
+  const [contagem, setContagem] = useState({});
+  const [carregando, setCarregando] = useState(true);
+
+  const requisicaoAtual = useRef(0);
+  const chaveStatuses = statuses.join(',');
+
+  const recarregar = useCallback(async () => {
+    const idRequisicao = requisicaoAtual.current + 1;
+    requisicaoAtual.current = idRequisicao;
+    setCarregando(true);
+
+    try {
+      const lista = chaveStatuses ? chaveStatuses.split(',') : [];
+      const respostas = await Promise.all(
+        lista.map((status) => listarOrcamentos({ busca, status, page: 1, limit: 1 }))
+      );
+      if (requisicaoAtual.current !== idRequisicao) return;
+
+      setContagem(Object.fromEntries(lista.map((status, indice) => [status, respostas[indice]?.total || 0])));
+    } catch {
+      // A legenda é auxiliar: em caso de falha mantém os últimos números.
+    } finally {
+      if (requisicaoAtual.current === idRequisicao) {
+        setCarregando(false);
+      }
+    }
+  }, [busca, chaveStatuses]);
+
+  useEffect(() => {
+    recarregar();
+  }, [recarregar]);
+
+  return { contagem, carregando, recarregar };
+}
+
+/* -------------------------------------------------------------------------- */
 /* Hook do quadro (Kanban)                                                    */
 /* -------------------------------------------------------------------------- */
 

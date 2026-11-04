@@ -1,15 +1,24 @@
-import { useEffect, useState } from 'react';
-import { Columns3, LayoutGrid, Table } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ArrowRight, Ban, Columns3, LayoutGrid, ShieldCheck, Table, TriangleAlert, X } from 'lucide-react';
 import AbasOrcamentos from '../components/AbasOrcamentos.jsx';
 import CardObra from '../components/CardObra.jsx';
+import LegendaStatus from '../components/LegendaStatus.jsx';
 import ListaTabela from '../components/ListaTabela.jsx';
+import ModalBase from '../components/ModalBase.jsx';
+import StatusBadge from '../components/StatusBadge.jsx';
 import QuadroKanban from '../components/QuadroKanban.jsx';
 import ModalNovoOrcamento from '../components/ModalNovoOrcamento.jsx';
 import ModalDetalhesOrcamento from '../components/ModalDetalhesOrcamento.jsx';
 import EditarOrcamentoModal from '../components/EditarOrcamentoModal.jsx';
 import Spinner from '../components/Spinner.jsx';
-import { useOrcamentos, useQuadroOrcamentos } from '../hooks/useOrcamentos.js';
-import { OPCOES_COMERCIAL, STATUS_COMERCIAL, STATUS_OPCOES } from '../utils/status.js';
+import {
+  atualizarOrcamento,
+  useContagemStatus,
+  useOrcamentos,
+  useQuadroOrcamentos,
+} from '../hooks/useOrcamentos.js';
+import { useToast } from '../context/ToastContext.jsx';
+import { OPCOES_COMERCIAL, STATUS_COMERCIAL, STATUS_OPCOES, obterStatus } from '../utils/status.js';
 import { formatarMoeda } from '../utils/formatters.js';
 
 const LIMITE = 12;
@@ -19,6 +28,41 @@ const VISOES = [
   { id: 'kanban', label: 'Kanban', Icone: Columns3 },
   { id: 'list', label: 'Lista', Icone: Table },
 ];
+
+/** Rótulos da legenda do topo (nomenclatura do fluxo de homologação). */
+const ROTULOS_LEGENDA = {
+  VISITA_TECNICA: 'Visita Técnica',
+  AGUARDANDO_APROVACAO: 'Aguardando Homologação',
+  APROVADO: 'Aprovados',
+  DESATIVADO: 'Desativados',
+};
+
+/**
+ * Ações rápidas de status dos cards (individual e em lote). `origens` são os
+ * status a partir dos quais a ação faz sentido no fluxo comercial.
+ */
+const ACOES_STATUS = [
+  {
+    status: 'AGUARDANDO_APROVACAO',
+    label: 'Homologar',
+    rotuloLote: 'Homologar para aprovação',
+    Icone: ShieldCheck,
+    estilo: 'border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100',
+    origens: ['VISITA_TECNICA'],
+  },
+  {
+    status: 'DESATIVADO',
+    label: 'Desativar',
+    rotuloLote: 'Desativar',
+    Icone: Ban,
+    estilo: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
+    origens: ['VISITA_TECNICA', 'AGUARDANDO_APROVACAO', 'APROVADO'],
+  },
+];
+
+function acoesDisponiveis(orcamento) {
+  return ACOES_STATUS.filter((acao) => acao.origens.includes(orcamento.status));
+}
 
 export default function DashboardOrcamentos() {
   const [visao, setVisao] = useState('cards');
@@ -33,6 +77,13 @@ export default function DashboardOrcamentos() {
   const [modalNovo, setModalNovo] = useState(false);
   const [idDetalhe, setIdDetalhe] = useState(null);
   const [idEdicao, setIdEdicao] = useState(null);
+
+  const toast = useToast();
+  // Seleção em lote dos cards (id → orçamento) e troca de status pendente de
+  // confirmação: `{ itens, para }`.
+  const [selecao, setSelecao] = useState({});
+  const [mudanca, setMudanca] = useState(null);
+  const [aplicandoMudanca, setAplicandoMudanca] = useState(false);
 
   // Cards e Lista compartilham a mesma consulta paginada/filtrada; o Kanban
   // usa o hook do quadro (sem paginação).
@@ -51,6 +102,13 @@ export default function DashboardOrcamentos() {
     escopo,
     ativo: visao === 'kanban',
   });
+
+  const contagem = useContagemStatus({ busca: buscaAplicada, statuses: STATUS_COMERCIAL });
+
+  // A seleção vale só para os cards visíveis: limpa ao trocar página/filtros.
+  useEffect(() => {
+    setSelecao({});
+  }, [pagina, status, buscaAplicada, escopo, visao]);
 
   // Debounce da busca por texto.
   useEffect(() => {
@@ -79,7 +137,56 @@ export default function DashboardOrcamentos() {
   function recarregarTudo() {
     cards.recarregar();
     quadro.recarregar();
+    contagem.recarregar();
   }
+
+  function alternarSelecao(orcamento) {
+    setSelecao((atual) => {
+      const proxima = { ...atual };
+      if (proxima[orcamento.id]) delete proxima[orcamento.id];
+      else proxima[orcamento.id] = orcamento;
+      return proxima;
+    });
+  }
+
+  function selecionarPagina() {
+    setSelecao(Object.fromEntries(cards.itens.map((item) => [item.id, item])));
+  }
+
+  /** Abre a confirmação apenas para os itens elegíveis à ação (individual ou lote). */
+  function solicitarMudanca(itens, para) {
+    const acao = ACOES_STATUS.find((item) => item.status === para);
+    const elegiveis = itens.filter((item) => acao?.origens.includes(item.status));
+    if (elegiveis.length > 0) setMudanca({ itens: elegiveis, para });
+  }
+
+  async function confirmarMudanca() {
+    if (!mudanca) return;
+    setAplicandoMudanca(true);
+
+    const resultados = await Promise.allSettled(
+      mudanca.itens.map((item) => atualizarOrcamento(item.id, { status: mudanca.para }))
+    );
+    const falhas = resultados.filter((resultado) => resultado.status === 'rejected').length;
+    const sucessos = resultados.length - falhas;
+
+    if (sucessos > 0) {
+      toast.sucesso(`${sucessos} orçamento(s) movido(s) para "${obterStatus(mudanca.para).label}".`);
+    }
+    if (falhas > 0) {
+      toast.erro(`${falhas} orçamento(s) não puderam ser atualizados.`);
+    }
+
+    setAplicandoMudanca(false);
+    setMudanca(null);
+    setSelecao({});
+    recarregarTudo();
+  }
+
+  const itensSelecionados = useMemo(() => Object.values(selecao), [selecao]);
+  const somaMudanca = mudanca
+    ? mudanca.itens.reduce((soma, item) => soma + (Number(item.valor) || 0), 0)
+    : 0;
 
   const valorTotalPagina = cards.itens.reduce((soma, item) => soma + (Number(item.valor) || 0), 0);
   const exibindoCards = visao === 'cards';
@@ -101,7 +208,8 @@ export default function DashboardOrcamentos() {
             <p className="text-sm text-slate-500">
               {!exibindoKanban
                 ? `${cards.total} orçamento(s) encontrado(s)${
-                    cards.itens.length > 0 ? ` · ${formatarMoeda(valorTotalPagina)} nesta página` : ''
+                    // Na visão em Cards os valores ficam ocultos (só no detalhe).
+                    cards.itens.length > 0 && exibindoLista ? ` · ${formatarMoeda(valorTotalPagina)} nesta página` : ''
                   }`
                 : `${quadro.itens.length} orçamento(s) no quadro`}
             </p>
@@ -138,6 +246,15 @@ export default function DashboardOrcamentos() {
             </button>
           </div>
         </div>
+
+        <LegendaStatus
+          statuses={STATUS_COMERCIAL}
+          rotulos={ROTULOS_LEGENDA}
+          contagem={contagem.contagem}
+          carregando={contagem.carregando}
+          selecionado={status}
+          onSelecionar={alterarStatus}
+        />
 
         <section className="card mb-6 flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
           <div className="relative flex-1">
@@ -226,16 +343,32 @@ export default function DashboardOrcamentos() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {cards.itens.map((orcamento) => (
-                <CardObra
-                  key={orcamento.id}
-                  orcamento={orcamento}
-                  onClick={() => setIdDetalhe(orcamento.id)}
-                  onEditar={() => setIdEdicao(orcamento.id)}
-                />
-              ))}
-            </div>
+            <>
+              <div className="mb-3 flex justify-end">
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-omega-700 hover:underline"
+                  onClick={selecionarPagina}
+                >
+                  Selecionar todos desta página
+                </button>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                {cards.itens.map((orcamento) => (
+                  <CardObra
+                    key={orcamento.id}
+                    orcamento={orcamento}
+                    onClick={() => setIdDetalhe(orcamento.id)}
+                    onEditar={() => setIdEdicao(orcamento.id)}
+                    ocultarValor
+                    selecionado={Boolean(selecao[orcamento.id])}
+                    onAlternarSelecao={alternarSelecao}
+                    acoesRapidas={acoesDisponiveis(orcamento)}
+                    onAcaoRapida={(item, para) => solicitarMudanca([item], para)}
+                  />
+                ))}
+              </div>
+            </>
           )
         ) : exibindoLista ? (
           <ListaTabela
@@ -279,7 +412,97 @@ export default function DashboardOrcamentos() {
             </button>
           </div>
         ) : null}
+
+        {exibindoCards && itensSelecionados.length > 0 ? (
+          <div
+            role="region"
+            aria-label="Ações em lote"
+            className="sticky bottom-4 z-20 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-omega-500/40 bg-white px-4 py-3 shadow-lg"
+          >
+            <p className="text-sm font-semibold text-slate-700">
+              {itensSelecionados.length} orçamento(s) selecionado(s)
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              {ACOES_STATUS.map(({ status: destino, rotuloLote, Icone, estilo, origens }) => {
+                const elegiveis = itensSelecionados.filter((item) => origens.includes(item.status)).length;
+                return (
+                  <button
+                    key={destino}
+                    type="button"
+                    disabled={elegiveis === 0}
+                    onClick={() => solicitarMudanca(itensSelecionados, destino)}
+                    title={elegiveis === 0 ? 'Nenhum item selecionado está elegível para esta ação' : undefined}
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${estilo}`}
+                  >
+                    <Icone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                    {rotuloLote} ({elegiveis})
+                  </button>
+                );
+              })}
+              <button type="button" className="btn-neutro" onClick={() => setSelecao({})}>
+                <X className="h-4 w-4" aria-hidden="true" />
+                Limpar seleção
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      <ModalBase
+        aberto={Boolean(mudanca)}
+        titulo="Alterar status"
+        subtitulo={mudanca ? `${mudanca.itens.length} orçamento(s) · total ${formatarMoeda(somaMudanca)}` : ''}
+        tamanho="md"
+        onFechar={() => {
+          if (!aplicandoMudanca) setMudanca(null);
+        }}
+      >
+        {mudanca ? (
+          <>
+            <div className="space-y-4 px-5 py-5">
+              <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3.5">
+                <TriangleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" aria-hidden="true" />
+                <p className="text-sm text-amber-800">
+                  Esta ação atualiza a etapa do processo e fica registrada no histórico de cada orçamento.
+                </p>
+              </div>
+
+              <ul className="max-h-60 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+                {mudanca.itens.map((item) => (
+                  <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                    <span className="min-w-0 truncate text-sm font-bold text-slate-800">{item.pep || '—'}</span>
+                    <span className="flex items-center gap-2">
+                      <StatusBadge status={item.status} />
+                      <ArrowRight className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+                      <StatusBadge status={mudanca.para} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
+              <button
+                type="button"
+                className="btn-neutro"
+                onClick={() => setMudanca(null)}
+                disabled={aplicandoMudanca}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={mudanca.para === 'DESATIVADO' ? 'btn-perigo' : 'btn-primario'}
+                onClick={confirmarMudanca}
+                disabled={aplicandoMudanca}
+              >
+                {aplicandoMudanca ? <Spinner tamanho="sm" /> : null}
+                Sim, alterar status
+              </button>
+            </div>
+          </>
+        ) : null}
+      </ModalBase>
 
       <ModalNovoOrcamento
         aberto={modalNovo}
