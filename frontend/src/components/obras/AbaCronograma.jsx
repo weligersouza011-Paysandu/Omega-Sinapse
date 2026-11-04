@@ -146,6 +146,8 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
         onProgresso: setProgresso,
       });
       toast.sucesso(`Cronograma importado: ${versao.versao} com ${versao.total_atividades} atividades.`);
+      const avisoArmazenamento = (versao.avisos || []).find((aviso) => aviso.includes('Cloudinary'));
+      if (avisoArmazenamento) toast.aviso(avisoArmazenamento, 10000);
       setArquivo(null);
       setObservacao('');
       setDataCorte(dataLocalISO());

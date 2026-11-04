@@ -3,6 +3,7 @@
 const path = require('path');
 const express = require('express');
 const prisma = require('./config/prisma');
+const { estadoCloudinary } = require('./config/cloudinary');
 const orcamentoRoutes = require('./routes/orcamentoRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -44,7 +45,13 @@ app.get('/ping', (req, res) => {
 app.get('/health', async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
-    return res.status(200).json({ status: 'ok', banco: 'conectado' });
+    return res.status(200).json({
+      status: 'ok',
+      banco: 'conectado',
+      // Diagnóstico sem segredos: indica se o Cloudinary está utilizável.
+      armazenamento: estadoCloudinary.configurado ? 'configurado' : 'indisponivel',
+      ...(estadoCloudinary.configurado ? {} : { armazenamento_problemas: estadoCloudinary.problemas }),
+    });
   } catch (err) {
     console.error('[health] Falha ao consultar o banco:', err.message);
     return res.status(503).json({ status: 'degradado', banco: 'indisponivel' });

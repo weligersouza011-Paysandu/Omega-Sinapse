@@ -2,7 +2,30 @@
 
 const sharp = require('sharp');
 const cloudinary = require('../config/cloudinary');
+const { estadoCloudinary } = require('../config/cloudinary');
 const AppError = require('../errors/AppError');
+
+/** Falha antes de chamar o Cloudinary quando as credenciais estão inválidas. */
+function garantirConfigurado() {
+  if (!estadoCloudinary.configurado) {
+    throw new AppError(
+      503,
+      `Armazenamento de arquivos (Cloudinary) indisponível: ${estadoCloudinary.problemas.join(' ')} Avise o administrador do sistema.`
+    );
+  }
+}
+
+/** Traduz erros do Cloudinary em mensagens úteis (sem expor credenciais). */
+function erroCloudinary(err, oQue) {
+  const mensagem = String(err?.message || err || '');
+  if (/cloud_name|api_key|api_secret|signature|unknown api key|invalid credentials/i.test(mensagem) || err?.http_code === 401) {
+    return new AppError(
+      503,
+      `Falha de credenciais do Cloudinary ao enviar ${oQue} (${mensagem}). Verifique CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY e CLOUDINARY_API_SECRET no servidor.`
+    );
+  }
+  return new AppError(502, `Falha ao enviar ${oQue} para o Cloudinary: ${mensagem}`);
+}
 
 const LARGURA_MAXIMA = Number(process.env.UPLOAD_MAX_WIDTH || 1920);
 const QUALIDADE_WEBP = Number(process.env.UPLOAD_WEBP_QUALITY || 80);
@@ -38,6 +61,7 @@ async function otimizarParaWebp(buffer) {
  * @returns {Promise<{url:string, public_id:string, bytes:number, width:number, height:number}>}
  */
 function enviarParaCloudinary(buffer, { pasta = PASTA_PADRAO, publicId } = {}) {
+  garantirConfigurado();
   return new Promise((resolve, reject) => {
     const opcoes = {
       folder: pasta,
@@ -52,9 +76,7 @@ function enviarParaCloudinary(buffer, { pasta = PASTA_PADRAO, publicId } = {}) {
 
     const stream = cloudinary.uploader.upload_stream(opcoes, (err, result) => {
       if (err) {
-        return reject(
-          new AppError(502, `Falha ao enviar a imagem para o Cloudinary: ${err.message}`)
-        );
+        return reject(erroCloudinary(err, 'a imagem'));
       }
       return resolve({
         url: result.secure_url,
@@ -120,12 +142,13 @@ const MIMES_IMAGEM = [
  * @param {{pasta?:string}} opcoes
  */
 function enviarDocumento(buffer, { pasta = PASTA_PADRAO } = {}) {
+  garantirConfigurado();
   return new Promise((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
       { folder: pasta, resource_type: 'auto' },
       (err, result) => {
         if (err) {
-          return reject(new AppError(502, `Falha ao enviar o documento para o Cloudinary: ${err.message}`));
+          return reject(erroCloudinary(err, 'o documento'));
         }
         return resolve({
           url: result.secure_url,
@@ -165,6 +188,7 @@ async function processarDocumento(file, opcoes = {}) {
 }
 
 module.exports = {
+  garantirConfigurado,
   otimizarParaWebp,
   enviarParaCloudinary,
   processarFoto,

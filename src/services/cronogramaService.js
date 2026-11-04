@@ -93,10 +93,21 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     );
   }
 
-  // 2) Arquivo original para rastreabilidade.
-  const enviado = await uploadService.processarDocumento(arquivo, {
-    pasta: process.env.CLOUDINARY_FOLDER_CRONOGRAMAS || 'synapse/obras/cronogramas',
-  });
+  // 2) Arquivo original para rastreabilidade. Uma falha do armazenamento não
+  // impede a importação: os dados já foram lidos e a revisão é gravada sem o link.
+  let enviado = { url: null };
+  try {
+    enviado = await uploadService.processarDocumento(arquivo, {
+      pasta: process.env.CLOUDINARY_FOLDER_CRONOGRAMAS || 'synapse/obras/cronogramas',
+    });
+  } catch (err) {
+    if (!(err instanceof AppError)) throw err;
+    console.error(`[cronograma] Arquivo original não armazenado (obra ${obraId}): ${err.message}`);
+    analise.avisos.push(
+      'O cronograma foi importado, mas o arquivo original não pôde ser guardado no armazenamento (Cloudinary). ' +
+        'Os dados estão salvos; avise o administrador para corrigir as credenciais e reenvie se precisar do arquivo anexado.'
+    );
+  }
 
   // 3) Snapshot + atividades em lote (transação).
   const dados = {
