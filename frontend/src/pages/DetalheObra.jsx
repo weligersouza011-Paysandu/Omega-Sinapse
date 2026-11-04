@@ -34,8 +34,8 @@ const PERFIS_QUE_ATRIBUEM = ['SUPERVISOR', 'ADMIN'];
 const ABAS_PRINCIPAIS = [
   { id: 'visao-geral', label: 'Visão Geral', Icone: LayoutDashboard },
   { id: 'cronograma', label: 'Cronograma', Icone: FileSpreadsheet },
-  { id: 'financeiro', label: 'Projeção Financeira & Medição', Icone: Wallet },
   { id: '6wla', label: 'Programação de 6 Semanas (6WLA)', Icone: CalendarRange },
+  { id: 'financeiro', label: 'Projeção Financeira & Medição', Icone: Wallet },
 ];
 
 /** Abas operacionais (registros do dia a dia e edição). */

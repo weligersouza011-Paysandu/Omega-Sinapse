@@ -5,17 +5,17 @@ import { formatarData, formatarPercentual } from '../../utils/formatters.js';
 /**
  * Diagrama de rede do caminho crítico ("mapa mental" da lógica do cronograma).
  *
- * As atividades são caixas ligadas pelas predecessoras, fluindo da esquerda
- * para a direita (coluna = profundidade na rede). A cadeia crítica fica em
- * vermelho com fluxo animado; clicar numa atividade destaca tudo o que vem
- * antes e depois dela e abre os detalhes. Zoom com a roda do mouse, arrastar
- * para mover, botões para aproximar/afastar/ajustar.
+ * As atividades são caixas ligadas pelas predecessoras, fluindo de cima para
+ * baixo (linha = profundidade na rede). A cadeia crítica fica em vermelho com
+ * fluxo animado; clicar numa atividade destaca tudo o que vem antes e depois
+ * dela e abre os detalhes. A roda do mouse rola o mapa (Ctrl + roda aproxima),
+ * arrastar move e os botões aproximam, afastam ou ajustam à largura.
  */
 
-const NO_LARGURA = 232;
-const NO_ALTURA = 70;
-const ESPACO_X = 84;
-const ESPACO_Y = 20;
+const NO_LARGURA = 264;
+const NO_ALTURA = 82;
+const ESPACO_X = 28;
+const ESPACO_Y = 74;
 const MARGEM = 40;
 
 const PALETA = ['#2563eb', '#0d9488', '#7c3aed', '#ea580c', '#0891b2', '#db2777', '#65a30d', '#ca8a04', '#4f46e5', '#059669'];
@@ -98,7 +98,7 @@ function montarLayout(rede, modo, ocultarConcluidas) {
     });
   }
 
-  // Colunas ordenadas por data e depois pelo baricentro das predecessoras (menos cruzamentos).
+  // Linhas ordenadas pelo baricentro das predecessoras e depois por data (menos cruzamentos).
   const colunas = [];
   [...visiveis].forEach((c) => {
     const r = rank.get(c);
@@ -123,21 +123,21 @@ function montarLayout(rede, modo, ocultarConcluidas) {
     coluna.forEach((c, i) => posicao.set(c, i));
   });
 
-  const alturaMax = Math.max(...colunas.filter(Boolean).map((c) => c.length), 1);
+  const larguraMax = Math.max(...colunas.filter(Boolean).map((c) => c.length), 1);
   const nos = [];
-  colunas.forEach((coluna, r) => {
-    if (!coluna) return;
-    const deslocamento = ((alturaMax - coluna.length) * (NO_ALTURA + ESPACO_Y)) / 2;
-    coluna.forEach((c, i) => {
+  colunas.forEach((linha, r) => {
+    if (!linha) return;
+    const deslocamento = ((larguraMax - linha.length) * (NO_LARGURA + ESPACO_X)) / 2;
+    linha.forEach((c, i) => {
       nos.push({
         ...todos.get(c),
-        x: MARGEM + r * (NO_LARGURA + ESPACO_X),
-        y: MARGEM + deslocamento + i * (NO_ALTURA + ESPACO_Y),
+        x: MARGEM + deslocamento + i * (NO_LARGURA + ESPACO_X),
+        y: MARGEM + r * (NO_ALTURA + ESPACO_Y),
       });
     });
   });
-  const largura = MARGEM * 2 + Math.max(colunas.length, 1) * (NO_LARGURA + ESPACO_X) - ESPACO_X;
-  const altura = MARGEM * 2 + alturaMax * (NO_ALTURA + ESPACO_Y) - ESPACO_Y;
+  const largura = MARGEM * 2 + larguraMax * (NO_LARGURA + ESPACO_X) - ESPACO_X;
+  const altura = MARGEM * 2 + Math.max(colunas.length, 1) * (NO_ALTURA + ESPACO_Y) - ESPACO_Y;
 
   return { nos, arestas, sucessoras, predecessoras, largura, altura, criticos };
 }
@@ -184,7 +184,8 @@ export default function RedeCaminhoCritico({ rede }) {
     const el = container.current;
     if (!el) return;
     const { width, height } = el.getBoundingClientRect();
-    const k = Math.min(width / layout.largura, height / layout.altura, 1.2);
+    // Cabe na largura (sem passar de 100%); a altura pode crescer e é percorrida rolando.
+    const k = Math.max(Math.min(width / layout.largura, 1), 0.35);
     setVista({ k, x: (width - layout.largura * k) / 2, y: Math.max((height - layout.altura * k) / 2, 0) });
   }, [layout]);
 
@@ -193,11 +194,33 @@ export default function RedeCaminhoCritico({ rede }) {
     setSelecionado(null);
   }, [ajustar]);
 
-  // Zoom com a roda do mouse, centrado no cursor.
+  // Vista e tamanho atuais acessíveis no handler nativo da roda.
+  const vistaRef = useRef(vista);
+  vistaRef.current = vista;
+  const alturaRef = useRef(layout.altura);
+  alturaRef.current = layout.altura;
+
+  // Roda: rola o mapa (Shift = horizontal) e devolve a rolagem à página nas
+  // extremidades; Ctrl/⌘ + roda aproxima centrado no cursor.
   useEffect(() => {
     const el = container.current;
     if (!el) return undefined;
     const aoRolar = (evento) => {
+      if (!evento.ctrlKey && !evento.metaKey) {
+        const horizontal = evento.shiftKey ? evento.deltaY : evento.deltaX;
+        const vertical = evento.shiftKey ? 0 : evento.deltaY;
+        const v = vistaRef.current;
+        const alturaVisivel = el.getBoundingClientRect().height;
+        const minimoY = Math.min(alturaVisivel - alturaRef.current * v.k - 24, 0);
+        const novoY = Math.min(Math.max(v.y - vertical, minimoY), Math.max(v.y, 0));
+        // Já no topo/fim do mapa: deixa a página rolar normalmente.
+        if (!horizontal && novoY === v.y) return;
+        evento.preventDefault();
+        const proxima = { ...v, x: v.x - horizontal, y: novoY };
+        vistaRef.current = proxima; // rolagens rápidas em sequência usam a posição já atualizada
+        setVista(proxima);
+        return;
+      }
       evento.preventDefault();
       const caixa = el.getBoundingClientRect();
       const mx = evento.clientX - caixa.left;
@@ -246,16 +269,17 @@ export default function RedeCaminhoCritico({ rede }) {
   const caminhoAresta = (a) => {
     const o = porCodigo.get(a.de);
     const d = porCodigo.get(a.para);
-    const x1 = o.x + NO_LARGURA;
-    const y1 = o.y + NO_ALTURA / 2;
-    const x2 = d.x;
-    const y2 = d.y + NO_ALTURA / 2;
-    if (x2 > x1) {
-      const meio = (x2 - x1) / 2;
-      return { d: `M${x1},${y1} C${x1 + meio},${y1} ${x2 - meio},${y2} ${x2},${y2}`, lx: (x1 + x2) / 2, ly: (y1 + y2) / 2 };
+    const x1 = o.x + NO_LARGURA / 2;
+    const y1 = o.y + NO_ALTURA;
+    const x2 = d.x + NO_LARGURA / 2;
+    const y2 = d.y;
+    if (y2 > y1) {
+      const meio = (y2 - y1) / 2;
+      return { d: `M${x1},${y1} C${x1},${y1 + meio} ${x2},${y2 - meio} ${x2},${y2}`, lx: (x1 + x2) / 2, ly: (y1 + y2) / 2 };
     }
-    const baixo = Math.max(o.y, d.y) + NO_ALTURA + 30;
-    return { d: `M${x1},${y1} C${x1 + 60},${baixo} ${x2 - 60},${baixo} ${x2},${y2}`, lx: (x1 + x2) / 2, ly: baixo - 8 };
+    // Ligação para cima (ciclo/ordem fora do fluxo): contorna pela direita.
+    const direita = Math.max(o.x, d.x) + NO_LARGURA + 40;
+    return { d: `M${x1},${y1} C${direita},${y1 + 40} ${direita},${y2 - 40} ${x2},${y2}`, lx: direita - 10, ly: (y1 + y2) / 2 };
   };
 
   return (
@@ -290,7 +314,7 @@ export default function RedeCaminhoCritico({ rede }) {
 
       <div
         ref={container}
-        className="relative h-[68vh] min-h-[420px] w-full cursor-grab select-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 active:cursor-grabbing"
+        className="relative h-[78vh] min-h-[520px] w-full cursor-grab select-none overflow-hidden rounded-lg border border-slate-200 bg-slate-50 active:cursor-grabbing"
         onPointerDown={aoPressionar}
         onPointerMove={aoMover}
         onPointerUp={() => {
@@ -334,7 +358,7 @@ export default function RedeCaminhoCritico({ rede }) {
                     markerEnd={`url(#${critica ? 'seta-critica' : 'seta-normal'})`}
                   />
                   {rotulo ? (
-                    <text x={lx} y={ly - 4} textAnchor="middle" fontSize="10" fontWeight="700" fill={critica ? '#dc2626' : '#64748b'}>
+                    <text x={lx + 8} y={ly + 4} textAnchor="start" fontSize="11" fontWeight="700" fill={critica ? '#dc2626' : '#64748b'}>
                       {rotulo}
                     </text>
                   ) : null}
@@ -347,7 +371,7 @@ export default function RedeCaminhoCritico({ rede }) {
               const concluida = n.situacao === 'CONCLUIDA';
               const apagado = destaque && !destaque.has(n.codigo);
               const ativo = selecionado === n.codigo;
-              const linhas = quebrarTexto(n.descricao, 33, 2);
+              const linhas = quebrarTexto(n.descricao, 36, 2);
               const cor = corDaFrente(n.frente, frentes);
               const avanco = Math.min(Math.max(Number(n.avanco_fisico_real) || 0, 0), 100);
               return (
@@ -371,28 +395,28 @@ export default function RedeCaminhoCritico({ rede }) {
                     strokeWidth={ativo ? 3 : critica ? 2.2 : 1}
                     filter={critica ? 'drop-shadow(0 2px 4px rgba(239,68,68,0.25))' : undefined}
                   />
-                  <rect width="6" height={NO_ALTURA} rx="3" fill={cor} />
-                  <text x="14" y="16" fontSize="10" fontWeight="700" fill="#64748b" fontFamily="ui-monospace, monospace">
+                  <rect width="7" height={NO_ALTURA} rx="3.5" fill={cor} />
+                  <text x="16" y="18" fontSize="11" fontWeight="700" fill="#64748b" fontFamily="ui-monospace, monospace">
                     {n.codigo}
                   </text>
-                  <text x={NO_LARGURA - 10} y="16" fontSize="10" fontWeight="700" textAnchor="end" fill={critica ? '#dc2626' : '#64748b'}>
-                    {critica ? '⚡ ' : ''}F {n.folga_total_dias ?? '—'}d
+                  <text x={NO_LARGURA - 12} y="18" fontSize="11" fontWeight="700" textAnchor="end" fill={critica ? '#dc2626' : '#64748b'}>
+                    {critica ? '⚡ ' : ''}Folga {n.folga_total_dias ?? '—'}d
                   </text>
                   {linhas.map((linha, i) => (
-                    <text key={i} x="14" y={32 + i * 13} fontSize="11.5" fontWeight="600" fill={concluida ? '#94a3b8' : '#1e293b'}>
+                    <text key={i} x="16" y={37 + i * 15} fontSize="13" fontWeight="600" fill={concluida ? '#94a3b8' : '#1e293b'}>
                       {linha}
                     </text>
                   ))}
-                  <text x="14" y={NO_ALTURA - 9} fontSize="10" fill="#64748b">
+                  <text x="16" y={NO_ALTURA - 10} fontSize="11" fill="#64748b">
                     {dataCurta(n.inicio)} → {dataCurta(n.termino)} · {Math.round(avanco)}%
                   </text>
-                  <rect x="120" y={NO_ALTURA - 15} width={NO_LARGURA - 132} height="5" rx="2.5" fill="#e2e8f0" />
+                  <rect x="140" y={NO_ALTURA - 17} width={NO_LARGURA - 154} height="6" rx="3" fill="#e2e8f0" />
                   <rect
-                    x="120"
-                    y={NO_ALTURA - 15}
-                    width={((NO_LARGURA - 132) * avanco) / 100}
-                    height="5"
-                    rx="2.5"
+                    x="140"
+                    y={NO_ALTURA - 17}
+                    width={((NO_LARGURA - 154) * avanco) / 100}
+                    height="6"
+                    rx="3"
                     fill={concluida ? '#10b981' : avanco > 0 ? '#f59e0b' : '#e2e8f0'}
                   />
                 </g>
@@ -405,7 +429,7 @@ export default function RedeCaminhoCritico({ rede }) {
           {[
             { Icone: Plus, rotulo: 'Aproximar', acao: () => zoom(1.25) },
             { Icone: Minus, rotulo: 'Afastar', acao: () => zoom(0.8) },
-            { Icone: Maximize2, rotulo: 'Ajustar à tela', acao: ajustar },
+            { Icone: Maximize2, rotulo: 'Ajustar à largura', acao: ajustar },
           ].map(({ Icone, rotulo, acao }) => (
             <button
               key={rotulo}
@@ -502,7 +526,8 @@ export default function RedeCaminhoCritico({ rede }) {
         ) : null}
       </div>
       <p className="text-[11px] text-slate-500">
-        Role o mouse para aproximar, arraste para mover e clique numa atividade para ver a cadeia dela (antes e depois) e os detalhes.
+        Role o mouse para descer pelo mapa (Ctrl + roda aproxima ou afasta), arraste para mover e clique numa atividade para ver a
+        cadeia dela (antes e depois) e os detalhes.
       </p>
     </div>
   );
