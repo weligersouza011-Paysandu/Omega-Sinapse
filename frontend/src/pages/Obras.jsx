@@ -139,7 +139,7 @@ export default function Obras() {
     <>
       {/* O Kanban usa a largura total (aproveita a expansão da Sidebar);
           a listagem de cards mantém a largura de leitura confortável. */}
-      <div className={exibindoCards ? 'mx-auto w-full max-w-7xl' : 'w-full'}>
+      <div className="w-full">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold text-slate-800">Obras em Execução</h2>
@@ -232,7 +232,7 @@ export default function Obras() {
 
         {exibindoCards ? (
           carregando ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {Array.from({ length: 8 }).map((_, indice) => (
                 <div key={indice} className="card h-80 animate-pulse bg-slate-50" />
               ))}
@@ -246,7 +246,7 @@ export default function Obras() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 min-[1800px]:grid-cols-6">
               {cards.itens.map((obra) => (
                 <CardObra
                   key={obra.id}

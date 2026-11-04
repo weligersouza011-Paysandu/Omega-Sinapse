@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ExternalLink, MapPin } from 'lucide-react';
 import { coordenadasDe } from '../../utils/coordenadas.js';
+import { urlAbrirGoogle, urlGoogleComPino } from '../../utils/googleMaps.js';
 
 /**
  * Localização da obra no Google Maps (imagem de satélite), incorporado por iframe.
@@ -12,21 +13,7 @@ import { coordenadasDe } from '../../utils/coordenadas.js';
  * - "Ver obra" (bairro) e "Ver cidade" alternam o enquadramento.
  */
 
-const CHAVE = import.meta.env.VITE_GOOGLE_MAPS_KEY || '';
 const ZOOM = { obra: 16, cidade: 13 };
-
-function urlIncorporada([lat, lng], zoom) {
-  const ponto = `${lat},${lng}`;
-  if (CHAVE) {
-    const params = new URLSearchParams({ key: CHAVE, q: ponto, zoom: String(zoom), maptype: 'satellite', language: 'pt-BR' });
-    return `https://www.google.com/maps/embed/v1/place?${params}`;
-  }
-  return `https://maps.google.com/maps?q=${encodeURIComponent(ponto)}&t=k&z=${zoom}&hl=pt-BR&output=embed`;
-}
-
-function urlAbrir([lat, lng]) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${lat},${lng}`)}`;
-}
 
 export default function MapaGoogle({ localizacoes = [], altura = 'h-80' }) {
   const [enquadramento, setEnquadramento] = useState('obra');
@@ -43,7 +30,7 @@ export default function MapaGoogle({ localizacoes = [], altura = 'h-80' }) {
         <iframe
           key={`${principal.posicao.join(',')}-${enquadramento}`}
           title={`Localização da obra: ${principal.localizacao.descricao || 'ponto principal'}`}
-          src={urlIncorporada(principal.posicao, ZOOM[enquadramento])}
+          src={urlGoogleComPino(principal.posicao, ZOOM[enquadramento])}
           className="h-full w-full border-0"
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
@@ -77,7 +64,7 @@ export default function MapaGoogle({ localizacoes = [], altura = 'h-80' }) {
               </span>
             </span>
             <a
-              href={urlAbrir(posicao)}
+              href={urlAbrirGoogle(posicao)}
               target="_blank"
               rel="noreferrer"
               className="inline-flex shrink-0 items-center gap-1 font-semibold text-omega-700 hover:underline"
