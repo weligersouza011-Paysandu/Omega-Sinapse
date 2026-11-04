@@ -14,7 +14,7 @@ import 'leaflet/dist/leaflet.css';
 import { coordenadasDe, paraNumero } from '../../utils/coordenadas.js';
 
 /**
- * Mapa interativo da obra (Leaflet + OpenStreetMap, ou imagem de satélite Esri).
+ * Mapa interativo da obra (Leaflet + OpenStreetMap).
  *
  * - Exibe todos os pontos/trechos já cadastrados que possuem coordenadas.
  * - Com `onSelecionar`, permite escolher um ponto clicando no mapa ou
@@ -56,14 +56,8 @@ function formatarKm(valor) {
   return numero.toLocaleString('pt-BR', { maximumFractionDigits: 3 });
 }
 
-/** Imagem de satélite (Esri World Imagery — uso livre com atribuição, sem chave). */
-const CAMADA_SATELITE = {
-  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  attribution: 'Imagens &copy; Esri, Maxar, Earthstar Geographics e comunidade GIS',
-};
-
 /** Centraliza o mapa na média dos pontos existentes, na primeira montagem. */
-function AjustarLimites({ pontos, ativo, zoomPonto = 15, zoomMaximo = 16 }) {
+function AjustarLimites({ pontos, ativo }) {
   const mapa = useMap();
   const executado = useRef(false);
 
@@ -72,12 +66,12 @@ function AjustarLimites({ pontos, ativo, zoomPonto = 15, zoomMaximo = 16 }) {
     executado.current = true;
 
     if (pontos.length === 1) {
-      mapa.setView(pontos[0], zoomPonto);
+      mapa.setView(pontos[0], 15);
       return;
     }
 
-    mapa.fitBounds(L.latLngBounds(pontos), { padding: [28, 28], maxZoom: zoomMaximo });
-  }, [mapa, pontos, ativo, zoomPonto, zoomMaximo]);
+    mapa.fitBounds(L.latLngBounds(pontos), { padding: [28, 28], maxZoom: 16 });
+  }, [mapa, pontos, ativo]);
 
   return null;
 }
@@ -153,10 +147,6 @@ export default function MapaLocalizacoes({
   chaveFoco = 'selecao',
   altura = 'h-72',
   className = '',
-  /** Imagem de satélite no lugar do mapa de ruas. */
-  satelite = false,
-  /** Zoom com um único ponto (13 ≈ cidade inteira; 15 ≈ quarteirões). */
-  zoomPonto = 15,
 }) {
   const interativo = typeof onSelecionar === 'function';
 
@@ -192,26 +182,17 @@ export default function MapaLocalizacoes({
   return (
     <MapContainer
       center={centroInicial}
-      zoom={posicaoSelecionada ? 16 : satelite ? zoomPonto : ZOOM_PADRAO}
+      zoom={posicaoSelecionada ? 16 : ZOOM_PADRAO}
       scrollWheelZoom={false}
       className={`mapa-leaflet ${altura} w-full ${className}`}
     >
-      {satelite ? (
-        <TileLayer attribution={CAMADA_SATELITE.attribution} url={CAMADA_SATELITE.url} maxNativeZoom={19} maxZoom={19} />
-      ) : (
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
-      )}
-
-      <AjustarLimites
-        pontos={pontos}
-        ativo={!posicaoSelecionada}
-        zoomPonto={zoomPonto}
-        zoomMaximo={Math.max(zoomPonto, 13)}
+      <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        maxZoom={19}
       />
+
+      <AjustarLimites pontos={pontos} ativo={!posicaoSelecionada} />
       <FocarSelecionada posicao={posicaoSelecionada} chave={chaveFoco} />
       <CapturarClique onSelecionar={interativo ? onSelecionar : null} />
 
@@ -222,13 +203,12 @@ export default function MapaLocalizacoes({
           <CircleMarker
             key={localizacao.id}
             center={posicao}
-            radius={satelite ? 9 : 6.5}
+            radius={6.5}
             pathOptions={{
-              // Sobre a imagem de satélite, borda branca para o ponto se destacar.
-              color: satelite ? '#ffffff' : ehTrecho ? '#7c3aed' : '#1c5d99',
-              fillColor: ehTrecho ? '#8b5cf6' : satelite ? '#ef4444' : '#1c5d99',
-              fillOpacity: satelite ? 0.95 : 0.78,
-              weight: satelite ? 3 : 2,
+              color: ehTrecho ? '#7c3aed' : '#1c5d99',
+              fillColor: ehTrecho ? '#8b5cf6' : '#1c5d99',
+              fillOpacity: 0.78,
+              weight: 2,
             }}
           >
             <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>

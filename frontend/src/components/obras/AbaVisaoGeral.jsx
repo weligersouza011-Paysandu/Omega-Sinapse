@@ -1,12 +1,11 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BarChart3, CheckCircle2, CircleAlert, FileSpreadsheet, Loader2, MapPin } from 'lucide-react';
 import { CurvaS, IndicadoresPrazo } from './AbaCronograma.jsx';
+import MapaGoogle from './MapaGoogle.jsx';
 import { obterCurvaS } from '../../services/cronogramaApi.js';
 import { formatarDataHora, formatarMoeda } from '../../utils/formatters.js';
 import { resumirOrcamento } from '../../utils/financeiroObra.js';
 
-// Leaflet só é baixado quando a aba é aberta.
-const MapaLocalizacoes = lazy(() => import('./MapaLocalizacoes.jsx'));
 
 function Metadado({ rotulo, valor, destaque = false }) {
   return (
@@ -130,16 +129,7 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
           </header>
 
           {comCoordenadas.length > 0 ? (
-            <Suspense
-              fallback={
-                <div className="flex h-80 items-center justify-center gap-2 bg-slate-100 text-xs text-slate-500">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Carregando mapa…
-                </div>
-              }
-            >
-              <MapaLocalizacoes localizacoes={localizacoes} altura="h-80" satelite zoomPonto={13} />
-            </Suspense>
+            <MapaGoogle localizacoes={localizacoes} altura="h-80" />
           ) : (
             <div className="flex h-80 flex-col items-center justify-center gap-2 border-t border-slate-100 bg-slate-50 px-6 text-center">
               <MapPin className="h-8 w-8 text-slate-300" aria-hidden="true" />
