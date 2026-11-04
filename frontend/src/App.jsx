@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RotaPorPerfil from './components/RotaPorPerfil.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Spinner from './components/Spinner.jsx';
+import { CabecalhoProvider, useConteudoCabecalho } from './context/CabecalhoContext.jsx';
 import Login from './pages/Login.jsx';
 import DashboardOrcamentos from './pages/DashboardOrcamentos.jsx';
 
@@ -54,6 +55,15 @@ const AMBIENTE = MODO_DEMO
  * evita que a grid de cards force overflow horizontal quando a Sidebar expande.
  */
 function AppLayout() {
+  return (
+    <CabecalhoProvider>
+      <AppLayoutConteudo />
+    </CabecalhoProvider>
+  );
+}
+
+function AppLayoutConteudo() {
+  const conteudoCabecalho = useConteudoCabecalho();
   // Em telas menores (tablets e notebooks compactos) a Sidebar inicia recolhida
   // para preservar a área útil dos dashboards; o usuário ainda pode expandi-la.
   const [recolhido, setRecolhido] = useState(() =>
@@ -79,19 +89,26 @@ function AppLayout() {
 
       <div className="flex h-screen min-w-0 flex-1 flex-col overflow-y-auto">
         <header className="sticky top-0 z-20 flex h-16 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white/90 px-4 backdrop-blur sm:px-6">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Synapse
-            </p>
-            <h1 className="truncate text-lg font-bold tracking-tight text-slate-800">
-              {moduloAtual.label}
-            </h1>
-          </div>
+          {/* Páginas podem ocupar a barra com o próprio cabeçalho compacto. */}
+          {conteudoCabecalho ? (
+            <div className="min-w-0 flex-1">{conteudoCabecalho}</div>
+          ) : (
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                Synapse
+              </p>
+              <h1 className="truncate text-lg font-bold tracking-tight text-slate-800">
+                {moduloAtual.label}
+              </h1>
+            </div>
+          )}
 
           <div className="flex shrink-0 items-center gap-3">
-            <p className="hidden max-w-xs truncate text-xs text-slate-400 lg:block">
-              {moduloAtual.descricao}
-            </p>
+            {conteudoCabecalho ? null : (
+              <p className="hidden max-w-xs truncate text-xs text-slate-400 lg:block">
+                {moduloAtual.descricao}
+              </p>
+            )}
             <span
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ring-1 ${AMBIENTE.classe}`}
             >

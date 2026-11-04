@@ -38,6 +38,8 @@ const INCLUDE_DETALHE = {
     },
   },
   localizacoes: { orderBy: [{ created_at: 'asc' }, { id: 'asc' }] },
+  // Restrições 6WLA da obra (aba Programação de 6 Semanas).
+  restricoes: { orderBy: [{ prazo: { sort: 'asc', nulls: 'last' } }, { id: 'asc' }] },
   avanco_fisico: { orderBy: [{ data: 'asc' }, { id: 'asc' }] },
   relatorios: {
     orderBy: [{ data: 'desc' }, { id: 'desc' }],
@@ -210,6 +212,7 @@ function mapearObra(registro) {
     ocorrencias,
     comentarios,
     midias,
+    restricoes,
     ...obra
   } = registro;
 
@@ -287,6 +290,7 @@ function mapearObra(registro) {
     ocorrencias: ocorrencias || [],
     comentarios: comentarios || [],
     midias: midiasMapeadas,
+    restricoes: restricoes || [],
     resumo: {
       relatorios: _count?.relatorios ?? relatorios?.length ?? 0,
       atividades: _count?.atividades ?? atividades?.length ?? 0,
