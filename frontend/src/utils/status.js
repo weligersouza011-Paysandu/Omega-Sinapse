@@ -135,6 +135,29 @@ export const OPCOES_PENDENCIA = [
   { value: 'ok', label: 'Documentação completa', descricao: 'Documentação completa' },
 ];
 
+/** Natureza da revisão de valor (espelha o enum TipoAlteracaoRevisao). */
+export const TIPOS_ALTERACAO_REVISAO = [
+  {
+    value: 'REVISAO_SUBSTITUTIVA',
+    descricao: 'Revisão (Substitui valor anterior)',
+    label: 'Revisão',
+    cor: 'bg-sky-50 text-sky-700 border-sky-200',
+  },
+  {
+    value: 'ADITIVO_FINANCEIRO',
+    descricao: 'Aditivo (Soma ao orçamento)',
+    label: 'Aditivo',
+    cor: 'bg-violet-50 text-violet-700 border-violet-200',
+  },
+];
+
+/** Situação de aprovação da revisão (espelha o enum StatusAprovacaoRevisao). */
+export const STATUS_APROVACAO_REVISAO = [
+  { value: 'PENDENTE', label: 'Pendente', cor: 'bg-amber-100 text-amber-800 border-amber-300' },
+  { value: 'APROVADO', label: 'Aprovado', cor: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
+  { value: 'REJEITADO', label: 'Rejeitado', cor: 'bg-red-100 text-red-700 border-red-300' },
+];
+
 const DESCONHECIDO = {
   value: 'DESCONHECIDO',
   label: '—',

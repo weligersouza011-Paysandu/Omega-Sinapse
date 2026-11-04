@@ -34,6 +34,12 @@ const STATUS_VALIDOS = [
 /** Estado inicial de todo orçamento recém-aberto. */
 const STATUS_INICIAL = 'VISITA_TECNICA';
 
+/** Natureza da revisão de valor (enum TipoAlteracaoRevisao). */
+const TIPOS_ALTERACAO = ['REVISAO_SUBSTITUTIVA', 'ADITIVO_FINANCEIRO'];
+
+/** Situação de aprovação da revisão (enum StatusAprovacaoRevisao). */
+const STATUS_APROVACAO = ['PENDENTE', 'APROVADO', 'REJEITADO'];
+
 /** Status que representam decisão tomada pelo cliente (base da taxa de aprovação). */
 const STATUS_DECIDIDOS = ['APROVADO', 'DESATIVADO'];
 
@@ -480,7 +486,16 @@ async function atualizarOrcamento(idParam, payload, usuario) {
     if (estaVazio(payload.observacao)) {
       throw new AppError(400, 'É obrigatório informar "observacao" ao alterar o valor do orçamento.');
     }
-    await orcamentoRepository.addRevisao(id, novoValor, String(payload.observacao).trim(), usuario.id);
+    await orcamentoRepository.addRevisao(
+      id,
+      {
+        valor: novoValor,
+        observacao: String(payload.observacao).trim(),
+        tipo_alteracao: 'REVISAO_SUBSTITUTIVA',
+        status_aprovacao: 'APROVADO',
+      },
+      usuario.id
+    );
   }
 
   const atualizado = await orcamentoRepository.findById(id);
@@ -505,10 +520,34 @@ async function adicionarRevisao(idParam, payload, usuario) {
     throw new AppError(400, 'O campo "observacao" é obrigatório para registrar uma revisão de valor.');
   }
 
+  const tipoAlteracao = estaVazio(payload.tipo_alteracao)
+    ? 'REVISAO_SUBSTITUTIVA'
+    : String(payload.tipo_alteracao).trim();
+  if (!TIPOS_ALTERACAO.includes(tipoAlteracao)) {
+    throw new AppError(400, `"tipo_alteracao" inválido. Valores aceitos: ${TIPOS_ALTERACAO.join(', ')}.`);
+  }
+
+  // Sem status informado a revisão entra aprovada (comportamento anterior).
+  const statusAprovacao = estaVazio(payload.status_aprovacao)
+    ? 'APROVADO'
+    : String(payload.status_aprovacao).trim();
+  if (!['PENDENTE', 'APROVADO'].includes(statusAprovacao)) {
+    throw new AppError(400, 'O status inicial da revisão deve ser PENDENTE ou APROVADO.');
+  }
+
+  if (tipoAlteracao === 'ADITIVO_FINANCEIRO' && valor <= 0) {
+    throw new AppError(400, 'O valor de um aditivo financeiro deve ser maior que zero.');
+  }
+
   const revisao = await orcamentoRepository.addRevisao(
     id,
-    valor,
-    String(payload.observacao).trim(),
+    {
+      valor,
+      observacao: String(payload.observacao).trim(),
+      tipo_alteracao: tipoAlteracao,
+      status_aprovacao: statusAprovacao,
+      anexo_url: estaVazio(payload.anexo_url) ? null : String(payload.anexo_url).trim(),
+    },
     usuario.id
   );
 
@@ -519,6 +558,25 @@ async function adicionarRevisao(idParam, payload, usuario) {
       rotulo: rotuloRevisao(revisao.numero_revisao),
     },
   };
+}
+
+/** PATCH /api/orcamentos/:id/revisoes/:revisaoId — aprova ou rejeita a revisão. */
+async function atualizarStatusRevisao(idParam, revisaoIdParam, payload, usuario) {
+  const id = validarId(idParam);
+  const revisaoId = validarId(revisaoIdParam);
+  validarUsuario(usuario);
+
+  const statusAprovacao = estaVazio(payload.status_aprovacao) ? '' : String(payload.status_aprovacao).trim();
+  if (!STATUS_APROVACAO.includes(statusAprovacao)) {
+    throw new AppError(400, `"status_aprovacao" inválido. Valores aceitos: ${STATUS_APROVACAO.join(', ')}.`);
+  }
+
+  const revisao = await orcamentoRepository.atualizarStatusRevisao(id, revisaoId, statusAprovacao);
+  if (!revisao) {
+    throw new AppError(404, `Revisão ${revisaoId} não encontrada no orçamento ${id}.`);
+  }
+
+  return formatarOrcamento(await orcamentoRepository.findById(id));
 }
 
 module.exports = {
@@ -534,4 +592,5 @@ module.exports = {
   obterEstatisticas,
   atualizarOrcamento,
   adicionarRevisao,
+  atualizarStatusRevisao,
 };

@@ -97,6 +97,24 @@ async function adicionarRevisao(req, res, next) {
   }
 }
 
+/**
+ * PATCH /api/orcamentos/:id/revisoes/:revisaoId
+ * Aprova/rejeita uma revisão e devolve o orçamento com o valor recalculado.
+ */
+async function atualizarStatusRevisao(req, res, next) {
+  try {
+    const orcamento = await orcamentoService.atualizarStatusRevisao(
+      req.params.id,
+      req.params.revisaoId,
+      req.body,
+      req.user
+    );
+    return res.json(orcamento);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   criarOrcamento,
   listarOrcamentos,
@@ -105,4 +123,5 @@ module.exports = {
   obterOrcamentoPorId,
   atualizarOrcamento,
   adicionarRevisao,
+  atualizarStatusRevisao,
 };

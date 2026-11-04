@@ -43,6 +43,21 @@ enum StatusOrcamento {
 
 /// Ciclo de vida operacional da obra (governança ISO 9001).
 /// Isola a execução em campo do ciclo comercial do orçamento.
+/// Natureza de uma revisão de valor do orçamento.
+enum TipoAlteracaoRevisao {
+  /// Substitui o valor anterior: passa a ser o valor base vigente.
+  REVISAO_SUBSTITUTIVA
+  /// Soma ao valor base vigente.
+  ADITIVO_FINANCEIRO
+}
+
+/// Situação de aprovação de uma revisão de valor.
+enum StatusAprovacaoRevisao {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
 enum StatusObra {
   /// Aprovada e com documentação de partida pendente (OSI e/ou Ata).
   PARA_INICIAR
@@ -247,6 +262,12 @@ model OrcamentoRevisao {
   valor          Decimal  @db.Decimal(14, 2)
   /// Justificativa obrigatória da alteração de valor.
   observacao     String
+  /// Natureza da alteração: substitui o valor base ou soma um aditivo.
+  tipo_alteracao   TipoAlteracaoRevisao   @default(REVISAO_SUBSTITUTIVA)
+  /// Só revisões APROVADAS entram no cálculo do valor vigente.
+  status_aprovacao StatusAprovacaoRevisao @default(APROVADO)
+  /// URL Cloudinary do documento comprobatório (PDF ou imagem).
+  anexo_url        String?
   /// Quem gerou a revisão.
   usuario_id     Int?
   created_at     DateTime @default(now()) @db.Timestamptz(6)

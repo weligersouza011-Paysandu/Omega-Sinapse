@@ -2,7 +2,12 @@
 
 const { Router } = require('express');
 const orcamentoController = require('../controllers/orcamentoController');
-const { receberArquivos, processarFotosOrcamento } = require('../middlewares/uploadFotos');
+const {
+  receberArquivos,
+  processarFotosOrcamento,
+  receberAnexoRevisao,
+  processarAnexoRevisao,
+} = require('../middlewares/uploadFotos');
 
 const router = Router();
 
@@ -29,6 +34,10 @@ router.get('/:id', orcamentoController.obterOrcamentoPorId);
 router.put('/:id', receberArquivos, processarFotosOrcamento, orcamentoController.atualizarOrcamento);
 
 // POST   /api/orcamentos/:id/revisoes -> registra revisão de valor
-router.post('/:id/revisoes', orcamentoController.adicionarRevisao);
+// Aceita JSON ou multipart/form-data com o documento comprobatório no campo "anexo".
+router.post('/:id/revisoes', receberAnexoRevisao, processarAnexoRevisao, orcamentoController.adicionarRevisao);
+
+// PATCH  /api/orcamentos/:id/revisoes/:revisaoId -> aprova/rejeita a revisão (recalcula o valor)
+router.patch('/:id/revisoes/:revisaoId', orcamentoController.atualizarStatusRevisao);
 
 module.exports = router;

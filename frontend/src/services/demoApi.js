@@ -347,7 +347,24 @@ async function criarOrcamento(formData) {
 }
 
 /** Emula POST /api/orcamentos/:id/revisoes */
-async function adicionarRevisao(id, { valor, observacao }) {
+/** Espelha o motor financeiro do back-end (calcularValorVigente). */
+function calcularValorVigente(revisoes) {
+  return [...revisoes]
+    .sort((a, b) => a.numero_revisao - b.numero_revisao)
+    .filter((revisao) => (revisao.status_aprovacao || 'APROVADO') === 'APROVADO')
+    .reduce(
+      (total, revisao) =>
+        revisao.tipo_alteracao === 'ADITIVO_FINANCEIRO'
+          ? total + (Number(revisao.valor) || 0)
+          : Number(revisao.valor) || 0,
+      0
+    );
+}
+
+async function adicionarRevisao(
+  id,
+  { valor, observacao, tipo_alteracao = 'REVISAO_SUBSTITUTIVA', status_aprovacao = 'APROVADO', anexo }
+) {
   await espera(600);
 
   const orcamento = orcamentos.find((item) => item.id === Number(id));
@@ -366,10 +383,14 @@ async function adicionarRevisao(id, { valor, observacao }) {
     numero_revisao: numero,
     valor: Number(valor) || 0,
     observacao: textoOuNulo(observacao),
+    tipo_alteracao,
+    status_aprovacao,
+    // Sem Cloudinary no modo demo: o anexo fica disponível só nesta sessão.
+    anexo_url: anexo ? URL.createObjectURL(anexo) : null,
     usuario_nome: NOME_USUARIO_DEMO,
     created_at: agora,
   });
-  orcamento.valor = Number(valor) || 0;
+  orcamento.valor = calcularValorVigente(orcamento.revisoes);
   orcamento.updated_at = agora;
 
   return clonar(orcamento);
@@ -388,11 +409,28 @@ async function atualizarOrcamento(id, dados = {}) {
   return clonar(orcamento);
 }
 
+/** Emula PATCH /api/orcamentos/:id/revisoes/:revisaoId */
+async function atualizarStatusRevisao(id, revisaoId, statusAprovacao) {
+  await espera(400);
+
+  const orcamento = orcamentos.find((item) => item.id === Number(id));
+  const revisao = orcamento?.revisoes.find((item) => item.id === Number(revisaoId));
+  if (!revisao) {
+    throw new Error('Revisão não encontrada.');
+  }
+
+  revisao.status_aprovacao = statusAprovacao;
+  orcamento.valor = calcularValorVigente(orcamento.revisoes);
+  orcamento.updated_at = new Date().toISOString();
+  return clonar(orcamento);
+}
+
 const demoApi = {
   listarOrcamentos,
   obterOrcamento,
   criarOrcamento,
   adicionarRevisao,
+  atualizarStatusRevisao,
   atualizarOrcamento,
 };
 

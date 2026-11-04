@@ -1,5 +1,6 @@
 'use strict';
 
+const { Prisma } = require('@prisma/client');
 const prisma = require('../config/prisma');
 
 /**
@@ -373,25 +374,64 @@ async function update(id, data) {
 }
 
 /**
+ * Motor financeiro do valor vigente, a partir do histórico de revisões
+ * (ordenado por `numero_revisao`). Só revisões APROVADAS contam:
+ *  - REVISAO_SUBSTITUTIVA redefine o valor base (descarta o que veio antes);
+ *  - ADITIVO_FINANCEIRO soma ao valor base vigente.
+ * @param {Array<{valor:any, tipo_alteracao:string, status_aprovacao:string}>} revisoes
+ * @returns {Prisma.Decimal}
+ */
+function calcularValorVigente(revisoes) {
+  return revisoes
+    .filter((revisao) => revisao.status_aprovacao === 'APROVADO')
+    .reduce(
+      (total, revisao) =>
+        revisao.tipo_alteracao === 'ADITIVO_FINANCEIRO'
+          ? total.plus(revisao.valor)
+          : new Prisma.Decimal(revisao.valor),
+      new Prisma.Decimal(0)
+    );
+}
+
+/** Recalcula e grava o valor vigente do orçamento dentro da transação `tx`. */
+async function recalcularValor(tx, orcamentoId) {
+  const revisoes = await tx.orcamentoRevisao.findMany({
+    where: { orcamento_id: orcamentoId },
+    orderBy: { numero_revisao: 'asc' },
+    select: { valor: true, tipo_alteracao: true, status_aprovacao: true },
+  });
+
+  await tx.orcamento.update({
+    where: { id: orcamentoId },
+    data: { valor: calcularValorVigente(revisoes) },
+  });
+}
+
+/** Trava a linha do orçamento na transação; devolve `false` se não existir. */
+async function travarOrcamento(tx, orcamentoId) {
+  // O Prisma não expõe lock de linha na API de queries; o lock pessimista
+  // precisa de SQL parametrizado. Sem ele, dois pedidos concorrentes
+  // calculariam o mesmo `numero_revisao` (violando a sequência ISO 9001).
+  const linhas = await tx.$queryRaw`
+    SELECT id FROM orcamentos WHERE id = ${orcamentoId} FOR UPDATE
+  `;
+  return linhas.length > 0;
+}
+
+/**
  * Adiciona uma nova revisão de valor calculando o próximo número sequencial
- * dentro de uma transação com lock na linha do orçamento.
+ * dentro de uma transação com lock na linha do orçamento, e recalcula o valor
+ * vigente pelo motor financeiro.
  * @param {number} orcamentoId
- * @param {number|string} valor
- * @param {string} observacao
+ * @param {{valor:number|string, observacao:string, tipo_alteracao?:string,
+ *          status_aprovacao?:string, anexo_url?:string|null}} dados
  * @param {number|null} usuarioId
  * @returns {Promise<object|null>} revisão criada (ou null se o orçamento não existir)
  */
-async function addRevisao(orcamentoId, valor, observacao, usuarioId) {
+async function addRevisao(orcamentoId, dados, usuarioId) {
   return prisma.$transaction(
     async (tx) => {
-      // O Prisma não expõe lock de linha na API de queries; o lock pessimista
-      // precisa de SQL parametrizado. Sem ele, dois pedidos concorrentes
-      // calculariam o mesmo `numero_revisao` (violando a sequência ISO 9001).
-      const linhas = await tx.$queryRaw`
-        SELECT id FROM orcamentos WHERE id = ${orcamentoId} FOR UPDATE
-      `;
-
-      if (linhas.length === 0) {
+      if (!(await travarOrcamento(tx, orcamentoId))) {
         return null;
       }
 
@@ -405,16 +445,48 @@ async function addRevisao(orcamentoId, valor, observacao, usuarioId) {
         data: {
           orcamento_id: orcamentoId,
           numero_revisao: numeroRevisao,
-          valor,
-          observacao,
+          valor: dados.valor,
+          observacao: dados.observacao,
+          tipo_alteracao: dados.tipo_alteracao,
+          status_aprovacao: dados.status_aprovacao,
+          anexo_url: dados.anexo_url ?? null,
           usuario_id: usuarioId ?? null,
         },
       });
 
-      await tx.orcamento.update({
-        where: { id: orcamentoId },
-        data: { valor },
+      await recalcularValor(tx, orcamentoId);
+
+      return revisao;
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
+/**
+ * Altera a situação de aprovação de uma revisão e recalcula o valor vigente.
+ * @returns {Promise<object|null>} revisão atualizada (ou null se não existir no orçamento)
+ */
+async function atualizarStatusRevisao(orcamentoId, revisaoId, statusAprovacao) {
+  return prisma.$transaction(
+    async (tx) => {
+      if (!(await travarOrcamento(tx, orcamentoId))) {
+        return null;
+      }
+
+      const existente = await tx.orcamentoRevisao.findFirst({
+        where: { id: revisaoId, orcamento_id: orcamentoId },
+        select: { id: true },
       });
+      if (!existente) {
+        return null;
+      }
+
+      const revisao = await tx.orcamentoRevisao.update({
+        where: { id: revisaoId },
+        data: { status_aprovacao: statusAprovacao },
+      });
+
+      await recalcularValor(tx, orcamentoId);
 
       return revisao;
     },
@@ -430,5 +502,7 @@ module.exports = {
   obterEstatisticas,
   update,
   addRevisao,
+  atualizarStatusRevisao,
+  calcularValorVigente,
   CAMPOS_ATUALIZAVEIS,
 };

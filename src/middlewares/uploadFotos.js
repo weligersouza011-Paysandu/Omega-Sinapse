@@ -56,4 +56,34 @@ async function processarFotosOrcamento(req, res, next) {
   }
 }
 
-module.exports = { receberArquivos, processarFotosOrcamento, CAMPOS_FOTO };
+/**
+ * Anexo comprobatório da revisão de valor: aceita multipart/form-data com o
+ * arquivo (imagem ou PDF) no campo "anexo", envia ao Cloudinary e grava a URL
+ * em `req.body.anexo_url`. Requisições JSON passam direto (o multer as ignora).
+ */
+const receberAnexoRevisao = upload.uploadDocumento.single('anexo');
+
+async function processarAnexoRevisao(req, res, next) {
+  try {
+    if (!req.file) {
+      return next();
+    }
+
+    const enviado = await uploadService.processarDocumento(req.file, {
+      pasta: process.env.CLOUDINARY_FOLDER_REVISOES || 'synapse/orcamentos/revisoes',
+    });
+    req.body = { ...req.body, anexo_url: enviado.url };
+
+    return next();
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = {
+  receberArquivos,
+  processarFotosOrcamento,
+  receberAnexoRevisao,
+  processarAnexoRevisao,
+  CAMPOS_FOTO,
+};

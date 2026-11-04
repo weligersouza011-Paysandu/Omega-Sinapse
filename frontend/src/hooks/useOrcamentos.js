@@ -63,18 +63,45 @@ export async function atualizarOrcamento(id, dados) {
   return data;
 }
 
-/** Registra uma nova revisão de valor. */
+/**
+ * Registra uma nova revisão de valor.
+ * @param {{valor:number, observacao:string, tipo_alteracao?:string,
+ *          status_aprovacao?:string, anexo?:File|null}} dadosRevisao
+ *        Com `anexo` a requisição vai como multipart (campo "anexo").
+ */
 export async function adicionarRevisao(id, dadosRevisao) {
-  if (MODO_DEMO) {
-    return demoApi.adicionarRevisao(id, {
-      valor: dadosRevisao.valor,
-      observacao: dadosRevisao.observacao,
-    });
-  }
-
-  const { data } = await api.post(`/orcamentos/${id}/revisoes`, {
+  const campos = {
     valor: dadosRevisao.valor,
     observacao: dadosRevisao.observacao,
+    tipo_alteracao: dadosRevisao.tipo_alteracao,
+    status_aprovacao: dadosRevisao.status_aprovacao,
+  };
+
+  if (MODO_DEMO) {
+    return demoApi.adicionarRevisao(id, { ...campos, anexo: dadosRevisao.anexo });
+  }
+
+  let corpo = campos;
+  if (dadosRevisao.anexo) {
+    corpo = new FormData();
+    Object.entries(campos).forEach(([chave, valor]) => {
+      if (valor !== undefined && valor !== null) corpo.append(chave, valor);
+    });
+    corpo.append('anexo', dadosRevisao.anexo);
+  }
+
+  const { data } = await api.post(`/orcamentos/${id}/revisoes`, corpo);
+  return data;
+}
+
+/** Aprova/rejeita uma revisão; devolve o orçamento com o valor recalculado. */
+export async function atualizarStatusRevisao(id, revisaoId, statusAprovacao) {
+  if (MODO_DEMO) {
+    return demoApi.atualizarStatusRevisao(id, revisaoId, statusAprovacao);
+  }
+
+  const { data } = await api.patch(`/orcamentos/${id}/revisoes/${revisaoId}`, {
+    status_aprovacao: statusAprovacao,
   });
   return data;
 }
