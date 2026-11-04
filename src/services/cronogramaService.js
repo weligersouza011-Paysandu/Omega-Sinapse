@@ -31,7 +31,9 @@ async function garantirObra(valor) {
 
 function dataSnapshotDe(valor) {
   if (valor === undefined || valor === null || String(valor).trim() === '') return new Date();
-  const data = new Date(valor);
+  const texto = String(valor).trim();
+  // Data sem hora (input type="date"): meio-dia de Brasília, para não mudar de dia com o fuso.
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(texto) ? new Date(`${texto}T12:00:00-03:00`) : new Date(texto);
   if (Number.isNaN(data.getTime())) {
     throw new AppError(400, 'O campo "data_snapshot" deve ser uma data válida (ISO 8601).');
   }

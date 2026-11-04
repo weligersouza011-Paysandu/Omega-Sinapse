@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
+  CalendarDays,
   FileSpreadsheet,
   GitBranch,
   Info,
@@ -30,11 +31,14 @@ import {
   obterCurvaS,
 } from '../../services/cronogramaApi.js';
 import {
+  anoSemanaISO,
+  dataLocalISO,
   formatarData,
   formatarDataHora,
   formatarMoeda,
   formatarMoedaCompacta,
   formatarPercentual,
+  semanaISO,
 } from '../../utils/formatters.js';
 
 const CORES = { previsto: '#64748b', real: '#0f766e', tendencia: '#f59e0b', base: '#a855f7', barra: '#94a3b8' };
@@ -110,6 +114,9 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
   const entrada = useRef(null);
   const [arquivo, setArquivo] = useState(null);
   const [observacao, setObservacao] = useState('');
+  const [dataCorte, setDataCorte] = useState(() => dataLocalISO());
+  const semana = semanaISO(dataCorte);
+  const anoSemana = anoSemanaISO(dataCorte);
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState(0);
   const [arrastando, setArrastando] = useState(false);
@@ -126,13 +133,22 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
 
   async function enviar() {
     if (!arquivo) return;
+    if (!semana) {
+      toast.erro('Informe uma data de corte válida.');
+      return;
+    }
     setEnviando(true);
     setProgresso(0);
     try {
-      const versao = await enviarCronograma(obraId, arquivo, { observacao, onProgresso: setProgresso });
+      const versao = await enviarCronograma(obraId, arquivo, {
+        observacao,
+        dataSnapshot: dataCorte,
+        onProgresso: setProgresso,
+      });
       toast.sucesso(`Cronograma importado: ${versao.versao} com ${versao.total_atividades} atividades.`);
       setArquivo(null);
       setObservacao('');
+      setDataCorte(dataLocalISO());
       if (entrada.current) entrada.current.value = '';
       onImportado(versao);
     } catch (err) {
@@ -153,7 +169,7 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
         Dashboard. Cada envio gera uma nova revisão (Rev 00, Rev 01, …) e as anteriores ficam guardadas.
       </p>
 
-      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_18rem_auto] lg:items-end">
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_13.5rem_16rem_auto] lg:items-start">
         <label
           onDragOver={(evento) => {
             evento.preventDefault();
@@ -189,13 +205,38 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
         </label>
 
         <div>
+          <label className="rotulo whitespace-nowrap" htmlFor="data-corte-cronograma">
+            Data de corte / publicação
+          </label>
+          <input
+            id="data-corte-cronograma"
+            type="date"
+            className="campo"
+            value={dataCorte}
+            max="2100-12-31"
+            onChange={(evento) => setDataCorte(evento.target.value)}
+            disabled={enviando}
+            required
+          />
+          <span
+            className={`mt-1.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${
+              semana ? 'bg-omega-50 text-omega-700' : 'bg-red-50 text-red-700'
+            }`}
+            aria-live="polite"
+          >
+            <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
+            {semana ? `Semana ${semana} / ${anoSemana}` : 'Data inválida'}
+          </span>
+        </div>
+
+        <div>
           <label className="rotulo" htmlFor="observacao-cronograma">
             Observação (opcional)
           </label>
           <input
             id="observacao-cronograma"
             className="campo"
-            placeholder="Ex.: Atualização semana 43"
+            placeholder={semana ? `Atualização semana ${semana}/${anoSemana}` : 'Ex.: Atualização semanal'}
             value={observacao}
             onChange={(evento) => setObservacao(evento.target.value)}
             disabled={enviando}
@@ -203,7 +244,7 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
           />
         </div>
 
-        <button type="button" className="btn-primario" onClick={enviar} disabled={!arquivo || enviando}>
+        <button type="button" className="btn-primario lg:mt-5" onClick={enviar} disabled={!arquivo || enviando || !semana}>
           {enviando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
           {enviando ? (progresso < 100 ? `Enviando ${progresso}%` : 'Processando…') : 'Importar'}
         </button>
@@ -659,7 +700,7 @@ export default function AbaCronograma({ obra, podeEditar }) {
               <select id="versao-cronograma" className="campo" value={versaoId || ''} onChange={(evento) => setVersaoId(evento.target.value)}>
                 {versoes.map((v, indice) => (
                   <option key={v.id} value={v.id}>
-                    {v.versao} · {formatarDataHora(v.created_at)}
+                    {v.versao} · corte {formatarData(v.data_snapshot)} (S{semanaISO(v.data_snapshot)}) · enviado {formatarDataHora(v.created_at)}
                     {indice === 0 ? ' (vigente)' : ''}
                   </option>
                 ))}
@@ -667,6 +708,12 @@ export default function AbaCronograma({ obra, podeEditar }) {
             </div>
             {versao ? (
               <dl className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-600">
+                <div>
+                  <dt className="text-[10px] font-semibold uppercase text-slate-400">Data de corte</dt>
+                  <dd>
+                    {formatarData(versao.data_snapshot)} · Semana {semanaISO(versao.data_snapshot)}/{anoSemanaISO(versao.data_snapshot)}
+                  </dd>
+                </div>
                 <div>
                   <dt className="text-[10px] font-semibold uppercase text-slate-400">Período do relatório</dt>
                   <dd>

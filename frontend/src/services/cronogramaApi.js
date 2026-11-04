@@ -6,11 +6,13 @@ import api from './api.js';
  */
 
 /** Envia a planilha do modelo padrão e cria uma nova revisão do cronograma. */
-export async function enviarCronograma(obraId, arquivo, { observacao, onProgresso } = {}) {
+export async function enviarCronograma(obraId, arquivo, { observacao, dataSnapshot, onProgresso } = {}) {
   const formulario = new FormData();
   formulario.append('obra_id', String(obraId));
   formulario.append('arquivo', arquivo);
   if (observacao) formulario.append('observacao', observacao);
+  // Data de corte/publicação no formato AAAA-MM-DD.
+  if (dataSnapshot) formulario.append('data_snapshot', dataSnapshot);
   const { data } = await api.post('/cronogramas/upload', formulario, {
     timeout: 180000,
     onUploadProgress: (evento) => {

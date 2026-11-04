@@ -96,12 +96,26 @@ export function semanaISO(valor) {
   const data = new Date(`${texto}T12:00:00.000Z`);
   if (Number.isNaN(data.getTime())) return 0;
 
-  const alvo = new Date(data.valueOf());
-  const diaDaSemana = (data.getUTCDay() + 6) % 7;
+  // Quinta-feira da semana (00:00 UTC): o ano dela é o ano ISO da semana.
+  const alvo = new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate()));
+  const diaDaSemana = (alvo.getUTCDay() + 6) % 7;
   alvo.setUTCDate(alvo.getUTCDate() - diaDaSemana + 3);
 
-  const primeiraQuinta = new Date(Date.UTC(alvo.getUTCFullYear(), 0, 4));
-  return 1 + Math.round((alvo - primeiraQuinta) / 604800000);
+  const inicioDoAno = Date.UTC(alvo.getUTCFullYear(), 0, 1);
+  return Math.floor((alvo - inicioDoAno) / 86400000 / 7) + 1;
+}
+
+/**
+ * Ano ISO 8601 da semana de uma data aaaa-mm-dd (ano da quinta-feira da semana):
+ * 31/12/2026 pertence à semana 53 de 2026; 01/01/2027 também (2026-W53).
+ */
+export function anoSemanaISO(valor) {
+  const texto = dataParaInput(valor);
+  if (!texto) return null;
+  const data = new Date(`${texto}T12:00:00.000Z`);
+  if (Number.isNaN(data.getTime())) return null;
+  data.setUTCDate(data.getUTCDate() - ((data.getUTCDay() + 6) % 7) + 3);
+  return data.getUTCFullYear();
 }
 
 /** Ano (UTC) de uma data ISO. */
