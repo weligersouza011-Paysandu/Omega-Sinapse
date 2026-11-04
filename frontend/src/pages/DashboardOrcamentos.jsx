@@ -29,17 +29,18 @@ const VISOES = [
   { id: 'list', label: 'Lista', Icone: Table },
 ];
 
-/** Rótulos da legenda do topo (nomenclatura do fluxo de homologação). */
+/** Rótulos da legenda do topo (só o texto muda; as chaves seguem o enum). */
 const ROTULOS_LEGENDA = {
   VISITA_TECNICA: 'Visita Técnica',
-  AGUARDANDO_APROVACAO: 'Aguardando Homologação',
+  AGUARDANDO_APROVACAO: 'Aguardando Aprovação',
   APROVADO: 'Aprovados',
   DESATIVADO: 'Desativados',
 };
 
 /**
  * Ações rápidas de status dos cards (individual e em lote). `origens` são os
- * status a partir dos quais a ação faz sentido no fluxo comercial.
+ * status a partir dos quais a ação faz sentido no fluxo comercial; `apenasLote`
+ * mantém a ação só na barra de seleção em lote (fora do rodapé do card).
  */
 const ACOES_STATUS = [
   {
@@ -57,11 +58,12 @@ const ACOES_STATUS = [
     Icone: Ban,
     estilo: 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
     origens: ['VISITA_TECNICA', 'AGUARDANDO_APROVACAO', 'APROVADO'],
+    apenasLote: true,
   },
 ];
 
 function acoesDisponiveis(orcamento) {
-  return ACOES_STATUS.filter((acao) => acao.origens.includes(orcamento.status));
+  return ACOES_STATUS.filter((acao) => !acao.apenasLote && acao.origens.includes(orcamento.status));
 }
 
 export default function DashboardOrcamentos() {
