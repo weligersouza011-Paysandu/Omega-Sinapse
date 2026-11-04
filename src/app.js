@@ -53,7 +53,8 @@ app.get('/health', async (req, res) => {
       armazenamento: estadoCloudinary.configurado ? 'configurado' : 'indisponivel',
       ...(estadoCloudinary.configurado ? {} : { armazenamento_problemas: estadoCloudinary.problemas }),
       // Leitor de cronogramas do MS Project (Java + MPXJ instalados no build).
-      leitor_mpp: disponibilidadeMpxj().disponivel ? 'instalado' : 'indisponivel',
+      leitor_mpp: disponibilidadeMpxj().situacao,
+      ...(disponibilidadeMpxj().erro ? { leitor_mpp_erro: disponibilidadeMpxj().erro } : {}),
     });
   } catch (err) {
     console.error('[health] Falha ao consultar o banco:', err.message);

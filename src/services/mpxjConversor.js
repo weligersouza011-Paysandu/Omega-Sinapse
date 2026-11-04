@@ -15,7 +15,8 @@ const AppError = require('../errors/AppError');
  * disputar memória com a API no plano gratuito do Render.
  *
  * Variáveis: MPXJ_JAVA (executável java), MPXJ_CLASSPATH, MPXJ_XMX (ex.: 256m),
- * MPXJ_TIMEOUT_MS (padrão 90000).
+ * MPXJ_TIMEOUT_MS (padrão 90000), MPXJ_INSTALAR_NO_BOOT=false (desliga a
+ * instalação automática quando o build não instalou o leitor).
  */
 
 const DIRETORIO = path.join(__dirname, '..', '..', 'vendor', 'mpxj');
@@ -32,11 +33,63 @@ function classpath() {
   return process.env.MPXJ_CLASSPATH || path.join(DIRETORIO, 'lib', '*');
 }
 
+/* -------------------------------------------------------------------------- */
+/* Instalação automática (quando o build não instalou)                        */
+/* -------------------------------------------------------------------------- */
+
+const instalacao = { situacao: null, erro: null, inicio: null, fim: null, promessa: null };
+
+function instalado() {
+  if (process.env.MPXJ_CLASSPATH) return true;
+  if (!fs.existsSync(path.join(DIRETORIO, 'lib', 'mpxj.jar'))) return false;
+  // No Linux x64 (Render) o Java vem embutido: sem ele, a instalação está incompleta.
+  const javaEmbutidoEsperado =
+    process.platform === 'linux' && process.arch === 'x64' && !process.env.MPXJ_JAVA && process.env.MPXJ_PULAR_JRE !== 'true';
+  if (javaEmbutidoEsperado && !fs.existsSync(path.join(DIRETORIO, 'jre', 'bin', 'java'))) return false;
+  return true;
+}
+
+/**
+ * Instala o leitor em segundo plano, uma única vez por processo. Devolve a
+ * promessa da instalação (resolvida com true/false).
+ */
+function garantirInstalacao() {
+  if (instalado()) return Promise.resolve(true);
+  if (instalacao.promessa) return instalacao.promessa;
+  const { instalar } = require('../../scripts/instalarMpxj');
+  instalacao.situacao = 'instalando';
+  instalacao.erro = null;
+  instalacao.inicio = new Date().toISOString();
+  console.log('[mpxj] Leitor de .mpp ausente: instalando Java + MPXJ em segundo plano…');
+  instalacao.promessa = instalar()
+    .then(() => {
+      instalacao.situacao = instalado() ? 'instalado' : 'indisponivel';
+      if (!instalado()) instalacao.erro = 'Instalação concluída, mas o mpxj.jar não foi encontrado.';
+      return instalado();
+    })
+    .catch((err) => {
+      instalacao.situacao = 'indisponivel';
+      instalacao.erro = err.message;
+      console.error(`[mpxj] Falha ao instalar o leitor de .mpp: ${err.message}`);
+      return false;
+    })
+    .finally(() => {
+      instalacao.fim = new Date().toISOString();
+      instalacao.promessa = null;
+    });
+  return instalacao.promessa;
+}
+
 /** Estado da instalação (para o /health e mensagens de erro). */
 function disponibilidade() {
   const java = executavelJava();
-  const bibliotecas = process.env.MPXJ_CLASSPATH ? true : fs.existsSync(path.join(DIRETORIO, 'lib', 'mpxj.jar'));
-  return { bibliotecas, java: java === 'java' ? 'sistema' : 'embutido', disponivel: bibliotecas };
+  const pronto = instalado();
+  return {
+    disponivel: pronto,
+    situacao: pronto ? 'instalado' : instalacao.situacao || 'indisponivel',
+    java: java === 'java' ? 'sistema' : 'embutido',
+    ...(instalacao.erro && !pronto ? { erro: instalacao.erro } : {}),
+  };
 }
 
 let fila = Promise.resolve();
@@ -100,8 +153,17 @@ function executar(entrada, saida) {
  * @param {string} nomeArquivo usado só para a extensão (.mpp ou .xml)
  */
 async function converterProjeto(buffer, nomeArquivo = 'cronograma.mpp') {
-  if (!disponibilidade().disponivel) {
-    throw new AppError(503, 'O leitor de arquivos do MS Project (MPXJ) não está instalado no servidor. Avise o administrador.');
+  if (!instalado()) {
+    // Primeiro envio após um deploy sem o leitor: instala agora (≈ 20 s) e segue.
+    const ok = await garantirInstalacao();
+    if (!ok) {
+      throw new AppError(
+        503,
+        `O leitor de arquivos do MS Project (MPXJ) não pôde ser instalado no servidor${
+          instalacao.erro ? ` (${instalacao.erro})` : ''
+        }. Tente novamente em alguns minutos ou avise o administrador.`
+      );
+    }
   }
   const extensao = /\.xml$/i.test(nomeArquivo) ? '.xml' : '.mpp';
 
@@ -127,4 +189,4 @@ async function converterProjeto(buffer, nomeArquivo = 'cronograma.mpp') {
   return tarefa;
 }
 
-module.exports = { converterProjeto, disponibilidade };
+module.exports = { converterProjeto, disponibilidade, garantirInstalacao };

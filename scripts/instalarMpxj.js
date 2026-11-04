@@ -7,7 +7,8 @@
  *  - MPXJ (biblioteca Java open source que lê .mpp/.xml) — versão fixa do
  *    pacote oficial no PyPI, conferida por SHA-256; só os .jar necessários.
  *
- * Executado no build (npm run build). Idempotente: não baixa de novo se a
+ * Executado no npm install (postinstall), no build e, se ainda faltar, pelo
+ * próprio servidor ao iniciar (src/services/mpxjConversor.js). Idempotente: não baixa de novo se a
  * versão instalada já for a esperada. Falhas não interrompem o build (exceto
  * com MPXJ_OBRIGATORIO=true): sem o leitor, apenas o upload de .mpp fica
  * indisponível e o /health informa o motivo.
@@ -19,7 +20,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const zlib = require('zlib');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+
+const execFileAsync = promisify(execFile);
 
 const DESTINO = path.join(__dirname, '..', 'vendor', 'mpxj');
 const MARCADOR = path.join(DESTINO, 'versao.json');
@@ -133,7 +137,7 @@ async function instalar() {
     fs.writeFileSync(temporario, pacote);
     const destinoJre = path.join(DESTINO, 'jre');
     fs.mkdirSync(destinoJre, { recursive: true });
-    execFileSync('tar', ['-xzf', 'jre.tar.gz', '-C', 'jre', '--strip-components=1'], { stdio: 'inherit', cwd: DESTINO });
+    await execFileAsync('tar', ['-xzf', 'jre.tar.gz', '-C', 'jre', '--strip-components=1'], { cwd: DESTINO, maxBuffer: 1024 * 1024 });
     fs.rmSync(temporario, { force: true });
     if (!fs.existsSync(path.join(destinoJre, 'bin', 'java'))) throw new Error('java não encontrado após extrair o JRE');
     log('Java instalado.');
@@ -145,8 +149,12 @@ async function instalar() {
   log('leitor de .mpp pronto.');
 }
 
-instalar().catch((err) => {
-  console.warn(`[mpxj] ⚠️ Não foi possível instalar o leitor de .mpp: ${err.message}`);
-  console.warn('[mpxj] O sistema funciona, mas o upload de cronogramas .mpp ficará indisponível.');
-  if (process.env.MPXJ_OBRIGATORIO === 'true') process.exit(1);
-});
+module.exports = { instalar, DESTINO };
+
+if (require.main === module) {
+  instalar().catch((err) => {
+    console.warn(`[mpxj] ⚠️ Não foi possível instalar o leitor de .mpp: ${err.message}`);
+    console.warn('[mpxj] O servidor tentará instalar de novo ao iniciar; o upload de .mpp fica indisponível até lá.');
+    if (process.env.MPXJ_OBRIGATORIO === 'true') process.exit(1);
+  });
+}

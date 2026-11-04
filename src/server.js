@@ -15,6 +15,12 @@ if (!process.env.JWT_SECRET) {
 
 const server = app.listen(PORT, () => {
   console.log(`[synapse] API de Orçamentos ouvindo em http://localhost:${PORT}`);
+
+  // Leitor de .mpp: se o build não o instalou, instala em segundo plano.
+  if (process.env.MPXJ_INSTALAR_NO_BOOT !== 'false') {
+    const { garantirInstalacao, disponibilidade } = require('./services/mpxjConversor');
+    if (!disponibilidade().disponivel) garantirInstalacao();
+  }
 });
 
 // Prazo máximo para concluir as requisições em andamento antes de forçar a saída.

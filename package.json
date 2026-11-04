@@ -15,7 +15,7 @@
     "criar-usuario": "node src/scripts/criarUsuario.js",
     "importar:historico": "node scripts/importarHistorico.js",
     "importar:pasta13": "node scripts/importarPasta13.js",
-    "postinstall": "prisma generate",
+    "postinstall": "prisma generate && node scripts/instalarMpxj.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
