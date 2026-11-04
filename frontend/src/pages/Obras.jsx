@@ -16,8 +16,7 @@ import {
   usePlanejadores,
   useQuadroObras,
 } from '../hooks/useObras.js';
-import { OPCOES_PENDENCIA, STATUS_OBRA_OPCOES } from '../utils/status.js';
-import { formatarMoeda } from '../utils/formatters.js';
+import { STATUS_OBRA_OPCOES } from '../utils/status.js';
 
 const LIMITE = 12;
 
@@ -58,7 +57,6 @@ export default function Obras() {
   const [busca, setBusca] = useState('');
   const [buscaAplicada, setBuscaAplicada] = useState('');
   const [status, setStatus] = useState('');
-  const [pendencia, setPendencia] = useState('');
 
   const podeAtribuirPlanejador = PERFIS_QUE_ATRIBUEM.includes(usuario?.perfil);
   const { planejadores, carregando: carregandoPlanejadores } = usePlanejadores(
@@ -70,7 +68,6 @@ export default function Obras() {
   const cards = useObras({
     busca: buscaAplicada,
     status,
-    pendencia,
     pagina,
     limit: LIMITE,
     ativo: visao === 'cards' || visao === 'list',
@@ -79,7 +76,6 @@ export default function Obras() {
   const quadro = useQuadroObras({
     busca: buscaAplicada,
     status,
-    pendencia,
     ativo: visao === 'kanban',
   });
 
@@ -136,13 +132,8 @@ export default function Obras() {
   const exibindoCards = visao === 'cards';
   const exibindoLista = visao === 'list';
   const exibindoKanban = visao === 'kanban';
-  const itensDaVisao = exibindoKanban ? quadro.itens : cards.itens;
   const carregando = exibindoKanban ? quadro.carregando : cards.carregando;
   const erro = exibindoKanban ? quadro.erro : cards.erro;
-
-  const totalObras = exibindoKanban ? quadro.itens.length : cards.total;
-  const totalPendentes = itensDaVisao.filter((obra) => obra.pendencias && !obra.pendencias.completa).length;
-  const valorTotal = itensDaVisao.reduce((soma, obra) => soma + (Number(obra.valor) || 0), 0);
 
   return (
     <>
@@ -184,35 +175,7 @@ export default function Obras() {
           </div>
         </div>
 
-        {/* ----------------------------------------------- Indicadores */}
-        <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="card px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              {exibindoKanban ? 'Obras no quadro' : 'Obras no filtro'}
-            </p>
-            <p className="text-2xl font-bold text-slate-800">{totalObras}</p>
-          </div>
-
-          <div className="card px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Com documentação pendente
-            </p>
-            <p
-              className={`text-2xl font-bold ${totalPendentes > 0 ? 'text-red-600' : 'text-emerald-600'}`}
-            >
-              {totalPendentes}
-            </p>
-          </div>
-
-          <div className="card px-4 py-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Valor acumulado {exibindoKanban ? 'do quadro' : 'da página'}
-            </p>
-            <p className="text-2xl font-bold text-omega-700">{formatarMoeda(valorTotal)}</p>
-          </div>
-        </section>
-
-        <section className="card mb-6 grid grid-cols-1 gap-3 p-4 lg:grid-cols-[1fr_240px_260px_auto] lg:items-center">
+        <section className="card mb-6 grid grid-cols-1 gap-3 p-4 lg:grid-cols-[1fr_240px_auto] lg:items-center">
           <div className="relative">
             <svg
               viewBox="0 0 24 24"
@@ -241,19 +204,6 @@ export default function Obras() {
             }}
             placeholder="Todas as etapas"
             opcoes={[{ value: '', label: 'Todas as etapas', descricao: 'Todas as etapas' }, ...STATUS_OBRA_OPCOES]}
-          />
-
-          <Dropdown
-            value={pendencia}
-            onChange={(valor) => {
-              setPendencia(valor);
-              setPagina(1);
-            }}
-            placeholder="Documentação"
-            opcoes={[
-              { value: '', label: 'Toda a documentação', descricao: 'Toda a documentação' },
-              ...OPCOES_PENDENCIA,
-            ]}
           />
 
           <button
@@ -305,6 +255,8 @@ export default function Obras() {
                   planejadores={planejadores}
                   carregandoPlanejadores={carregandoPlanejadores}
                   onAtribuirPlanejador={podeAtribuirPlanejador ? atribuirPlanejador : undefined}
+                  destacarSs
+                  semValor
                 />
               ))}
             </div>

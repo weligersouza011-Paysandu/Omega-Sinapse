@@ -28,6 +28,8 @@ function FotoIndisponivel() {
  *
  * - `ocultarValor`: não exibe o valor financeiro diretamente; um botão "olho"
  *   revela o valor só neste card (o detalhe completo fica no modal).
+ * - `semValor`: não exibe o valor de forma alguma (o detalhe da obra mostra).
+ * - `destacarSs`: a SS vira o identificador principal e o PEP fica secundário.
  * - `onAlternarSelecao`/`selecionado`: habilitam a seleção em lote.
  * - `acoesRapidas` + `onAcaoRapida`: botões de troca rápida de status
  *   (`[{ status, label, Icone, estilo }]`, já filtrados para o card).
@@ -40,6 +42,8 @@ export default function CardObra({
   carregandoPlanejadores = false,
   onAtribuirPlanejador,
   ocultarValor = false,
+  semValor = false,
+  destacarSs = false,
   selecionado = false,
   onAlternarSelecao,
   acoesRapidas = [],
@@ -99,18 +103,29 @@ export default function CardObra({
         </div>
 
         <div className="flex flex-1 flex-col gap-3 p-4">
-          <div className="flex items-start justify-between gap-2">
+          {destacarSs ? (
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">PEP (CC)</p>
-              <p className="truncate text-base font-bold text-slate-800">{orcamento.pep || '—'}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
+              <p className="truncate text-lg font-bold leading-tight text-slate-800">{orcamento.ss || '—'}</p>
+              <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
+                <span className="font-semibold uppercase tracking-wide text-slate-400">PEP (CC)</span>{' '}
+                {orcamento.pep || '—'}
+              </p>
             </div>
-            {orcamento.ss ? (
-              <div className="shrink-0 text-right">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
-                <p className="text-sm font-semibold text-slate-700">{orcamento.ss}</p>
+          ) : (
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">PEP (CC)</p>
+                <p className="truncate text-base font-bold text-slate-800">{orcamento.pep || '—'}</p>
               </div>
-            ) : null}
-          </div>
+              {orcamento.ss ? (
+                <div className="shrink-0 text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
+                  <p className="text-sm font-semibold text-slate-700">{orcamento.ss}</p>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           <p className="line-clamp-2 min-h-[2.5rem] text-xs leading-relaxed text-slate-500">
             {orcamento.descricao || orcamento.cliente || 'Sem descrição informada.'}
@@ -134,7 +149,7 @@ export default function CardObra({
           ) : null}
 
           <div className="mt-auto flex items-end justify-between border-t border-slate-100 pt-3">
-            {ocultarValor ? (
+            {ocultarValor || semValor ? (
               <p className="text-[11px] font-medium text-slate-400">Criado em</p>
             ) : (
               <div>
