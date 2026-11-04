@@ -8,6 +8,7 @@ import {
   Upload,
 } from 'lucide-react';
 import Dropdown from './Dropdown.jsx';
+import SeletorPlanejador from './SeletorPlanejador.jsx';
 import EtiquetasPendencia from './EtiquetasPendencia.jsx';
 import ModalBase from './ModalBase.jsx';
 import ModalOsi from './ModalOsi.jsx';
@@ -152,11 +153,12 @@ export default function ModalDetalhesObra({ obraId, aberto, onFechar, onAtualiza
     );
   }
 
-  function atribuirPlanejador(valor) {
+  /** Grava a equipe de planejadores (principal primeiro). */
+  function atribuirPlanejadores(ids) {
     return executar(
       'planejador',
-      () => atualizarObra(obra.id, { planejador_id: valor === '' ? null : Number(valor) }),
-      valor === '' ? 'Responsável removido da obra.' : 'Planejador responsável atribuído.'
+      () => atualizarObra(obra.id, { planejadores_ids: ids }),
+      ids.length === 0 ? 'Responsável removido da obra.' : 'Planejadores responsáveis atualizados.'
     );
   }
 
@@ -292,30 +294,20 @@ export default function ModalDetalhesObra({ obraId, aberto, onFechar, onAtualiza
                 </h3>
 
                 {podeAtribuir ? (
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                    <Dropdown
-                      value={obra.planejador_id ? String(obra.planejador_id) : ''}
-                      onChange={atribuirPlanejador}
+                  <div className="max-w-md">
+                    <SeletorPlanejador
+                      obra={obra}
+                      planejadores={planejadores}
                       carregando={carregandoPlanejadores}
-                      disabled={salvando === 'planejador'}
-                      placeholder="Selecione um técnico planejador"
-                      textoVazio="Nenhum técnico planejador ativo cadastrado"
-                      opcoes={[
-                        { value: '', label: 'Sem responsável' },
-                        ...planejadores.map((p) => ({
-                          value: String(p.id),
-                          label: p.nome,
-                          descricao: p.matricula ? `${p.nome} · ${p.matricula}` : p.nome,
-                        })),
-                      ]}
+                      onAtribuir={(_, ids) => atribuirPlanejadores(ids)}
                     />
-                    <span className="text-xs font-medium text-slate-500">
-                      {salvando === 'planejador' ? 'Salvando...' : 'Atribuição imediata'}
-                    </span>
+                    <p className="mt-1 text-[11px] font-medium text-slate-500">Atribuição imediata</p>
                   </div>
                 ) : (
                   <p className="text-sm font-medium text-slate-700">
-                    {obra.planejador_nome || 'Nenhum planejador atribuído.'}
+                    {obra.planejadores?.map((membro) => membro.nome).join(', ') ||
+                      obra.planejador_nome ||
+                      'Nenhum planejador atribuído.'}
                   </p>
                 )}
               </section>

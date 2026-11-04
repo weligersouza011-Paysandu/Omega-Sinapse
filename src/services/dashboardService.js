@@ -318,6 +318,13 @@ function restricoesDeAtividades(obra) {
   });
 }
 
+/** Nomes da equipe de planejamento ("Ana, Bruno"); cai no planejador único legado. */
+function nomesPlanejadores(registro) {
+  const nomes = (registro.planejadores || []).map(({ usuario }) => usuario.nome);
+  if (nomes.length > 0) return nomes.join(', ');
+  return registro.planejador?.nome || null;
+}
+
 function mapearObra(registro) {
   const categoria = categoriaDaObra(registro);
   const status = statusInfo(registro.status);
@@ -377,8 +384,9 @@ function mapearObra(registro) {
     categoria_label: categoria.label,
     categoria_cor: categoria.cor,
     categoria_derivada: categoria.derivada,
-    planejador: registro.planejador?.nome || null,
+    planejador: nomesPlanejadores(registro),
     planejador_id: registro.planejador?.id || null,
+    planejadores_ids: (registro.planejadores || []).map(({ usuario }) => usuario.id),
     fiscais,
     fiscal: fiscais[0] || null,
     osi_emitida_em: registro.osi_emitida_em,
@@ -410,7 +418,7 @@ function mapearObra(registro) {
         osi: osiSistema || osiImportada || null,
         ss: orcamento.ss || null,
         descricao: orcamento.descricao || null,
-        planejador: registro.planejador?.nome || null,
+        planejador: nomesPlanejadores(registro),
       })
     ),
   };

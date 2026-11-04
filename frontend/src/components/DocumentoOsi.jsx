@@ -94,7 +94,10 @@ export default function DocumentoOsi({ obra, geradoEm }) {
       <Secao numero="3" titulo="Responsáveis" />
       <div className="mt-3 grid grid-cols-3 gap-x-4 gap-y-3">
         <Campo rotulo="Orçamentista" valor={obra.orcamentista_nome} />
-        <Campo rotulo="Técnico Planejador" valor={obra.planejador_nome} />
+        <Campo
+          rotulo="Técnico(s) Planejador(es)"
+          valor={obra.planejadores?.map((membro) => membro.nome).join(', ') || obra.planejador_nome}
+        />
         <Campo rotulo="Emissor da OSI" valor={obra.osi_emitida_por_nome} />
       </div>
 

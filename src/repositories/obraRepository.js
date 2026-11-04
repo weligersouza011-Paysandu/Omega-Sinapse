@@ -12,6 +12,10 @@ const INCLUDE_OBRA = {
     },
   },
   planejador: { select: { id: true, nome: true, email: true, matricula: true } },
+  planejadores: {
+    orderBy: { ordem: 'asc' },
+    include: { usuario: { select: { id: true, nome: true, matricula: true } } },
+  },
   osi_emitida_usuario: { select: { nome: true } },
 };
 
@@ -196,6 +200,7 @@ function mapearObra(registro) {
   const {
     orcamento,
     planejador,
+    planejadores,
     osi_emitida_usuario,
     _count,
     localizacoes,
@@ -238,9 +243,22 @@ function mapearObra(registro) {
   const avancoMapeado = (avanco_fisico || []).map(mapearAvanco);
   const midiasMapeadas = midias || [];
 
+  // Equipe de planejamento em ordem (principal primeiro). Obras ainda sem
+  // registro na tabela N:N caem no planejador único legado.
+  let equipe = (planejadores || []).map(({ usuario }) => ({
+    id: usuario.id,
+    nome: usuario.nome,
+    matricula: usuario.matricula ?? null,
+  }));
+  if (equipe.length === 0 && planejador) {
+    equipe = [{ id: planejador.id, nome: planejador.nome, matricula: planejador.matricula ?? null }];
+  }
+
   return {
     ...obra,
     planejador_nome: planejador ? planejador.nome : null,
+    planejadores: equipe,
+    planejadores_ids: equipe.map((membro) => membro.id),
     osi_emitida_por_nome: osi_emitida_usuario ? osi_emitida_usuario.nome : null,
     pendencias: calcularPendencias(obra),
     orcamento: dadosOrcamento,
@@ -382,6 +400,9 @@ async function garantirParaOrcamento(orcamentoId, dados = {}) {
       orcamento_id: orcamentoId,
       status: dados.status || 'PARA_INICIAR',
       planejador_id: dados.planejador_id ?? null,
+      ...(dados.planejador_id
+        ? { planejadores: { create: [{ usuario_id: dados.planejador_id, ordem: 0 }] } }
+        : {}),
     },
   });
 }
@@ -389,6 +410,25 @@ async function garantirParaOrcamento(orcamentoId, dados = {}) {
 /** Atualiza os campos operacionais da obra. */
 async function update(id, dados) {
   return prisma.obra.update({ where: { id }, data: dados });
+}
+
+/**
+ * Substitui a equipe de planejadores da obra pela lista informada (a ordem
+ * define o principal) e mantém `planejador_id` espelhando o principal.
+ * @param {number} id
+ * @param {number[]} planejadoresIds lista já validada e sem repetições
+ */
+async function definirPlanejadores(id, planejadoresIds) {
+  return prisma.$transaction([
+    prisma.obraPlanejador.deleteMany({ where: { obra_id: id } }),
+    prisma.obraPlanejador.createMany({
+      data: planejadoresIds.map((usuarioId, ordem) => ({ obra_id: id, usuario_id: usuarioId, ordem })),
+    }),
+    prisma.obra.update({
+      where: { id },
+      data: { planejador_id: planejadoresIds[0] ?? null },
+    }),
+  ]);
 }
 
 /**
@@ -618,6 +658,7 @@ module.exports = {
   findByOrcamentoId,
   garantirParaOrcamento,
   update,
+  definirPlanejadores,
   registrarOsi,
   mapearObra,
   calcularPendencias,

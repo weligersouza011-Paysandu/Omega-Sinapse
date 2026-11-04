@@ -52,6 +52,10 @@ const INCLUDE_DASHBOARD = {
     },
   },
   planejador: { select: { id: true, nome: true } },
+  planejadores: {
+    orderBy: { ordem: 'asc' },
+    select: { usuario: { select: { id: true, nome: true } } },
+  },
   localizacoes: {
     where: {
       latitude: { not: null },

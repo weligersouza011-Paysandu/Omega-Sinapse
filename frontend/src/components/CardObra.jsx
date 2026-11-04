@@ -53,6 +53,9 @@ export default function CardObra({
   const podeAtribuirPlanejador = typeof onAtribuirPlanejador === 'function';
   const selecionavel = typeof onAlternarSelecao === 'function';
   const exibirRodapeAcoes = ocultarValor || acoesRapidas.length > 0;
+  // Obras trazem a equipe completa; orçamentos, só o planejador único.
+  const nomePlanejadores =
+    orcamento.planejadores?.map((membro) => membro.nome).join(', ') || orcamento.planejador_nome;
 
   return (
     <article
@@ -115,16 +118,16 @@ export default function CardObra({
 
           {/* Governança ISO 9001: pendências documentais e planejador
               responsável (leitura para todos os perfis). */}
-          {orcamento.pendencias || (!podeAtribuirPlanejador && orcamento.planejador_nome) ? (
+          {orcamento.pendencias || (!podeAtribuirPlanejador && nomePlanejadores) ? (
             <div className="flex flex-wrap items-center gap-1.5">
               <EtiquetasPendencia pendencias={orcamento.pendencias} />
-              {!podeAtribuirPlanejador && orcamento.planejador_nome ? (
+              {!podeAtribuirPlanejador && nomePlanejadores ? (
                 <span
-                  title={`Planejador responsável: ${orcamento.planejador_nome}`}
+                  title={`Planejador(es) responsável(is): ${nomePlanejadores}`}
                   className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
                 >
                   <UserRound className="h-3 w-3 shrink-0" aria-hidden="true" />
-                  <span className="truncate">{orcamento.planejador_nome}</span>
+                  <span className="truncate">{nomePlanejadores}</span>
                 </span>
               ) : null}
             </div>

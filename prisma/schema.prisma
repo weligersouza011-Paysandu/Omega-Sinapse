@@ -172,6 +172,7 @@ model Usuario {
   orcamentos_planejador   Orcamento[]        @relation("Planejador")
   revisoes                OrcamentoRevisao[]
   obras_planejador        Obra[]             @relation("ObraPlanejador")
+  obras_coplanejadas      ObraPlanejador[]
   obras_osi_emitidas      Obra[]             @relation("ObraOsiEmissor")
   relatorios_autor        ObraRelatorio[]    @relation("RelatorioAutor")
   comentarios_autor       ObraComentario[]   @relation("ComentarioAutor")
@@ -255,13 +256,13 @@ model OrcamentoFiscal {
 // Histórico de revisões de valor (versionamento sequencial)
 // -----------------------------------------------------------------------------
 model OrcamentoRevisao {
-  id             Int      @id @default(autoincrement())
-  orcamento_id   Int
+  id               Int                    @id @default(autoincrement())
+  orcamento_id     Int
   /// 0 = Rev 00, 1 = Rev 01, ...
-  numero_revisao Int
-  valor          Decimal  @db.Decimal(14, 2)
+  numero_revisao   Int
+  valor            Decimal                @db.Decimal(14, 2)
   /// Justificativa obrigatória da alteração de valor.
-  observacao     String
+  observacao       String
   /// Natureza da alteração: substitui o valor base ou soma um aditivo.
   tipo_alteracao   TipoAlteracaoRevisao   @default(REVISAO_SUBSTITUTIVA)
   /// Só revisões APROVADAS entram no cálculo do valor vigente.
@@ -269,8 +270,8 @@ model OrcamentoRevisao {
   /// URL Cloudinary do documento comprobatório (PDF ou imagem).
   anexo_url        String?
   /// Quem gerou a revisão.
-  usuario_id     Int?
-  created_at     DateTime @default(now()) @db.Timestamptz(6)
+  usuario_id       Int?
+  created_at       DateTime               @default(now()) @db.Timestamptz(6)
 
   orcamento Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
   usuario   Usuario?  @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
@@ -293,7 +294,8 @@ model Obra {
   status          StatusObra     @default(PARA_INICIAR)
   /// Carteira do dashboard de planejamento (Cadeia de Ajuda ou Coordenação).
   categoria       CategoriaObra?
-  /// Técnico Planejador responsável — atribuído por Gestor/Supervisor.
+  /// Planejador PRINCIPAL — espelho do primeiro item de `planejadores`, mantido
+  /// para os painéis e integrações que leem um único responsável.
   planejador_id   Int?
   /// Número da Ordem de Serviço Interna (OSI).
   osi_numero      String?        @db.VarChar(60)
@@ -311,6 +313,8 @@ model Obra {
   planejador          Usuario?  @relation("ObraPlanejador", fields: [planejador_id], references: [id], onDelete: SetNull)
   osi_emitida_usuario Usuario?  @relation("ObraOsiEmissor", fields: [osi_emitida_por], references: [id], onDelete: SetNull)
 
+  /// Todos os planejadores responsáveis, em ordem (0 = principal).
+  planejadores  ObraPlanejador[]
   localizacoes  ObraLocalizacao[]
   avanco_fisico ObraAvancoFisico[]
   relatorios    ObraRelatorio[]
@@ -324,6 +328,24 @@ model Obra {
   @@index([status])
   @@index([planejador_id])
   @@map("obras")
+}
+
+// -----------------------------------------------------------------------------
+// Planejadores responsáveis pela obra (N:N — empreendimentos de grande porte)
+// -----------------------------------------------------------------------------
+model ObraPlanejador {
+  obra_id    Int
+  usuario_id Int
+  /// Posição na equipe: 0 = principal, 1 = secundário, ...
+  ordem      Int      @default(0)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  obra    Obra    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+
+  @@id([obra_id, usuario_id])
+  @@index([usuario_id])
+  @@map("obra_planejadores")
 }
 
 // -----------------------------------------------------------------------------

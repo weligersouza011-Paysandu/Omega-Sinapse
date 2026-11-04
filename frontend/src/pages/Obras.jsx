@@ -105,24 +105,25 @@ export default function Obras() {
   const moverStatus = useCallback((id, novoStatus) => atualizarObra(id, { status: novoStatus }), []);
 
   /**
-   * Atribui (ou remove) o técnico planejador direto no card/kanban. A API
-   * devolve a obra atualizada e os dois hooks de listagem são sincronizados
-   * localmente, sem recarregar o quadro inteiro.
+   * Define a equipe de planejadores (principal primeiro) direto no card/kanban.
+   * A API devolve a obra atualizada e os dois hooks de listagem são
+   * sincronizados localmente, sem recarregar o quadro inteiro.
    */
-  async function atribuirPlanejador(obra, planejadorId) {
+  async function atribuirPlanejador(obra, planejadoresIds) {
     try {
-      const atualizada = await atualizarObra(obra.id, { planejador_id: planejadorId });
+      const atualizada = await atualizarObra(obra.id, { planejadores_ids: planejadoresIds });
 
       if (atualizada) {
         cards.atualizarItemLocal(atualizada);
         quadro.atualizarItemLocal(atualizada);
       }
 
-      const responsavel =
-        atualizada?.planejador_nome || planejadores.find((p) => p.id === planejadorId)?.nome;
+      const nomes =
+        atualizada?.planejadores?.map((membro) => membro.nome) ||
+        planejadoresIds.map((id) => planejadores.find((p) => p.id === id)?.nome).filter(Boolean);
       toast.sucesso(
-        planejadorId
-          ? `Planejador responsável definido: ${responsavel || 'colaborador selecionado'}.`
+        planejadoresIds.length > 0
+          ? `Planejadores responsáveis: ${nomes.join(', ') || 'colaboradores selecionados'}.`
           : 'Responsável removido da obra.'
       );
       return true;

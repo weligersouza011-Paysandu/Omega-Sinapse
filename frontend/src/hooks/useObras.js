@@ -125,7 +125,8 @@ export async function removerMidiaObra(obraId, midiaId) {
 }
 
 /**
- * Atualiza a obra. Aceita `status` (ciclo operacional), `planejador_id`,
+ * Atualiza a obra. Aceita `status` (ciclo operacional), `planejadores_ids`
+ * (equipe em ordem, principal primeiro; `planejador_id` segue aceito),
  * `ata_partida_url` e `observacoes`. O back-end aplica o RBAC por campo e a
  * régua ISO 9001 (HTTP 422 quando a documentação de partida está pendente).
  */

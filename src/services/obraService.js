@@ -15,6 +15,9 @@ const PERFIS = {
 /** Somente SUPERVISOR/ADMIN atribuem o planejador responsável pela obra. */
 const PERFIS_QUE_ATRIBUEM_PLANEJADOR = [PERFIS.SUPERVISOR, PERFIS.ADMIN];
 
+/** Tamanho máximo da equipe de planejamento de uma obra (principal + secundário). */
+const MAX_PLANEJADORES = 2;
+
 /** Perfis autorizados a registrar a emissão da OSI. */
 const PERFIS_QUE_EMITEM_OSI = [PERFIS.PLANEJADOR, PERFIS.SUPERVISOR, PERFIS.ADMIN];
 
@@ -145,8 +148,66 @@ async function listarPlanejadores() {
 }
 
 /**
+ * Lê a equipe de planejadores do payload e a valida.
+ *
+ * Aceita `planejadores_ids` (lista em ordem; o primeiro é o principal — também
+ * aceito como `planejadoresIds`) ou o campo legado `planejador_id` (equipe de
+ * um só). Devolve `undefined` quando o payload não trata de planejadores.
+ */
+async function normalizarPlanejadores(payload, existente, usuario) {
+  const campoLista = ['planejadores_ids', 'planejadoresIds'].find((campo) => temCampo(payload, campo));
+  if (!campoLista && !temCampo(payload, 'planejador_id')) {
+    return undefined;
+  }
+
+  if (!PERFIS_QUE_ATRIBUEM_PLANEJADOR.includes(usuario.perfil)) {
+    throw new AppError(403, 'Apenas perfis SUPERVISOR ou ADMIN podem atribuir o planejador da obra.');
+  }
+
+  let bruto;
+  if (campoLista) {
+    bruto = payload[campoLista] ?? [];
+    if (!Array.isArray(bruto)) {
+      throw new AppError(400, `O campo "${campoLista}" deve ser uma lista de IDs de usuários.`);
+    }
+  } else {
+    bruto = estaVazio(payload.planejador_id) ? [] : [payload.planejador_id];
+  }
+
+  const ids = bruto.map(Number);
+  if (ids.some((valor) => !Number.isInteger(valor) || valor <= 0)) {
+    throw new AppError(400, 'Os IDs de planejadores devem ser números inteiros positivos.');
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new AppError(400, 'O mesmo planejador não pode ser atribuído duas vezes à obra.');
+  }
+  if (ids.length > MAX_PLANEJADORES) {
+    throw new AppError(400, `Uma obra pode ter no máximo ${MAX_PLANEJADORES} planejadores.`);
+  }
+
+  // Quem já estava na equipe pode continuar mesmo se tiver sido desativado
+  // depois; a exigência de usuário ativo vale apenas para novas atribuições.
+  const atuais = new Set(existente.planejadores_ids || []);
+  for (const planejadorId of ids) {
+    // eslint-disable-next-line no-await-in-loop
+    const planejador = await usuarioRepository.findById(planejadorId);
+    if (!planejador) {
+      throw new AppError(404, `Usuário ${planejadorId} não encontrado.`);
+    }
+    if (planejador.perfil !== PERFIS.PLANEJADOR) {
+      throw new AppError(400, `"${planejador.nome}" não tem o perfil PLANEJADOR.`);
+    }
+    if (planejador.ativo === false && !atuais.has(planejadorId)) {
+      throw new AppError(400, `O planejador "${planejador.nome}" está inativo.`);
+    }
+  }
+
+  return ids;
+}
+
+/**
  * PUT /api/obras/:id
- * Atualiza status operacional, planejador responsável, observações e Ata.
+ * Atualiza status operacional, planejadores responsáveis, observações e Ata.
  */
 async function atualizarObra(idParam, payload, usuario) {
   const id = validarId(idParam);
@@ -159,34 +220,8 @@ async function atualizarObra(idParam, payload, usuario) {
 
   const dados = {};
 
-  // ------------------------------------------------------------ Planejador
-  if (temCampo(payload, 'planejador_id')) {
-    if (!PERFIS_QUE_ATRIBUEM_PLANEJADOR.includes(usuario.perfil)) {
-      throw new AppError(403, 'Apenas perfis SUPERVISOR ou ADMIN podem atribuir o planejador da obra.');
-    }
-
-    if (estaVazio(payload.planejador_id)) {
-      dados.planejador_id = null;
-    } else {
-      const planejadorId = Number(payload.planejador_id);
-      if (!Number.isInteger(planejadorId) || planejadorId <= 0) {
-        throw new AppError(400, 'O campo "planejador_id" deve ser um número inteiro positivo.');
-      }
-
-      const planejador = await usuarioRepository.findById(planejadorId);
-      if (!planejador) {
-        throw new AppError(404, `Usuário ${planejadorId} não encontrado.`);
-      }
-      if (planejador.perfil !== PERFIS.PLANEJADOR) {
-        throw new AppError(400, 'O responsável pela obra deve ter o perfil PLANEJADOR.');
-      }
-      if (planejador.ativo === false) {
-        throw new AppError(400, `O planejador "${planejador.nome}" está inativo.`);
-      }
-
-      dados.planejador_id = planejadorId;
-    }
-  }
+  // ----------------------------------------------------------- Planejadores
+  const planejadoresIds = await normalizarPlanejadores(payload, existente, usuario);
 
   // ------------------------------------------------------------- Categoria
   if (temCampo(payload, 'categoria')) {
@@ -248,11 +283,16 @@ async function atualizarObra(idParam, payload, usuario) {
     }
   }
 
-  if (Object.keys(dados).length === 0) {
+  if (Object.keys(dados).length === 0 && !planejadoresIds) {
     return existente;
   }
 
-  await obraRepository.update(id, dados);
+  if (Object.keys(dados).length > 0) {
+    await obraRepository.update(id, dados);
+  }
+  if (planejadoresIds) {
+    await obraRepository.definirPlanejadores(id, planejadoresIds);
+  }
   return obraRepository.findById(id);
 }
 
@@ -293,6 +333,7 @@ module.exports = {
   STATUS_QUE_EXIGEM_DOCUMENTACAO,
   PERFIS_QUE_ATRIBUEM_PLANEJADOR,
   PERFIS_QUE_EMITEM_OSI,
+  MAX_PLANEJADORES,
   ROTULOS_STATUS,
   listarObras,
   obterObra,
