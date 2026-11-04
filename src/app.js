@@ -10,6 +10,7 @@ const usuarioRoutes = require('./routes/usuarioRoutes');
 const obraRoutes = require('./routes/obraRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const tarefaRoutes = require('./routes/tarefaRoutes');
+const cronogramaRoutes = require('./routes/cronogramaRoutes');
 const { autenticar } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
@@ -63,6 +64,8 @@ app.use('/api/obras', autenticar, obraRoutes);
 app.use('/api/dashboard', autenticar, dashboardRoutes);
 // Gestão de demandas e carga da equipe de planejamento.
 app.use('/api/tarefas', autenticar, tarefaRoutes);
+// Ingestão e versionamento de cronogramas (base da Curva S, CPM e 6WLA).
+app.use('/api/cronogramas', autenticar, cronogramaRoutes);
 app.use('/api/uploads', autenticar, uploadRoutes);
 
 // ---------------------------------------------------------------------------

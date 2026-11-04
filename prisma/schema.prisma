@@ -86,6 +86,21 @@ enum StatusRestricao {
 }
 
 /// Natureza da localização da obra: ponto geográfico ou trecho linear (km).
+/// Categorias de restrição do lookahead (6WLA).
+enum TipoRestricaoAtividade {
+  PROJETOS
+  SUPRIMENTOS
+  LIBERACAO_AREA
+  SMS
+  EQUIPAMENTO
+}
+
+/// Status da restrição de atividade do lookahead (Last Planner System).
+enum StatusRestricaoAtividade {
+  PENDENTE
+  BAIXADA
+}
+
 enum TipoLocalizacaoObra {
   PONTO
   TRECHO
@@ -168,15 +183,17 @@ model Usuario {
   created_at DateTime      @default(now()) @db.Timestamptz(6)
   updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 
-  orcamentos_orcamentista Orcamento[]        @relation("Orcamentista")
-  orcamentos_planejador   Orcamento[]        @relation("Planejador")
+  orcamentos_orcamentista Orcamento[]          @relation("Orcamentista")
+  orcamentos_planejador   Orcamento[]          @relation("Planejador")
   revisoes                OrcamentoRevisao[]
-  obras_planejador        Obra[]             @relation("ObraPlanejador")
+  obras_planejador        Obra[]               @relation("ObraPlanejador")
   obras_coplanejadas      ObraPlanejador[]
-  obras_osi_emitidas      Obra[]             @relation("ObraOsiEmissor")
-  relatorios_autor        ObraRelatorio[]    @relation("RelatorioAutor")
-  comentarios_autor       ObraComentario[]   @relation("ComentarioAutor")
-  tarefas                 Tarefa[]           @relation("TarefaResponsavel")
+  obras_osi_emitidas      Obra[]               @relation("ObraOsiEmissor")
+  relatorios_autor        ObraRelatorio[]      @relation("RelatorioAutor")
+  comentarios_autor       ObraComentario[]     @relation("ComentarioAutor")
+  tarefas                 Tarefa[]             @relation("TarefaResponsavel")
+  cronogramas_enviados    VersaoCronograma[]   @relation("CronogramaAutor")
+  restricoes_atividades   RestricaoAtividade[] @relation("RestricaoAtividadeAutor")
 
   @@map("usuarios")
 }
@@ -314,16 +331,18 @@ model Obra {
   osi_emitida_usuario Usuario?  @relation("ObraOsiEmissor", fields: [osi_emitida_por], references: [id], onDelete: SetNull)
 
   /// Todos os planejadores responsáveis, em ordem (0 = principal).
-  planejadores  ObraPlanejador[]
-  localizacoes  ObraLocalizacao[]
-  avanco_fisico ObraAvancoFisico[]
-  relatorios    ObraRelatorio[]
-  atividades    ObraAtividade[]
-  restricoes    ObraRestricao[]
-  ocorrencias   ObraOcorrencia[]
-  comentarios   ObraComentario[]
-  midias        ObraMidia[]
-  tarefas       Tarefa[]
+  planejadores          ObraPlanejador[]
+  localizacoes          ObraLocalizacao[]
+  avanco_fisico         ObraAvancoFisico[]
+  relatorios            ObraRelatorio[]
+  atividades            ObraAtividade[]
+  restricoes            ObraRestricao[]
+  ocorrencias           ObraOcorrencia[]
+  comentarios           ObraComentario[]
+  midias                ObraMidia[]
+  tarefas               Tarefa[]
+  cronogramas           VersaoCronograma[]
+  restricoes_atividades RestricaoAtividade[]
 
   @@index([status])
   @@index([planejador_id])
@@ -580,4 +599,120 @@ model Tarefa {
   @@index([data_vencimento])
   @@index([obra_id])
   @@map("tarefas")
+}
+
+// -----------------------------------------------------------------------------
+// Cronogramas da obra — versionamento (snapshot por upload do planejador)
+// Cada upload do modelo padrão (.xlsx) gera uma versão imutável ("Rev 00",
+// "Rev 01", ...) com as atividades da EAP, a Curva S e os histogramas de
+// recursos, garantindo rastreabilidade histórica para Curva S, CPM e 6WLA.
+// -----------------------------------------------------------------------------
+model VersaoCronograma {
+  id                      String    @id @default(uuid()) @db.Uuid
+  obra_id                 Int
+  /// Rótulo da revisão (ex.: "Rev 00", "Rev 01").
+  versao                  String    @db.VarChar(30)
+  /// Sequencial da revisão dentro da obra (0, 1, 2, ...).
+  numero_revisao          Int
+  /// Momento do snapshot (data de status informada ou data do upload).
+  data_snapshot           DateTime  @db.Timestamptz(6)
+  /// Período de referência do relatório semanal (aba Dashboard).
+  periodo_inicio          DateTime? @db.Date
+  periodo_fim             DateTime? @db.Date
+  autor_id                Int?
+  /// URL do arquivo original (Cloudinary).
+  arquivo_url             String?
+  arquivo_nome            String?   @db.VarChar(255)
+  observacao              String?
+  /// Indicadores gerais: % previsto/real, datas LB e tendência, contagens.
+  resumo                  Json?
+  /// Série semanal da Curva S física e financeira (aba Avanço_Físico&Financeiro).
+  curva_s                 Json?
+  /// Histograma semanal de mão de obra direta/indireta por função (aba MOD_MOI).
+  histograma_mao_de_obra  Json?
+  /// Histograma semanal de equipamentos (aba EQP).
+  histograma_equipamentos Json?
+  created_at              DateTime  @default(now()) @db.Timestamptz(6)
+
+  obra       Obra                  @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  autor      Usuario?              @relation("CronogramaAutor", fields: [autor_id], references: [id], onDelete: SetNull)
+  atividades AtividadeCronograma[]
+
+  @@unique([obra_id, numero_revisao])
+  @@index([obra_id])
+  @@map("versoes_cronograma")
+}
+
+model AtividadeCronograma {
+  id                     String    @id @default(uuid()) @db.Uuid
+  versao_cronograma_id   String    @db.Uuid
+  /// Posição da linha no arquivo (preserva a ordem da EAP).
+  ordem                  Int
+  /// Código EDT/WBS (ex.: "1.4.1.2").
+  codigo_atividade       String    @db.VarChar(60)
+  /// Código EDT do item pai na EAP (nulo para a raiz).
+  codigo_pai             String?   @db.VarChar(60)
+  descricao              String
+  /// Profundidade na EAP (1 = raiz).
+  nivel                  Int
+  /// Verdadeiro para itens de agrupamento (possuem filhos na EAP).
+  resumo                 Boolean   @default(false)
+  /// Datas de tendência (cronograma atualizado).
+  data_inicio            DateTime? @db.Timestamptz(6)
+  data_fim               DateTime? @db.Timestamptz(6)
+  /// Datas da linha de base (LB).
+  data_inicio_lb         DateTime? @db.Timestamptz(6)
+  data_fim_lb            DateTime? @db.Timestamptz(6)
+  /// Percentuais de 0 a 100.
+  avanco_fisico_previsto Float     @default(0)
+  avanco_fisico_real     Float     @default(0)
+  recursos_mao_de_obra   Json?
+  recursos_equipamentos  Json?
+  /// Precedências no formato do MS Project (ex.: "1.3.2TI+2 dias;1.3.4").
+  predecessoras          String?
+  /// Id da tarefa no MS Project (referência das predecessoras numéricas).
+  id_origem              Int?
+  /// Folga total calculada pelo CPM, em dias úteis (negativa = atraso).
+  folga_total_dias       Float?
+  caminho_critico        Boolean   @default(false)
+
+  versao     VersaoCronograma     @relation(fields: [versao_cronograma_id], references: [id], onDelete: Cascade)
+  restricoes RestricaoAtividade[]
+
+  @@index([versao_cronograma_id, ordem])
+  @@index([versao_cronograma_id, codigo_atividade])
+  @@map("atividades_cronograma")
+}
+
+// -----------------------------------------------------------------------------
+// Restrições das atividades do cronograma (Lookahead 6WLA / Last Planner)
+// Vinculadas à atividade da versão em que foram cadastradas; `codigo_atividade`
+// (EDT) permite que a restrição acompanhe a atividade nas revisões seguintes.
+// -----------------------------------------------------------------------------
+model RestricaoAtividade {
+  id               String                   @id @default(uuid()) @db.Uuid
+  obra_id          Int
+  atividade_id     String                   @db.Uuid
+  /// EDT da atividade (chave estável entre revisões do cronograma).
+  codigo_atividade String                   @db.VarChar(60)
+  tipo             TipoRestricaoAtividade
+  descricao        String
+  status           StatusRestricaoAtividade @default(PENDENTE)
+  responsavel      String?                  @db.VarChar(255)
+  /// Data limite para remoção da restrição.
+  data_limite      DateTime?                @db.Date
+  /// Momento em que a restrição foi baixada (removida).
+  data_baixa       DateTime?                @db.Timestamptz(6)
+  criado_por       Int?
+  created_at       DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                 @default(now()) @updatedAt @db.Timestamptz(6)
+
+  obra      Obra                @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  atividade AtividadeCronograma @relation(fields: [atividade_id], references: [id], onDelete: Cascade)
+  autor     Usuario?            @relation("RestricaoAtividadeAutor", fields: [criado_por], references: [id], onDelete: SetNull)
+
+  @@index([obra_id, codigo_atividade])
+  @@index([atividade_id])
+  @@index([obra_id, status])
+  @@map("restricoes_atividades")
 }

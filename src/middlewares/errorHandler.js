@@ -101,7 +101,7 @@ function errorHandler(err, req, res, next) {
     status = 400;
     mensagem =
       err.code === 'LIMIT_FILE_SIZE'
-        ? 'Arquivo muito grande. O tamanho máximo permitido por imagem foi excedido.'
+        ? 'Arquivo muito grande. O tamanho máximo permitido para o upload foi excedido.'
         : `Falha no upload do arquivo: ${err.message}`;
   }
 
