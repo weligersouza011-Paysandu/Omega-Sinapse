@@ -33,4 +33,7 @@ const excluirVersao = acao((req) =>
   cronogramaService.excluirVersao(req.params.id, { ...(req.query || {}), ...(req.body || {}) }, req.user)
 );
 
-module.exports = { enviarCronograma, listarPorObra, listarHistorico, obterVersao, excluirVersao };
+/** DELETE /api/cronogramas/historico/:id (somente ADMIN) */
+const excluirRegistroHistorico = acao((req) => cronogramaService.excluirRegistroHistorico(req.params.id, req.user));
+
+module.exports = { enviarCronograma, listarPorObra, listarHistorico, obterVersao, excluirVersao, excluirRegistroHistorico };

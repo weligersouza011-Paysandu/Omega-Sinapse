@@ -28,6 +28,9 @@ router.get('/obra/:obraId', cronogramaController.listarPorObra);
 // GET  /api/cronogramas/obra/:obraId/historico -> importações, falhas e exclusões
 router.get('/obra/:obraId/historico', cronogramaController.listarHistorico);
 
+// DELETE /api/cronogramas/historico/:id -> remove um registro do histórico (somente ADMIN)
+router.delete('/historico/:id', autorizar('ADMIN'), cronogramaController.excluirRegistroHistorico);
+
 // GET  /api/cronogramas/:id          -> revisão completa (atividades, Curva S, histogramas)
 router.get('/:id', cronogramaController.obterVersao);
 

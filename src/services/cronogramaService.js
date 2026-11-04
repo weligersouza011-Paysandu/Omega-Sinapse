@@ -280,8 +280,27 @@ async function excluirVersao(idParam, payload = {}, usuario) {
   return resultado;
 }
 
+/**
+ * DELETE /api/cronogramas/historico/:id — remove um registro do histórico de
+ * importação (somente ADMIN). Não altera revisões: excluir o registro de uma
+ * importação mantém a revisão correspondente.
+ */
+async function excluirRegistroHistorico(idParam, usuario) {
+  if (!usuario || usuario.perfil !== 'ADMIN') {
+    throw new AppError(403, 'Apenas administradores podem excluir registros do histórico de importação.');
+  }
+  if (!UUID.test(String(idParam || ''))) {
+    throw new AppError(400, 'O identificador do registro do histórico deve ser um UUID.');
+  }
+  const registro = await cronogramaRepository.buscarHistorico(idParam);
+  if (!registro) throw new AppError(404, 'Registro do histórico não encontrado.');
+  await cronogramaRepository.excluirHistorico(registro.id);
+  return { excluido: true, id: registro.id, acao: registro.acao, versao: registro.versao, arquivo_nome: registro.arquivo_nome };
+}
+
 module.exports = {
   enviarCronograma,
+  excluirRegistroHistorico,
   listarPorObra,
   listarHistorico,
   obterVersao,

@@ -35,6 +35,12 @@ export async function listarHistoricoCronograma(obraId) {
   return data;
 }
 
+/** Exclui um registro do histórico de importação (somente ADMIN). */
+export async function excluirRegistroHistorico(registroId) {
+  const { data } = await api.delete(`/cronogramas/historico/${registroId}`);
+  return data;
+}
+
 /** Exclui uma revisão do cronograma (fica registrada no histórico). */
 export async function excluirVersaoCronograma(versaoId, motivo) {
   const { data } = await api.delete(`/cronogramas/${versaoId}`, { data: { motivo: motivo || null } });

@@ -23,10 +23,12 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { HistoricoImportacoes, ModalArquivoRepetido, ModalExcluirRevisao } from './HistoricoImportacoes.jsx';
 import {
   enviarCronograma,
+  excluirRegistroHistorico,
   excluirVersaoCronograma,
   listarHistoricoCronograma,
   listarVersoesCronograma,
@@ -637,6 +639,20 @@ export default function AbaCronograma({ obra, podeEditar }) {
   const [carregandoHistorico, setCarregandoHistorico] = useState(false);
   const [excluir, setExcluir] = useState(null);
   const toast = useToast();
+  const { usuario } = useAuth();
+  const ehAdmin = usuario?.perfil === 'ADMIN';
+
+  async function excluirDoHistorico(evento) {
+    try {
+      await excluirRegistroHistorico(evento.id);
+      toast.sucesso('Registro excluído do histórico.');
+      setHistorico((atual) => atual.filter((item) => item.id !== evento.id));
+      return true;
+    } catch (err) {
+      toast.erro(err.message);
+      return false;
+    }
+  }
 
   const carregarHistorico = useCallback(async () => {
     setCarregandoHistorico(true);
@@ -849,7 +865,12 @@ export default function AbaCronograma({ obra, podeEditar }) {
       ) : null}
       {versoes.length && analise.carga ? <CargaTrabalho carga={analise.carga} /> : null}
 
-      <HistoricoImportacoes eventos={historico} carregando={carregandoHistorico} />
+      <HistoricoImportacoes
+        eventos={historico}
+        carregando={carregandoHistorico}
+        podeExcluir={ehAdmin}
+        onExcluir={excluirDoHistorico}
+      />
 
       <ModalExcluirRevisao versao={excluir} onCancelar={() => setExcluir(null)} onConfirmar={confirmarExclusao} />
     </div>

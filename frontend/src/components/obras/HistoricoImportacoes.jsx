@@ -28,9 +28,54 @@ function resumoDetalhes(evento) {
   return partes.join(' · ') || '—';
 }
 
+/** Confirmação para excluir um registro do histórico (somente ADMIN). */
+function ModalExcluirRegistro({ evento, onCancelar, onConfirmar }) {
+  const [excluindo, setExcluindo] = useState(false);
+  async function confirmar() {
+    setExcluindo(true);
+    try {
+      await onConfirmar();
+    } finally {
+      setExcluindo(false);
+    }
+  }
+  const acao = evento ? ACOES[evento.acao] || ACOES.IMPORTADO : null;
+  return (
+    <ModalBase
+      aberto={Boolean(evento)}
+      titulo="Excluir registro do histórico?"
+      subtitulo={evento ? `${acao.rotulo} · ${formatarDataHora(evento.created_at)} · ${evento.arquivo_nome || 'sem arquivo'}` : ''}
+      onFechar={() => (excluindo ? null : onCancelar())}
+      tamanho="md"
+    >
+      {evento ? (
+        <div className="space-y-3 p-5">
+          <p className="text-sm text-slate-700">O registro será removido do histórico e não poderá ser recuperado.</p>
+          {evento.acao === 'IMPORTADO' && evento.versao_id ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              Apenas o registro é apagado: a revisão {evento.versao} continua no cronograma. Para remover a revisão, use
+              &quot;Excluir {evento.versao}&quot; no quadro da revisão.
+            </p>
+          ) : null}
+          <div className="flex justify-end gap-2">
+            <button type="button" className="btn-neutro" onClick={onCancelar} disabled={excluindo}>
+              Cancelar
+            </button>
+            <button type="button" className="btn-perigo" onClick={confirmar} disabled={excluindo}>
+              {excluindo ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+              Excluir registro
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </ModalBase>
+  );
+}
+
 /** Tabela do histórico de importações, falhas e exclusões de revisões. */
-export function HistoricoImportacoes({ eventos, carregando }) {
+export function HistoricoImportacoes({ eventos, carregando, podeExcluir = false, onExcluir }) {
   const [todos, setTodos] = useState(false);
+  const [excluir, setExcluir] = useState(null);
   const lista = todos ? eventos : eventos.slice(0, 8);
 
   return (
@@ -49,7 +94,7 @@ export function HistoricoImportacoes({ eventos, carregando }) {
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
-              {['Data', 'Evento', 'Revisão', 'Arquivo', 'Usuário', 'Atividades', 'Detalhes'].map((titulo) => (
+              {['Data', 'Evento', 'Revisão', 'Arquivo', 'Usuário', 'Atividades', 'Detalhes', ...(podeExcluir ? [''] : [])].map((titulo) => (
                 <th key={titulo} scope="col" className="whitespace-nowrap px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wide text-slate-500">
                   {titulo}
                 </th>
@@ -81,12 +126,25 @@ export function HistoricoImportacoes({ eventos, carregando }) {
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-600">{evento.usuario_nome || '—'}</td>
                   <td className="whitespace-nowrap px-3 py-2 tabular-nums text-slate-600">{evento.total_atividades ?? '—'}</td>
                   <td className="min-w-[16rem] px-3 py-2 text-xs text-slate-600">{resumoDetalhes(evento)}</td>
+                  {podeExcluir ? (
+                    <td className="whitespace-nowrap px-2 py-1.5 text-right">
+                      <button
+                        type="button"
+                        className="rounded p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                        title="Excluir registro do histórico"
+                        aria-label={`Excluir registro de ${formatarDataHora(evento.created_at)}`}
+                        onClick={() => setExcluir(evento)}
+                      >
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               );
             })}
             {!eventos.length ? (
               <tr>
-                <td colSpan={7} className="px-3 py-6 text-center text-slate-500">
+                <td colSpan={podeExcluir ? 8 : 7} className="px-3 py-6 text-center text-slate-500">
                   Nenhuma importação registrada para esta obra.
                 </td>
               </tr>
@@ -94,6 +152,14 @@ export function HistoricoImportacoes({ eventos, carregando }) {
           </tbody>
         </table>
       </div>
+      <ModalExcluirRegistro
+        evento={excluir}
+        onCancelar={() => setExcluir(null)}
+        onConfirmar={async () => {
+          const ok = await onExcluir?.(excluir);
+          if (ok !== false) setExcluir(null);
+        }}
+      />
       {eventos.length > 8 ? (
         <div className="border-t border-slate-100 px-4 py-2 text-right">
           <button type="button" className="text-xs font-bold text-omega-700 hover:underline" onClick={() => setTodos(!todos)}>

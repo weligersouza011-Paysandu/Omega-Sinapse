@@ -137,6 +137,17 @@ async function registrarHistorico(dados) {
   return prisma.historicoImportacaoCronograma.create({ data: dados, select: { id: true } });
 }
 
+async function buscarHistorico(id) {
+  return prisma.historicoImportacaoCronograma.findUnique({
+    where: { id },
+    select: { id: true, obra_id: true, acao: true, versao: true, arquivo_nome: true },
+  });
+}
+
+async function excluirHistorico(id) {
+  return prisma.historicoImportacaoCronograma.delete({ where: { id }, select: { id: true } });
+}
+
 async function listarHistorico(obraId) {
   const registros = await prisma.historicoImportacaoCronograma.findMany({
     where: { obra_id: obraId },
@@ -305,6 +316,8 @@ module.exports = {
   buscarPorHash,
   registrarHistorico,
   listarHistorico,
+  buscarHistorico,
+  excluirHistorico,
   excluirVersao,
   listarAtividadesComRecursos,
   listarAvancoManual,
