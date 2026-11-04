@@ -203,7 +203,7 @@ export default function DetalheObra() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4">
+    <div className="w-full space-y-4">
       {/* ------------------------------------------------------- Abas */}
       <nav
         className="card flex flex-wrap items-center gap-1 p-1"

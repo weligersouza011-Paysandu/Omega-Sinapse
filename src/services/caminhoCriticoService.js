@@ -456,6 +456,56 @@ function aplicarNoUpload(atividades, { possuiColunaCritica = false, calendario =
 }
 
 /* -------------------------------------------------------------------------- */
+/* Rede (diagrama)                                                            */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Ligações de precedência entre as atividades folha, já resolvidas (Id do MS
+ * Project ou EDT; vínculos com itens de resumo expandidos para as folhas).
+ * @returns {{ de: string, para: string, tipo: string, latencia_dias: number|null }[]}
+ */
+function montarArestas(atividades, folhas, minutosPorDia) {
+  const porCodigo = new Map(atividades.map((a) => [a.codigo_atividade, a]));
+  const porIdOrigem = new Map(atividades.filter((a) => a.id_origem != null).map((a) => [String(a.id_origem), a]));
+  const porOrdem = new Map(atividades.map((a) => [String(a.ordem), a]));
+  const usarIdOrigem = porIdOrigem.size > 0;
+  const folhasDe = (codigo) => {
+    if (folhas.has(codigo)) return [codigo];
+    const prefixo = `${codigo}.`;
+    return [...folhas].filter((c) => c.startsWith(prefixo));
+  };
+  const resolver = (ref) => {
+    if (/^\d+$/.test(ref)) return usarIdOrigem ? porIdOrigem.get(ref) : porCodigo.get(ref) || porOrdem.get(ref);
+    return porCodigo.get(ref);
+  };
+  const vistas = new Set();
+  const arestas = [];
+  atividades.forEach((a) => {
+    if (!a.predecessoras) return;
+    const destinos = folhasDe(a.codigo_atividade);
+    interpretarPredecessoras(a.predecessoras, minutosPorDia).vinculos.forEach((v) => {
+      const origem = resolver(v.ref);
+      if (!origem) return;
+      folhasDe(origem.codigo_atividade).forEach((de) => {
+        destinos.forEach((para) => {
+          const chave = `${de}>${para}`;
+          if (de === para || vistas.has(chave)) return;
+          vistas.add(chave);
+          arestas.push({
+            de,
+            para,
+            tipo: v.tipo,
+            latencia_dias:
+              v.latencia.percentual !== null ? null : Math.round((v.latencia.minutos / minutosPorDia) * 100) / 100,
+          });
+        });
+      });
+    });
+  });
+  return arestas;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Endpoint                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -588,6 +638,34 @@ async function obterCaminhoCritico(obraIdParam, query = {}) {
       };
     });
 
+  // Rede completa (todas as folhas com datas) para o diagrama do caminho crítico.
+  const folhasRede = new Set([...resultados.keys()]);
+  const rede = {
+    nos: atividades
+      .filter((a) => resultados.has(a.codigo_atividade))
+      .map((a) => {
+        const cpm = resultados.get(a.codigo_atividade);
+        const caminhoEap = trilha(a);
+        return {
+          codigo: a.codigo_atividade,
+          id_origem: a.id_origem ?? null,
+          descricao: a.descricao,
+          frente: caminhoEap[1] || caminhoEap[0] || null,
+          inicio: a.data_inicio,
+          termino: a.data_fim,
+          termino_lb: a.data_fim_lb,
+          inicio_cedo: cpm.es,
+          termino_tarde: cpm.lf,
+          duracao_dias: cpm.duracao_dias,
+          folga_total_dias: cpm.folga_total_dias,
+          caminho_critico: cpm.caminho_critico,
+          avanco_fisico_real: a.avanco_fisico_real,
+          situacao: cpm.concluida ? 'CONCLUIDA' : a.avanco_fisico_real > 0 ? 'EM_ANDAMENTO' : 'NAO_INICIADA',
+        };
+      }),
+    arestas: montarArestas(atividades, folhasRede, calendarioVersao.minutosPorDia),
+  };
+
   return {
     obra_id: obraId,
     versao: {
@@ -600,6 +678,7 @@ async function obterCaminhoCritico(obraIdParam, query = {}) {
     resumo,
     total: itens.length,
     data: itens,
+    rede,
     avisos,
   };
 }

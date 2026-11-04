@@ -25,6 +25,7 @@ import {
 } from 'recharts';
 import { useAuth } from '../../context/AuthContext.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
+import RedeCaminhoCritico from './RedeCaminhoCritico.jsx';
 import { HistoricoImportacoes, ModalArquivoRepetido, ModalExcluirRevisao } from './HistoricoImportacoes.jsx';
 import {
   enviarCronograma,
@@ -434,6 +435,7 @@ function IndicadoresPrazo({ curva }) {
 
 function CaminhoCritico({ critico, prazo, onPrazo, carregando }) {
   const resumo = critico?.resumo || {};
+  const [visao, setVisao] = useState('mapa');
   return (
     <Secao
       titulo="Caminho crítico (CPM)"
@@ -448,10 +450,27 @@ function CaminhoCritico({ critico, prazo, onPrazo, carregando }) {
       }
       icone={CalendarClock}
       acoes={
+        <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-md border border-slate-200 p-0.5 text-xs font-semibold">
+          {[
+            ['mapa', 'Mapa da rede'],
+            ['lista', 'Lista'],
+          ].map(([id, rotulo]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setVisao(id)}
+              className={`rounded px-2.5 py-1 ${visao === id ? 'bg-omega-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
         <select className="campo w-auto py-1 text-xs" value={prazo} onChange={(evento) => onPrazo(evento.target.value)} disabled={carregando}>
           <option value="projeto">Prazo: término do projeto</option>
           <option value="contratual">Prazo: término contratual (LB)</option>
         </select>
+        </div>
       }
     >
       {critico?.avisos?.length ? (
@@ -459,7 +478,8 @@ function CaminhoCritico({ critico, prazo, onPrazo, carregando }) {
           <Avisos avisos={critico.avisos} />
         </div>
       ) : null}
-      <div className="overflow-x-auto">
+      {visao === 'mapa' && critico?.rede ? <RedeCaminhoCritico rede={critico.rede} /> : null}
+      <div className={`overflow-x-auto ${visao === 'mapa' && critico?.rede ? 'hidden' : ''}`}>
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className="bg-slate-50">
             <tr>
