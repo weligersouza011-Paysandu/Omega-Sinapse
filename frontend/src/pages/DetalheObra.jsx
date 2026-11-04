@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CalendarRange,
+  FileSpreadsheet,
   FileText,
   LayoutDashboard,
   ListChecks,
@@ -14,6 +15,7 @@ import {
 import EtiquetasPendencia from '../components/EtiquetasPendencia.jsx';
 import Spinner from '../components/Spinner.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
+import AbaCronograma from '../components/obras/AbaCronograma.jsx';
 import AbaProgramacao6Semanas from '../components/obras/AbaProgramacao6Semanas.jsx';
 import AbaProjecaoFinanceira from '../components/obras/AbaProjecaoFinanceira.jsx';
 import AbaVisaoGeral from '../components/obras/AbaVisaoGeral.jsx';
@@ -31,6 +33,7 @@ const PERFIS_QUE_ATRIBUEM = ['SUPERVISOR', 'ADMIN'];
 /** Abas principais (análise da obra). */
 const ABAS_PRINCIPAIS = [
   { id: 'visao-geral', label: 'Visão Geral', Icone: LayoutDashboard },
+  { id: 'cronograma', label: 'Cronograma', Icone: FileSpreadsheet },
   { id: 'financeiro', label: 'Projeção Financeira & Medição', Icone: Wallet },
   { id: '6wla', label: 'Programação de 6 Semanas (6WLA)', Icone: CalendarRange },
 ];
@@ -227,9 +230,13 @@ export default function DetalheObra() {
           <AbaVisaoGeral obra={obra} podeEditar={podeEditar} onIrParaAba={selecionarAba} />
         ) : null}
 
+        {aba === 'cronograma' ? <AbaCronograma obra={obra} podeEditar={podeEditar} /> : null}
+
         {aba === 'financeiro' ? <AbaProjecaoFinanceira obra={obra} /> : null}
 
-        {aba === '6wla' ? <AbaProgramacao6Semanas obra={obra} /> : null}
+        {aba === '6wla' ? (
+          <AbaProgramacao6Semanas obra={obra} podeEditar={podeEditar} onIrParaAba={selecionarAba} />
+        ) : null}
 
         {aba === 'tarefas' ? (
           <TarefasObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
