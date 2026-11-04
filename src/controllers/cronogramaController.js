@@ -25,4 +25,12 @@ const listarPorObra = acao((req) => cronogramaService.listarPorObra(req.params.o
 /** GET /api/cronogramas/:id */
 const obterVersao = acao((req) => cronogramaService.obterVersao(req.params.id));
 
-module.exports = { enviarCronograma, listarPorObra, obterVersao };
+/** GET /api/cronogramas/obra/:obraId/historico */
+const listarHistorico = acao((req) => cronogramaService.listarHistorico(req.params.obraId));
+
+/** DELETE /api/cronogramas/:id (motivo opcional no corpo ou na query) */
+const excluirVersao = acao((req) =>
+  cronogramaService.excluirVersao(req.params.id, { ...(req.query || {}), ...(req.body || {}) }, req.user)
+);
+
+module.exports = { enviarCronograma, listarPorObra, listarHistorico, obterVersao, excluirVersao };

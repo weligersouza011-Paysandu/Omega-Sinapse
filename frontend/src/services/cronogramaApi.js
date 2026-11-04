@@ -6,13 +6,15 @@ import api from './api.js';
  */
 
 /** Envia a planilha do modelo padrão e cria uma nova revisão do cronograma. */
-export async function enviarCronograma(obraId, arquivo, { observacao, dataSnapshot, onProgresso } = {}) {
+export async function enviarCronograma(obraId, arquivo, { observacao, dataSnapshot, forcar = false, onProgresso } = {}) {
   const formulario = new FormData();
   formulario.append('obra_id', String(obraId));
   formulario.append('arquivo', arquivo);
   if (observacao) formulario.append('observacao', observacao);
   // Data de corte/publicação no formato AAAA-MM-DD.
   if (dataSnapshot) formulario.append('data_snapshot', dataSnapshot);
+  // Confirma a reimportação de uma planilha idêntica (a API responde 409 sem isso).
+  if (forcar) formulario.append('forcar', 'true');
   const { data } = await api.post('/cronogramas/upload', formulario, {
     timeout: 180000,
     onUploadProgress: (evento) => {
@@ -24,6 +26,18 @@ export async function enviarCronograma(obraId, arquivo, { observacao, dataSnapsh
 
 export async function listarVersoesCronograma(obraId) {
   const { data } = await api.get(`/cronogramas/obra/${obraId}`);
+  return data;
+}
+
+/** Histórico de importações, recusas e exclusões de revisões da obra. */
+export async function listarHistoricoCronograma(obraId) {
+  const { data } = await api.get(`/cronogramas/obra/${obraId}/historico`);
+  return data;
+}
+
+/** Exclui uma revisão do cronograma (fica registrada no histórico). */
+export async function excluirVersaoCronograma(versaoId, motivo) {
+  const { data } = await api.delete(`/cronogramas/${versaoId}`, { data: { motivo: motivo || null } });
   return data;
 }
 

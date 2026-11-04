@@ -22,6 +22,8 @@ const SELECT_LISTAGEM = {
   autor_id: true,
   arquivo_url: true,
   arquivo_nome: true,
+  arquivo_hash: true,
+  arquivo_tamanho: true,
   observacao: true,
   resumo: true,
   created_at: true,
@@ -76,7 +78,7 @@ async function buscarPorId(id) {
  * O número da revisão é o próximo sequencial da obra; a restrição única
  * (obra_id, numero_revisao) protege contra uploads simultâneos.
  */
-async function criarVersao({ dados, atividades, rotular }) {
+async function criarVersao({ dados, atividades, rotular, historico = null }) {
   const registro = await prisma.$transaction(
     async (tx) => {
       const ultima = await tx.versaoCronograma.aggregate({
@@ -99,11 +101,122 @@ async function criarVersao({ dados, atividades, rotular }) {
         });
       }
 
+      if (historico) {
+        await tx.historicoImportacaoCronograma.create({
+          data: {
+            ...historico,
+            obra_id: dados.obra_id,
+            versao_id: versao.id,
+            versao: rotular(numero),
+            acao: 'IMPORTADO',
+          },
+        });
+      }
+
       return tx.versaoCronograma.findUnique({ where: { id: versao.id }, select: SELECT_LISTAGEM });
     },
     { timeout: 60000, maxWait: 15000 }
   );
   return mapearVersao(registro);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Histórico de importação                                                    */
+/* -------------------------------------------------------------------------- */
+
+/** Revisão da obra criada a partir de um arquivo idêntico (mesmo SHA-256). */
+async function buscarPorHash(obraId, hash) {
+  return prisma.versaoCronograma.findFirst({
+    where: { obra_id: obraId, arquivo_hash: hash },
+    orderBy: { numero_revisao: 'desc' },
+    select: { id: true, versao: true, created_at: true, arquivo_nome: true, autor: { select: { nome: true } } },
+  });
+}
+
+async function registrarHistorico(dados) {
+  return prisma.historicoImportacaoCronograma.create({ data: dados, select: { id: true } });
+}
+
+async function listarHistorico(obraId) {
+  const registros = await prisma.historicoImportacaoCronograma.findMany({
+    where: { obra_id: obraId },
+    orderBy: { created_at: 'desc' },
+    take: 200,
+    include: { usuario: { select: { id: true, nome: true } } },
+  });
+  return registros.map(({ usuario, ...registro }) => ({ ...registro, usuario_nome: usuario?.nome ?? null }));
+}
+
+/**
+ * Exclui uma revisão e suas atividades numa transação, registrando o evento no
+ * histórico. As restrições cadastradas nas atividades dela são transferidas
+ * para a atividade de mesmo EDT da revisão mais recente que permanece; sem
+ * correspondente, são removidas (e contadas no histórico).
+ */
+async function excluirVersao(versaoId, { usuarioId = null, motivo = null } = {}) {
+  return prisma.$transaction(
+    async (tx) => {
+      const versao = await tx.versaoCronograma.findUnique({
+        where: { id: versaoId },
+        select: { id: true, obra_id: true, versao: true, arquivo_nome: true, arquivo_hash: true, arquivo_url: true, _count: { select: { atividades: true } } },
+      });
+      if (!versao) return null;
+
+      const destino = await tx.versaoCronograma.findFirst({
+        where: { obra_id: versao.obra_id, id: { not: versaoId } },
+        orderBy: { numero_revisao: 'desc' },
+        select: { id: true, versao: true },
+      });
+
+      const restricoes = await tx.restricaoAtividade.findMany({
+        where: { atividade: { versao_cronograma_id: versaoId } },
+        select: { id: true, codigo_atividade: true },
+      });
+
+      let transferidas = 0;
+      if (destino && restricoes.length) {
+        const alvos = await tx.atividadeCronograma.findMany({
+          where: { versao_cronograma_id: destino.id, codigo_atividade: { in: [...new Set(restricoes.map((r) => r.codigo_atividade))] } },
+          select: { id: true, codigo_atividade: true },
+        });
+        const porCodigo = new Map(alvos.map((a) => [a.codigo_atividade, a.id]));
+        for (const restricao of restricoes) {
+          const alvo = porCodigo.get(restricao.codigo_atividade);
+          if (!alvo) continue;
+          // eslint-disable-next-line no-await-in-loop
+          await tx.restricaoAtividade.update({ where: { id: restricao.id }, data: { atividade_id: alvo } });
+          transferidas += 1;
+        }
+      }
+      const removidas = await tx.restricaoAtividade.deleteMany({ where: { atividade: { versao_cronograma_id: versaoId } } });
+      await tx.atividadeCronograma.deleteMany({ where: { versao_cronograma_id: versaoId } });
+      await tx.versaoCronograma.delete({ where: { id: versaoId } });
+
+      const historico = await tx.historicoImportacaoCronograma.create({
+        data: {
+          obra_id: versao.obra_id,
+          versao_id: null,
+          acao: 'EXCLUIDO',
+          versao: versao.versao,
+          arquivo_nome: versao.arquivo_nome,
+          arquivo_hash: versao.arquivo_hash,
+          arquivo_url: versao.arquivo_url,
+          total_atividades: versao._count.atividades,
+          usuario_id: usuarioId,
+          detalhes: {
+            motivo,
+            restricoes_transferidas: transferidas,
+            restricoes_removidas: removidas.count,
+            transferidas_para: transferidas ? destino.versao : null,
+          },
+        },
+        select: { id: true, created_at: true, detalhes: true },
+      });
+
+      return { versao: versao.versao, obra_id: versao.obra_id, total_atividades: versao._count.atividades, historico };
+    },
+    { timeout: 60000, maxWait: 15000 }
+  );
 }
 
 /** Revisões da obra (sem séries), da mais antiga para a mais recente. */
@@ -189,6 +302,10 @@ module.exports = {
   listarVersoesLeves,
   buscarCurvaDaVersao,
   buscarHistogramasDaVersao,
+  buscarPorHash,
+  registrarHistorico,
+  listarHistorico,
+  excluirVersao,
   listarAtividadesComRecursos,
   listarAvancoManual,
 };

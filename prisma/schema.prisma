@@ -95,6 +95,13 @@ enum TipoRestricaoAtividade {
   EQUIPAMENTO
 }
 
+/// Eventos do histórico de importação de cronogramas.
+enum AcaoHistoricoCronograma {
+  IMPORTADO
+  FALHA
+  EXCLUIDO
+}
+
 /// Status da restrição de atividade do lookahead (Last Planner System).
 enum StatusRestricaoAtividade {
   PENDENTE
@@ -183,17 +190,18 @@ model Usuario {
   created_at DateTime      @default(now()) @db.Timestamptz(6)
   updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 
-  orcamentos_orcamentista Orcamento[]          @relation("Orcamentista")
-  orcamentos_planejador   Orcamento[]          @relation("Planejador")
+  orcamentos_orcamentista Orcamento[]                     @relation("Orcamentista")
+  orcamentos_planejador   Orcamento[]                     @relation("Planejador")
   revisoes                OrcamentoRevisao[]
-  obras_planejador        Obra[]               @relation("ObraPlanejador")
+  obras_planejador        Obra[]                          @relation("ObraPlanejador")
   obras_coplanejadas      ObraPlanejador[]
-  obras_osi_emitidas      Obra[]               @relation("ObraOsiEmissor")
-  relatorios_autor        ObraRelatorio[]      @relation("RelatorioAutor")
-  comentarios_autor       ObraComentario[]     @relation("ComentarioAutor")
-  tarefas                 Tarefa[]             @relation("TarefaResponsavel")
-  cronogramas_enviados    VersaoCronograma[]   @relation("CronogramaAutor")
-  restricoes_atividades   RestricaoAtividade[] @relation("RestricaoAtividadeAutor")
+  obras_osi_emitidas      Obra[]                          @relation("ObraOsiEmissor")
+  relatorios_autor        ObraRelatorio[]                 @relation("RelatorioAutor")
+  comentarios_autor       ObraComentario[]                @relation("ComentarioAutor")
+  tarefas                 Tarefa[]                        @relation("TarefaResponsavel")
+  cronogramas_enviados    VersaoCronograma[]              @relation("CronogramaAutor")
+  restricoes_atividades   RestricaoAtividade[]            @relation("RestricaoAtividadeAutor")
+  historico_cronogramas   HistoricoImportacaoCronograma[] @relation("HistoricoCronogramaUsuario")
 
   @@map("usuarios")
 }
@@ -343,6 +351,7 @@ model Obra {
   tarefas               Tarefa[]
   cronogramas           VersaoCronograma[]
   restricoes_atividades RestricaoAtividade[]
+  historico_cronogramas HistoricoImportacaoCronograma[]
 
   @@index([status])
   @@index([planejador_id])
@@ -623,6 +632,9 @@ model VersaoCronograma {
   /// URL do arquivo original (Cloudinary).
   arquivo_url             String?
   arquivo_nome            String?   @db.VarChar(255)
+  /// SHA-256 do arquivo enviado (detecção de reenvio da mesma planilha).
+  arquivo_hash            String?   @db.VarChar(64)
+  arquivo_tamanho         Int?
   observacao              String?
   /// Indicadores gerais: % previsto/real, datas LB e tendência, contagens.
   resumo                  Json?
@@ -634,12 +646,14 @@ model VersaoCronograma {
   histograma_equipamentos Json?
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
 
-  obra       Obra                  @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-  autor      Usuario?              @relation("CronogramaAutor", fields: [autor_id], references: [id], onDelete: SetNull)
+  obra       Obra                            @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  autor      Usuario?                        @relation("CronogramaAutor", fields: [autor_id], references: [id], onDelete: SetNull)
   atividades AtividadeCronograma[]
+  historico  HistoricoImportacaoCronograma[]
 
   @@unique([obra_id, numero_revisao])
   @@index([obra_id])
+  @@index([obra_id, arquivo_hash])
   @@map("versoes_cronograma")
 }
 
@@ -715,4 +729,33 @@ model RestricaoAtividade {
   @@index([atividade_id])
   @@index([obra_id, status])
   @@map("restricoes_atividades")
+}
+
+// -----------------------------------------------------------------------------
+// Histórico de importação de cronogramas (auditoria)
+// Registra cada importação, falha e exclusão de revisão. O registro permanece
+// mesmo depois que a revisão é excluída (versao_id fica nulo).
+// -----------------------------------------------------------------------------
+model HistoricoImportacaoCronograma {
+  id               String                  @id @default(uuid()) @db.Uuid
+  obra_id          Int
+  versao_id        String?                 @db.Uuid
+  acao             AcaoHistoricoCronograma
+  /// Rótulo da revisão envolvida (preservado após a exclusão).
+  versao           String?                 @db.VarChar(30)
+  arquivo_nome     String?                 @db.VarChar(255)
+  arquivo_hash     String?                 @db.VarChar(64)
+  arquivo_url      String?
+  total_atividades Int?
+  usuario_id       Int?
+  /// Motivo da exclusão, mensagem da falha, avisos e contagens.
+  detalhes         Json?
+  created_at       DateTime                @default(now()) @db.Timestamptz(6)
+
+  obra           Obra              @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  versaoRegistro VersaoCronograma? @relation(fields: [versao_id], references: [id], onDelete: SetNull)
+  usuario        Usuario?          @relation("HistoricoCronogramaUsuario", fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@index([obra_id, created_at])
+  @@map("historico_importacao_cronogramas")
 }

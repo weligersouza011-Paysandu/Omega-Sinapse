@@ -8,6 +8,7 @@ import {
   Info,
   Loader2,
   RefreshCw,
+  Trash2,
   Upload,
   Users,
 } from 'lucide-react';
@@ -23,8 +24,11 @@ import {
   YAxis,
 } from 'recharts';
 import { useToast } from '../../context/ToastContext.jsx';
+import { HistoricoImportacoes, ModalArquivoRepetido, ModalExcluirRevisao } from './HistoricoImportacoes.jsx';
 import {
   enviarCronograma,
+  excluirVersaoCronograma,
+  listarHistoricoCronograma,
   listarVersoesCronograma,
   obterCaminhoCritico,
   obterCargaTrabalho,
@@ -109,7 +113,7 @@ function Avisos({ avisos }) {
 /* Importação                                                                 */
 /* -------------------------------------------------------------------------- */
 
-function ImportarCronograma({ obraId, temVersoes, onImportado }) {
+function ImportarCronograma({ obraId, temVersoes, onImportado, onFalha }) {
   const toast = useToast();
   const entrada = useRef(null);
   const [arquivo, setArquivo] = useState(null);
@@ -120,6 +124,7 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState(0);
   const [arrastando, setArrastando] = useState(false);
+  const [duplicado, setDuplicado] = useState(null);
 
   function escolher(lista) {
     const selecionado = lista?.[0];
@@ -131,7 +136,7 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
     setArquivo(selecionado);
   }
 
-  async function enviar() {
+  async function enviar(forcar = false) {
     if (!arquivo) return;
     if (!semana) {
       toast.erro('Informe uma data de corte válida.');
@@ -143,8 +148,10 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
       const versao = await enviarCronograma(obraId, arquivo, {
         observacao,
         dataSnapshot: dataCorte,
+        forcar,
         onProgresso: setProgresso,
       });
+      setDuplicado(null);
       toast.sucesso(`Cronograma importado: ${versao.versao} com ${versao.total_atividades} atividades.`);
       const avisoArmazenamento = (versao.avisos || []).find((aviso) => aviso.includes('Cloudinary'));
       if (avisoArmazenamento) toast.aviso(avisoArmazenamento, 10000);
@@ -154,7 +161,12 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
       if (entrada.current) entrada.current.value = '';
       onImportado(versao);
     } catch (err) {
-      toast.erro(err.message);
+      if (err.status === 409 && err.detalhes?.codigo === 'ARQUIVO_DUPLICADO') {
+        setDuplicado({ mensagem: err.message, ...err.detalhes });
+      } else {
+        toast.erro(err.message);
+      }
+      onFalha?.();
     } finally {
       setEnviando(false);
     }
@@ -246,11 +258,18 @@ function ImportarCronograma({ obraId, temVersoes, onImportado }) {
           />
         </div>
 
-        <button type="button" className="btn-primario lg:mt-5" onClick={enviar} disabled={!arquivo || enviando || !semana}>
+        <button type="button" className="btn-primario lg:mt-5" onClick={() => enviar(false)} disabled={!arquivo || enviando || !semana}>
           {enviando ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Upload className="h-4 w-4" aria-hidden="true" />}
           {enviando ? (progresso < 100 ? `Enviando ${progresso}%` : 'Processando…') : 'Importar'}
         </button>
       </div>
+
+      <ModalArquivoRepetido
+        duplicado={duplicado}
+        enviando={enviando}
+        onCancelar={() => setDuplicado(null)}
+        onConfirmar={() => enviar(true)}
+      />
     </section>
   );
 }
@@ -609,6 +628,36 @@ export default function AbaCronograma({ obra, podeEditar }) {
   const [analise, setAnalise] = useState({ curva: null, critico: null, carga: null, erros: [] });
   const [carregandoAnalise, setCarregandoAnalise] = useState(false);
   const [prazo, setPrazo] = useState('projeto');
+  const [historico, setHistorico] = useState([]);
+  const [carregandoHistorico, setCarregandoHistorico] = useState(false);
+  const [excluir, setExcluir] = useState(null);
+  const toast = useToast();
+
+  const carregarHistorico = useCallback(async () => {
+    setCarregandoHistorico(true);
+    try {
+      setHistorico((await listarHistoricoCronograma(obra.id)).data);
+    } catch {
+      // O histórico é complementar: uma falha aqui não bloqueia a aba.
+    } finally {
+      setCarregandoHistorico(false);
+    }
+  }, [obra.id]);
+
+  useEffect(() => {
+    carregarHistorico();
+  }, [carregarHistorico]);
+
+  async function confirmarExclusao(motivo) {
+    try {
+      const resultado = await excluirVersaoCronograma(excluir.id, motivo);
+      toast.sucesso(`${resultado.versao} excluída (${resultado.total_atividades} atividades).`);
+      setExcluir(null);
+      await Promise.all([carregarVersoes(), carregarHistorico()]);
+    } catch (err) {
+      toast.erro(err.message);
+    }
+  }
 
   const carregarVersoes = useCallback(
     async (selecionar = null) => {
@@ -660,7 +709,15 @@ export default function AbaCronograma({ obra, podeEditar }) {
   return (
     <div className="space-y-4">
       {podeEditar ? (
-        <ImportarCronograma obraId={obra.id} temVersoes={versoes.length > 0} onImportado={(nova) => carregarVersoes(nova.id)} />
+        <ImportarCronograma
+          obraId={obra.id}
+          temVersoes={versoes.length > 0}
+          onImportado={(nova) => {
+            carregarVersoes(nova.id);
+            carregarHistorico();
+          }}
+          onFalha={carregarHistorico}
+        />
       ) : null}
 
       {carregandoVersoes && !versoes.length ? (
@@ -686,7 +743,7 @@ export default function AbaCronograma({ obra, podeEditar }) {
           <p className="text-sm font-semibold text-slate-700">Nenhum cronograma importado para esta obra</p>
           <p className="max-w-md text-xs text-slate-500">
             {podeEditar
-              ? 'Use o quadro acima para enviar a planilha do relatório semanal. A Curva S, o caminho crítico, o lookahead de 6 semanas e a carga de trabalho são montados a partir dela.'
+              ? 'Use o quadro acima para enviar a planilha do cronograma. A Curva S, o caminho crítico, o lookahead de 6 semanas e a carga de trabalho são montados a partir dela.'
               : 'Peça ao planejador responsável para importar a planilha do cronograma.'}
           </p>
         </div>
@@ -745,6 +802,14 @@ export default function AbaCronograma({ obra, podeEditar }) {
               </dl>
             ) : null}
           </div>
+          {versao && podeEditar ? (
+            <div className="mt-3 flex justify-end">
+              <button type="button" className="btn-perigo px-3 py-1.5 text-xs" onClick={() => setExcluir(versao)}>
+                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                Excluir {versao.versao}
+              </button>
+            </div>
+          ) : null}
           {versao?.observacao ? (
             <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
               <Info className="mt-0.5 h-3.5 w-3.5" aria-hidden="true" />
@@ -778,6 +843,10 @@ export default function AbaCronograma({ obra, podeEditar }) {
         <CaminhoCritico critico={analise.critico} prazo={prazo} onPrazo={setPrazo} carregando={carregandoAnalise} />
       ) : null}
       {versoes.length && analise.carga ? <CargaTrabalho carga={analise.carga} /> : null}
+
+      <HistoricoImportacoes eventos={historico} carregando={carregandoHistorico} />
+
+      <ModalExcluirRevisao versao={excluir} onCancelar={() => setExcluir(null)} onConfirmar={confirmarExclusao} />
     </div>
   );
 }

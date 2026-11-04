@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const { Prisma } = require('@prisma/client');
 const AppError = require('../errors/AppError');
 const obraRepository = require('../repositories/obraRepository');
@@ -10,6 +11,8 @@ const { aplicarNoUpload } = require('./caminhoCriticoService');
 
 /** Perfis autorizados a enviar novas revisões de cronograma. */
 const PERFIS_ENVIO = ['PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+/** Perfis que excluem qualquer revisão; o PLANEJADOR exclui apenas as que enviou. */
+const PERFIS_EXCLUSAO_TOTAL = ['SUPERVISOR', 'ADMIN'];
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -74,9 +77,57 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
 
   const obraId = await garantirObra(payload.obra_id ?? payload.obraId);
   const dataSnapshot = dataSnapshotDe(payload.data_snapshot ?? payload.dataSnapshot);
+  const hash = crypto.createHash('sha256').update(arquivo.buffer).digest('hex');
+  const arquivoNome = textoOpcional(arquivo.originalname, 255);
+  const forcar = ['true', '1', 'sim'].includes(String(payload.forcar ?? '').toLowerCase());
+
+  /** Registra no histórico uma importação recusada (sem mascarar o erro original). */
+  const registrarFalha = async (mensagem, extra = {}) => {
+    try {
+      await cronogramaRepository.registrarHistorico({
+        obra_id: obraId,
+        acao: 'FALHA',
+        arquivo_nome: arquivoNome,
+        arquivo_hash: hash,
+        usuario_id: usuario.id ?? null,
+        detalhes: { mensagem, ...extra },
+      });
+    } catch (err) {
+      console.error('[cronograma] Falha ao registrar o histórico:', err.message);
+    }
+  };
+
+  // 0) Mesma planilha já importada nesta obra: pede confirmação antes de duplicar.
+  const repetida = await cronogramaRepository.buscarPorHash(obraId, hash);
+  if (repetida && !forcar) {
+    const quando = new Date(repetida.created_at).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const autor = repetida.autor?.nome ? ` por ${repetida.autor.nome}` : '';
+    const mensagem = `Este arquivo já foi importado nesta obra como ${repetida.versao} em ${quando}${autor}. Confirme para importar mesmo assim.`;
+    await registrarFalha(mensagem, { motivo: 'DUPLICADO', versao_existente: repetida.versao });
+    throw new AppError(409, mensagem, {
+      codigo: 'ARQUIVO_DUPLICADO',
+      versao_existente: {
+        id: repetida.id,
+        versao: repetida.versao,
+        importado_em: repetida.created_at,
+        arquivo_nome: repetida.arquivo_nome,
+      },
+    });
+  }
 
   // 1) Parse antes do upload: arquivos fora do modelo não chegam ao Cloudinary.
-  const analise = analisarCronograma(arquivo.buffer);
+  let analise;
+  try {
+    analise = analisarCronograma(arquivo.buffer);
+  } catch (err) {
+    if (err instanceof AppError) {
+      await registrarFalha(err.message, { motivo: 'ARQUIVO_INVALIDO', ...(err.details || {}) });
+    }
+    throw err;
+  }
+  if (repetida) {
+    analise.avisos.push(`Arquivo idêntico ao da ${repetida.versao}, importado novamente por confirmação do usuário.`);
+  }
 
   // 1b) Caminho crítico (CPM) e folgas de cada atividade.
   const cpm = aplicarNoUpload(analise.atividades, {
@@ -117,7 +168,9 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     periodo_fim: dataDoPeriodo(analise.periodo_fim),
     autor_id: usuario.id ?? null,
     arquivo_url: enviado.url,
-    arquivo_nome: textoOpcional(arquivo.originalname, 255),
+    arquivo_nome: arquivoNome,
+    arquivo_hash: hash,
+    arquivo_tamanho: arquivo.size ?? null,
     observacao: textoOpcional(payload.observacao, 2000),
     resumo: { ...analise.resumo, abas: analise.abas, avisos: analise.avisos },
     curva_s: analise.curva_s ?? Prisma.DbNull,
@@ -130,13 +183,27 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     recursos_equipamentos: atividade.recursos_equipamentos ?? Prisma.DbNull,
   }));
 
+  const historico = {
+    arquivo_nome: arquivoNome,
+    arquivo_hash: hash,
+    arquivo_url: enviado.url,
+    total_atividades: atividades.length,
+    usuario_id: usuario.id ?? null,
+    detalhes: {
+      observacao: dados.observacao,
+      data_snapshot: dataSnapshot.toISOString(),
+      avisos: analise.avisos,
+      reimportacao_de: repetida ? repetida.versao : null,
+    },
+  };
+
   let versao;
   try {
-    versao = await cronogramaRepository.criarVersao({ dados, atividades, rotular: rotularRevisao });
+    versao = await cronogramaRepository.criarVersao({ dados, atividades, rotular: rotularRevisao, historico });
   } catch (err) {
     // Upload simultâneo na mesma obra: tenta uma vez com o próximo número.
     if (err?.code !== 'P2002') throw err;
-    versao = await cronogramaRepository.criarVersao({ dados, atividades, rotular: rotularRevisao });
+    versao = await cronogramaRepository.criarVersao({ dados, atividades, rotular: rotularRevisao, historico });
   }
 
   return { ...versao, avisos: analise.avisos };
@@ -159,4 +226,45 @@ async function obterVersao(idParam) {
   return versao;
 }
 
-module.exports = { enviarCronograma, listarPorObra, obterVersao, rotularRevisao, PERFIS_ENVIO };
+/** GET /api/cronogramas/obra/:obraId/historico — importações, falhas e exclusões. */
+async function listarHistorico(obraIdParam) {
+  const obraId = await garantirObra(obraIdParam);
+  const data = await cronogramaRepository.listarHistorico(obraId);
+  return { data, total: data.length };
+}
+
+/**
+ * DELETE /api/cronogramas/:id — exclui a revisão (atividades incluídas) e
+ * registra o motivo no histórico. SUPERVISOR/ADMIN excluem qualquer revisão;
+ * o PLANEJADOR, apenas as que ele mesmo enviou.
+ */
+async function excluirVersao(idParam, payload = {}, usuario) {
+  if (!usuario || !PERFIS_ENVIO.includes(usuario.perfil)) {
+    throw new AppError(403, `Apenas perfis ${PERFIS_ENVIO.join(', ')} podem excluir revisões do cronograma.`);
+  }
+  if (!UUID.test(String(idParam || ''))) {
+    throw new AppError(400, 'O identificador da versão do cronograma deve ser um UUID.');
+  }
+  const versao = await cronogramaRepository.buscarPorId(idParam);
+  if (!versao) throw new AppError(404, 'Versão de cronograma não encontrada.');
+  if (!PERFIS_EXCLUSAO_TOTAL.includes(usuario.perfil) && versao.autor_id !== usuario.id) {
+    throw new AppError(403, 'O planejador só pode excluir as revisões que ele mesmo enviou. Peça a um supervisor.');
+  }
+
+  const resultado = await cronogramaRepository.excluirVersao(versao.id, {
+    usuarioId: usuario.id ?? null,
+    motivo: textoOpcional(payload.motivo, 500),
+  });
+  if (!resultado) throw new AppError(404, 'Versão de cronograma não encontrada.');
+  return resultado;
+}
+
+module.exports = {
+  enviarCronograma,
+  listarPorObra,
+  listarHistorico,
+  obterVersao,
+  excluirVersao,
+  rotularRevisao,
+  PERFIS_ENVIO,
+};
