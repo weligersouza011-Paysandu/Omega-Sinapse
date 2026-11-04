@@ -227,7 +227,7 @@ function restricoesDerivadas(obra) {
   const itens = [];
   const responsavel = obra.planejador || 'Coordenação de Planejamento';
 
-  if (!obra.osi_emitida_em) {
+  if (!obra.osi_anexo_url) {
     itens.push({
       id: `pendencia-${obra.id}-osi`,
       restricao_id: null,
@@ -239,9 +239,11 @@ function restricoesDerivadas(obra) {
       ss: obra.ss,
       obra_descricao: obra.descricao,
       etapa: 'Mobilização e Partida',
-      atividade: 'Emissão da OSI',
-      descricao: `OSI não emitida para a obra ${obra.ss || obra.osi || `#${obra.id}`}.`,
-      plano_acao: 'Emitir a OSI no sistema e anexar o comprovante à obra.',
+      atividade: 'OSI assinada',
+      descricao: obra.osi_emitida_em
+        ? `OSI emitida, mas a via assinada ainda não foi anexada à obra ${obra.ss || obra.osi || `#${obra.id}`}.`
+        : `OSI assinada não anexada à obra ${obra.ss || obra.osi || `#${obra.id}`}.`,
+      plano_acao: 'Emitir a OSI no sistema (ou usar a já assinada), colher as assinaturas e anexar o documento à obra.',
       responsavel,
       empresa_responsavel: 'Omega Service',
       status: 'PENDENTE',
@@ -390,8 +392,10 @@ function mapearObra(registro) {
     fiscais,
     fiscal: fiscais[0] || null,
     osi_emitida_em: registro.osi_emitida_em,
+    osi_anexo_url: registro.osi_anexo_url || null,
     ata_partida_url: registro.ata_partida_url || null,
-    tem_osi: Boolean(registro.osi_emitida_em || osiSistema || osiImportada),
+    // Documentação da OSI só é considerada cumprida com a via assinada anexada.
+    tem_osi: Boolean(registro.osi_anexo_url),
     tem_ata: Boolean(registro.ata_partida_url),
     localizacoes,
     quantidade_localizacoes: localizacoes.length,

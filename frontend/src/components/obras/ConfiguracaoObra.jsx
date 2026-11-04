@@ -13,6 +13,7 @@ import Dropdown from '../Dropdown.jsx';
 import SeletorPlanejador from '../SeletorPlanejador.jsx';
 import EtiquetasPendencia from '../EtiquetasPendencia.jsx';
 import ModalOsi from '../ModalOsi.jsx';
+import AnexoOsiAssinada, { descricaoOsi } from '../AnexoOsiAssinada.jsx';
 import Spinner from '../Spinner.jsx';
 import StatusBadge from '../StatusBadge.jsx';
 import AvancoFisicoEditor from './AvancoFisicoEditor.jsx';
@@ -89,6 +90,17 @@ export default function ConfiguracaoObra({
   }, [obra?.id, obra?.status, obra?.osi_numero, obra?.observacoes]);
 
   const osiEmitida = Boolean(obra?.osi_emitida_em);
+  // Só a OSI assinada anexada conclui a pendência documental.
+  const osiAnexada = Boolean(obra?.osi_anexo_url);
+
+  function anexarOsiAssinada(url) {
+    const numero = numeroOsi.trim();
+    return executar(
+      'osi-anexo',
+      () => atualizarObra(obra.id, { osi_anexo_url: url, ...(numero && numero !== obra.osi_numero ? { osi_numero: numero } : {}) }),
+      'OSI assinada anexada.'
+    );
+  }
   const ataAnexada = Boolean(obra?.ata_partida_url);
   const alterouStatus = Boolean(obra) && statusSelecionado !== obra.status;
 
@@ -267,13 +279,9 @@ export default function ConfiguracaoObra({
 
         <ul>
           <ItemPendencia
-            titulo="1. Emissão da OSI"
-            descricao={
-              osiEmitida
-                ? `Emitida em ${formatarDataHora(obra.osi_emitida_em)} por ${obra.osi_emitida_por_nome || 'usuário do sistema'}.`
-                : 'Ordem de Serviço Interna ainda não emitida.'
-            }
-            cumprido={osiEmitida}
+            titulo="1. OSI — emissão e via assinada"
+            descricao={descricaoOsi(obra)}
+            cumprido={osiAnexada}
           >
             <div className="flex flex-wrap items-end gap-2">
               <input
@@ -295,7 +303,7 @@ export default function ConfiguracaoObra({
               {podeDocumentar ? (
                 <button
                   type="button"
-                  className={osiEmitida ? 'btn-neutro' : 'btn-primario'}
+                  className="btn-neutro"
                   onClick={emitirOsi}
                   disabled={salvando === 'osi'}
                 >
@@ -303,6 +311,8 @@ export default function ConfiguracaoObra({
                   {osiEmitida ? 'Atualizar OSI' : 'Emitir OSI'}
                 </button>
               ) : null}
+
+              <AnexoOsiAssinada obra={obra} podeDocumentar={podeDocumentar} onAnexar={anexarOsiAssinada} idCampo="arquivoOsiConfig" />
             </div>
           </ItemPendencia>
 

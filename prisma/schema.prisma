@@ -327,6 +327,11 @@ model Obra {
   osi_emitida_em  DateTime?      @db.Timestamptz(6)
   /// Usuário que registrou a emissão da OSI.
   osi_emitida_por Int?
+  /// URL Cloudinary da OSI assinada (só ela conclui a pendência da OSI).
+  osi_anexo_url   String?
+  osi_anexada_em  DateTime?      @db.Timestamptz(6)
+  /// Usuário que anexou a OSI assinada.
+  osi_anexada_por Int?
   /// URL Cloudinary da Ata de Reunião de Partida (Kick-off).
   ata_partida_url String?
   /// Observações gerais do planejamento.

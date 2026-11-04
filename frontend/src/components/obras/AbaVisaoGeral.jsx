@@ -157,13 +157,16 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
           </h3>
           <ul className="space-y-2">
             <SituacaoDocumento
-              rotulo="Emissão da OSI"
-              ok={Boolean(obra.osi_emitida_em)}
+              rotulo="OSI assinada"
+              ok={Boolean(obra.osi_anexo_url)}
               detalhe={
-                obra.osi_emitida_em
-                  ? `${formatarDataHora(obra.osi_emitida_em)} · ${obra.osi_emitida_por_nome || 'sistema'}`
-                  : 'Ainda não emitida.'
+                obra.osi_anexo_url
+                  ? `Anexada${obra.osi_anexada_em ? ` em ${formatarDataHora(obra.osi_anexada_em)}` : ''}${obra.osi_numero ? ` · nº ${obra.osi_numero}` : ''}`
+                  : obra.osi_emitida_em
+                    ? `Emitida em ${formatarDataHora(obra.osi_emitida_em)} — aguardando a via assinada.`
+                    : 'Ainda não anexada.'
               }
+              link={obra.osi_anexo_url}
             />
             <SituacaoDocumento
               rotulo="Ata de Reunião de Partida"

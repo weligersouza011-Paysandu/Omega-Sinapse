@@ -82,10 +82,11 @@ const INCLUDE_DETALHE = {
 
 /**
  * Calcula a régua de pendências documentais obrigatórias (ISO 9001):
- * emissão da OSI e anexo da Ata de Reunião de Partida.
+ * OSI assinada anexada e Ata de Reunião de Partida anexada. Emitir a OSI no
+ * sistema não conclui a pendência: ela só é cumprida com o documento assinado.
  */
 function calcularPendencias(obra) {
-  const osi = !obra.osi_emitida_em;
+  const osi = !obra.osi_anexo_url;
   const ata = !obra.ata_partida_url;
   return { osi, ata, total: (osi ? 1 : 0) + (ata ? 1 : 0), completa: !osi && !ata };
 }
@@ -320,13 +321,13 @@ async function findAll(filtros = {}) {
 
   // Régua de pendências documentais (OSI e Ata de Partida).
   if (pendencia === 'osi') {
-    where.osi_emitida_em = null;
+    where.osi_anexo_url = null;
   } else if (pendencia === 'ata') {
     where.ata_partida_url = null;
   } else if (pendencia === 'pendentes') {
-    where.OR = [{ osi_emitida_em: null }, { ata_partida_url: null }];
+    where.OR = [{ osi_anexo_url: null }, { ata_partida_url: null }];
   } else if (pendencia === 'ok') {
-    where.osi_emitida_em = { not: null };
+    where.osi_anexo_url = { not: null };
     where.ata_partida_url = { not: null };
   }
 

@@ -43,7 +43,7 @@ const ROTULOS_STATUS = {
 };
 
 const ROTULOS_PENDENCIA = {
-  osi: 'Emissão da OSI',
+  osi: 'OSI assinada (anexo)',
   ata: 'Ata de Reunião de Partida',
 };
 
@@ -207,7 +207,8 @@ async function normalizarPlanejadores(payload, existente, usuario) {
 
 /**
  * PUT /api/obras/:id
- * Atualiza status operacional, planejadores responsáveis, observações e Ata.
+ * Atualiza status operacional, planejadores responsáveis, observações, OSI
+ * assinada e Ata.
  */
 async function atualizarObra(idParam, payload, usuario) {
   const id = validarId(idParam);
@@ -243,6 +244,24 @@ async function atualizarObra(idParam, payload, usuario) {
     }
   }
 
+  // ------------------------------------------------------- OSI assinada
+  // A OSI emitida no sistema é impressa, assinada e anexada aqui; uma OSI já
+  // assinada fora do sistema também pode ser anexada direto (com o número).
+  if (temCampo(payload, 'osi_anexo_url')) {
+    if (estaVazio(payload.osi_anexo_url)) {
+      dados.osi_anexo_url = null;
+      dados.osi_anexada_em = null;
+      dados.osi_anexada_por = null;
+    } else {
+      dados.osi_anexo_url = String(payload.osi_anexo_url).trim();
+      dados.osi_anexada_em = new Date();
+      dados.osi_anexada_por = usuario.id ?? null;
+    }
+  }
+  if (temCampo(payload, 'osi_numero') && !estaVazio(payload.osi_numero)) {
+    dados.osi_numero = String(payload.osi_numero).trim().slice(0, 60);
+  }
+
   // ------------------------------------------------------------------- Ata
   if (temCampo(payload, 'ata_partida_url')) {
     dados.ata_partida_url = estaVazio(payload.ata_partida_url) ? null : String(payload.ata_partida_url).trim();
@@ -267,6 +286,7 @@ async function atualizarObra(idParam, payload, usuario) {
       // A Ata pode ser anexada na mesma requisição que altera o status.
       const pendencias = {
         ...existente.pendencias,
+        osi: temCampo(dados, 'osi_anexo_url') ? !dados.osi_anexo_url : existente.pendencias.osi,
         ata: temCampo(dados, 'ata_partida_url') ? !dados.ata_partida_url : existente.pendencias.ata,
       };
       pendencias.total = (pendencias.osi ? 1 : 0) + (pendencias.ata ? 1 : 0);
