@@ -1,6 +1,7 @@
 'use strict';
 
 const AppError = require('../errors/AppError');
+const { criarCalendario } = require('./calendarioTrabalho');
 const obraRepository = require('../repositories/obraRepository');
 const cronogramaRepository = require('../repositories/cronogramaRepository');
 
@@ -25,81 +26,12 @@ const cronogramaRepository = require('../repositories/cronogramaRepository');
 /* Calendário de trabalho                                                     */
 /* -------------------------------------------------------------------------- */
 
-const FUSO_OFFSET_MIN = -3 * 60;
-const MINUTOS_DIA_UTIL = 480;
-const MINUTOS_SEMANA_UTIL = MINUTOS_DIA_UTIL * 5;
-/** Expediente em minutos desde 00:00 local. */
-const EXPEDIENTE = [
-  [8 * 60, 12 * 60],
-  [13 * 60, 17 * 60],
-];
-const DIA_MS = 24 * 60 * 60 * 1000;
 /** Tolerância (minutos úteis) para considerar folga nula. */
 const TOLERANCIA_MIN = 1;
 
-/** 1970-01-01 foi quinta-feira; dia da semana (0 = domingo) do dia `d` desde a época. */
-function diaDaSemana(d) {
-  return (((d + 4) % 7) + 7) % 7;
-}
-
-function ehDiaUtil(d) {
-  const semana = diaDaSemana(d);
-  return semana >= 1 && semana <= 5;
-}
-
-/** Minutos úteis decorridos no dia até o minuto `m` (0–1440). */
-function minutosUteisNoDia(m) {
-  return EXPEDIENTE.reduce((total, [inicio, fim]) => total + Math.max(0, Math.min(m, fim) - inicio), 0);
-}
-
-/** Dias úteis no intervalo [0, d). */
-function diasUteisAntes(d) {
-  const semanas = Math.floor(d / 7);
-  let total = semanas * 5;
-  for (let dia = semanas * 7; dia < d; dia += 1) if (ehDiaUtil(dia)) total += 1;
-  return total;
-}
-
-/** Instante → minutos úteis desde a época (escala contínua do CPM). */
-function paraMinutosUteis(data) {
-  const localMin = Math.floor(data.getTime() / 60000) + FUSO_OFFSET_MIN;
-  const dia = Math.floor(localMin / 1440);
-  const minutoDoDia = localMin - dia * 1440;
-  return diasUteisAntes(dia) * MINUTOS_DIA_UTIL + (ehDiaUtil(dia) ? minutosUteisNoDia(minutoDoDia) : 0);
-}
-
-/**
- * Minutos úteis → instante. Em fronteiras de expediente, `modo = 'inicio'`
- * devolve o começo do próximo período (08:00/13:00) e `'fim'` o término do
- * anterior (12:00/17:00), como o MS Project.
- */
-function deMinutosUteis(minutos, modo = 'inicio') {
-  let dia = Math.floor(minutos / MINUTOS_SEMANA_UTIL) * 7;
-  let restante = minutos - diasUteisAntes(dia) * MINUTOS_DIA_UTIL;
-  // Avança até o dia útil que contém o minuto.
-  for (;;) {
-    if (ehDiaUtil(dia)) {
-      const cabe = modo === 'fim' ? restante <= MINUTOS_DIA_UTIL : restante < MINUTOS_DIA_UTIL;
-      if (cabe) break;
-      restante -= MINUTOS_DIA_UTIL;
-    }
-    dia += 1;
-  }
-  let minutoDoDia = EXPEDIENTE[0][0];
-  for (const [inicio, fim] of EXPEDIENTE) {
-    const duracao = fim - inicio;
-    const cabe = modo === 'fim' ? restante <= duracao : restante < duracao;
-    if (cabe) {
-      minutoDoDia = inicio + restante;
-      break;
-    }
-    restante -= duracao;
-  }
-  return new Date((dia * 1440 + minutoDoDia - FUSO_OFFSET_MIN) * 60000);
-}
-
-function emDias(minutos) {
-  return Math.round((minutos / MINUTOS_DIA_UTIL) * 100) / 100;
+/** Minutos úteis → dias (no "dia" de duração do calendário, ex.: 300 min no MS Project da obra). */
+function emDias(minutos, calendario) {
+  return Math.round((minutos / calendario.minutosPorDia) * 100) / 100;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -109,7 +41,7 @@ function emDias(minutos) {
 const TIPOS_VINCULO = { TI: 'FS', FS: 'FS', II: 'SS', SS: 'SS', TT: 'FF', FF: 'FF', IT: 'SF', SF: 'SF' };
 
 /** Latência → minutos úteis (ou fração da duração da predecessora, se "%"). */
-function interpretarLatencia(texto) {
+function interpretarLatencia(texto, minutosPorDia = 480) {
   if (!texto) return { minutos: 0, percentual: null };
   const match = texto
     .replace(/\s+/g, '')
@@ -122,11 +54,11 @@ function interpretarLatencia(texto) {
   if (match[3]) return { minutos: 0, percentual: (sinal * valor) / 100 };
 
   const unidade = match[4].replace(/\.$/, '').replace(/^e/, ''); // "ed" (decorridos) ≈ dias
-  let fator = MINUTOS_DIA_UTIL;
+  let fator = minutosPorDia;
   if (/^(h|hr|hrs|hora|horas)$/.test(unidade)) fator = 60;
   else if (/^(min|mins|minuto|minutos)$/.test(unidade)) fator = 1;
-  else if (/^(s|sem|sems|semana|semanas|w|wk|wks)$/.test(unidade)) fator = MINUTOS_SEMANA_UTIL;
-  else if (/^(ms|mes|meses|mo|mon)$/.test(unidade)) fator = MINUTOS_DIA_UTIL * 20;
+  else if (/^(s|sem|sems|semana|semanas|w|wk|wks)$/.test(unidade)) fator = minutosPorDia * 5;
+  else if (/^(ms|mes|meses|mo|mon)$/.test(unidade)) fator = minutosPorDia * 20;
   else if (!/^(|d|dia|dias|day|days)$/.test(unidade)) return null;
   return { minutos: sinal * valor * fator, percentual: null };
 }
@@ -135,7 +67,7 @@ function interpretarLatencia(texto) {
  * "12;1.4.2TI+2 dias;15II-1 dia" →
  * [{ ref: '12', tipo: 'FS', latencia }, { ref: '1.4.2', tipo: 'FS', ... }, ...]
  */
-function interpretarPredecessoras(texto) {
+function interpretarPredecessoras(texto, minutosPorDia = 480) {
   if (!texto) return { vinculos: [], invalidos: [] };
   const vinculos = [];
   const invalidos = [];
@@ -145,7 +77,7 @@ function interpretarPredecessoras(texto) {
     .filter(Boolean)
     .forEach((parte) => {
       const match = parte.match(/^([0-9A-Za-z.\-_]+?)\s*(TI|II|TT|IT|FS|SS|FF|SF)?\s*([+-].*)?$/i);
-      const latencia = match ? interpretarLatencia(match[3]) : null;
+      const latencia = match ? interpretarLatencia(match[3], minutosPorDia) : null;
       if (!match || !latencia) {
         invalidos.push(parte);
         return;
@@ -172,8 +104,11 @@ function data(valor) {
  * @param {{ prazo?: 'projeto'|'contratual', terminoContratual?: Date }} opcoes
  * @returns {{ resultados: Map<string, object>, resumo: object, avisos: string[] }}
  */
-function calcularCaminhoCritico(atividades, opcoes = {}) {
+function calcularPeloMotor(atividades, opcoes = {}) {
   const avisos = [];
+  const calendario = criarCalendario(opcoes.calendario || null);
+  const paraMinutosUteis = (d) => calendario.paraMinutos(d);
+  const deMinutosUteis = (m, modo) => calendario.deMinutos(m, modo);
   const prazo = opcoes.prazo === 'contratual' ? 'contratual' : 'projeto';
 
   // --------------------------------------------------------------- Nós
@@ -228,7 +163,7 @@ function calcularCaminhoCritico(atividades, opcoes = {}) {
   const invalidas = new Set();
   atividades.forEach((a) => {
     if (!a.predecessoras) return;
-    const { vinculos, invalidos } = interpretarPredecessoras(a.predecessoras);
+    const { vinculos, invalidos } = interpretarPredecessoras(a.predecessoras, calendario.minutosPorDia);
     invalidos.forEach((item) => invalidas.add(item));
     const destinos = folhasDe(a.codigo_atividade);
     vinculos.forEach((vinculo) => {
@@ -335,6 +270,9 @@ function calcularCaminhoCritico(atividades, opcoes = {}) {
     let lf = referencia;
     no.sucessoras.forEach((a) => {
       const s = nos.get(a.para);
+      // Sucessora já iniciada tem datas reais: o progresso sobrepõe a lógica
+      // (como no MS Project) e ela não restringe mais as datas tarde da predecessora.
+      if (s.iniciada) return;
       const l = latenciaEmMinutos(a);
       if (a.tipo === 'FS') lf = Math.min(lf, s.ls - l);
       else if (a.tipo === 'SS') lf = Math.min(lf, s.ls - l + no.duracao);
@@ -355,8 +293,8 @@ function calcularCaminhoCritico(atividades, opcoes = {}) {
       ef: deMinutosUteis(no.ef, 'fim'),
       ls: deMinutosUteis(no.ls, 'inicio'),
       lf: deMinutosUteis(no.lf, 'fim'),
-      duracao_dias: emDias(no.duracao),
-      folga_total_dias: Math.abs(folga) <= TOLERANCIA_MIN ? 0 : emDias(folga),
+      duracao_dias: emDias(no.duracao, calendario),
+      folga_total_dias: Math.abs(folga) <= TOLERANCIA_MIN ? 0 : emDias(folga, calendario),
       caminho_critico: critica,
       concluida: no.concluida,
       predecessoras: no.predecessoras.length,
@@ -372,34 +310,145 @@ function calcularCaminhoCritico(atividades, opcoes = {}) {
     resumo: {
       metodo,
       prazo_referencia: prazo === 'contratual' && terminoContratual ? 'contratual' : 'projeto',
-      calendario: 'Seg–Sex, 08:00–12:00 e 13:00–17:00 (8 h/dia), sem feriados',
+      calendario: calendario.nome,
+      minutos_por_dia: calendario.minutosPorDia,
       atividades_na_rede: nos.size,
       vinculos: totalVinculos,
       atividades_criticas: criticas.length,
       folga_minima_dias: Number.isFinite(folgaMinima) ? folgaMinima : null,
       termino_projeto: deMinutosUteis(terminoProjeto, 'fim'),
       termino_referencia: deMinutosUteis(referencia, 'fim'),
-      atraso_vs_referencia_dias: emDias(Math.max(terminoProjeto - referencia, 0)),
+      atraso_vs_referencia_dias: emDias(Math.max(terminoProjeto - referencia, 0), calendario),
+    },
+    avisos,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* CPM calculado pelo MS Project                                              */
+/* -------------------------------------------------------------------------- */
+
+function temDadosMsProject(atividades) {
+  return atividades.some((a) => !a.resumo && a.dados_origem && typeof a.dados_origem.critica_ms_project === 'boolean');
+}
+
+/**
+ * Usa o caminho crítico calculado pelo próprio MS Project (campos Crítica,
+ * Folga total e datas cedo/tarde gravados no .mpp), que considera o calendário,
+ * as restrições, as tarefas divididas e o progresso exatamente como o
+ * planejador vê no Project. Para o prazo "contratual", a folga é reduzida pelo
+ * atraso do término do projeto em relação ao término da linha de base.
+ */
+function calcularPeloMsProject(atividades, opcoes = {}) {
+  const avisos = [];
+  const calendario = criarCalendario(opcoes.calendario || null);
+  const prazo = opcoes.prazo === 'contratual' ? 'contratual' : 'projeto';
+  const folhas = atividades.filter((a) => !a.resumo && data(a.data_inicio) && data(a.data_fim));
+  if (!folhas.length) {
+    throw new AppError(422, 'A versão do cronograma não possui atividades com datas para calcular o caminho crítico.');
+  }
+
+  const termino = Math.max(...folhas.map((a) => calendario.paraMinutos(data(a.data_fim))));
+  const terminoContratual = data(opcoes.terminoContratual);
+  let atraso = 0;
+  if (prazo === 'contratual') {
+    if (terminoContratual) atraso = Math.max(termino - calendario.paraMinutos(terminoContratual), 0);
+    else avisos.push('Término da linha de base indisponível: usado o término do projeto como prazo de referência.');
+  }
+  const atrasoDias = emDias(atraso, calendario);
+
+  const resultados = new Map();
+  folhas.forEach((a) => {
+    const o = a.dados_origem || {};
+    const concluida = Number(a.avanco_fisico_real) >= 100;
+    // O MPXJ omite folga zero: ausência de valor em tarefa não concluída = 0.
+    const folgaProjeto = o.folga_total_dias === null || o.folga_total_dias === undefined ? 0 : Number(o.folga_total_dias);
+    const folga = prazo === 'contratual' ? Math.round((folgaProjeto - atrasoDias) * 100) / 100 : folgaProjeto;
+    const critica = !concluida && (prazo === 'contratual' ? folga <= 0 : Boolean(o.critica_ms_project));
+    const inicioCedo = data(o.inicio_cedo) || data(a.data_inicio);
+    const terminoCedo = data(o.termino_cedo) || data(a.data_fim);
+    resultados.set(a.codigo_atividade, {
+      es: inicioCedo,
+      ef: terminoCedo,
+      ls: data(o.inicio_tarde) || inicioCedo,
+      lf: data(o.termino_tarde) || terminoCedo,
+      duracao_dias: o.duracao_dias ?? emDias(calendario.paraMinutos(data(a.data_fim)) - calendario.paraMinutos(data(a.data_inicio)), calendario),
+      folga_total_dias: folga,
+      caminho_critico: critica,
+      concluida,
+      predecessoras: a.predecessoras ? String(a.predecessoras).split(';').length : 0,
+      sucessoras: null,
+    });
+  });
+
+  const criticas = [...resultados.values()].filter((r) => r.caminho_critico);
+  const abertas = [...resultados.values()].filter((r) => !r.concluida);
+  const folgaMinima = abertas.length ? Math.min(...abertas.map((r) => r.folga_total_dias)) : null;
+  return {
+    resultados,
+    resumo: {
+      metodo: 'ms_project',
+      prazo_referencia: prazo === 'contratual' && terminoContratual ? 'contratual' : 'projeto',
+      calendario: calendario.nome,
+      minutos_por_dia: calendario.minutosPorDia,
+      atividades_na_rede: folhas.length,
+      vinculos: atividades.reduce((t, a) => t + (a.predecessoras ? String(a.predecessoras).split(';').length : 0), 0),
+      atividades_criticas: criticas.length,
+      folga_minima_dias: folgaMinima,
+      termino_projeto: calendario.deMinutos(termino, 'fim'),
+      termino_referencia: terminoContratual && prazo === 'contratual' ? terminoContratual : calendario.deMinutos(termino, 'fim'),
+      atraso_vs_referencia_dias: atrasoDias,
     },
     avisos,
   };
 }
 
 /**
- * Aplica o CPM às atividades recém-lidas no upload, gravando `folga_total_dias`
- * e `caminho_critico`. Quando não há amarrações e a planilha traz a coluna
- * "Crítica" do MS Project, o valor da planilha é preservado.
+ * Caminho crítico de uma versão: com os dados de CPM do MS Project (.mpp),
+ * usa-os diretamente; sem eles (ou com `opcoes.motor = true`), calcula pelo
+ * motor próprio (passos para frente/trás com o calendário da obra).
  */
-function aplicarNoUpload(atividades, { possuiColunaCritica = false } = {}) {
+function calcularCaminhoCritico(atividades, opcoes = {}) {
+  if (!opcoes.motor && temDadosMsProject(atividades)) return calcularPeloMsProject(atividades, opcoes);
+  return calcularPeloMotor(atividades, opcoes);
+}
+
+/**
+ * Aplica o CPM às atividades recém-lidas no upload, gravando `folga_total_dias`
+ * e `caminho_critico`. Com dados do MS Project, também roda o motor próprio e
+ * registra a concordância entre os dois (conferência da lógica da rede).
+ */
+function aplicarNoUpload(atividades, { possuiColunaCritica = false, calendario = null } = {}) {
   try {
-    const { resultados, resumo, avisos } = calcularCaminhoCritico(atividades);
+    const { resultados, resumo, avisos } = calcularCaminhoCritico(atividades, { calendario });
     const manterPlanilha = resumo.metodo === 'sem_amarracoes' && possuiColunaCritica;
     atividades.forEach((a) => {
       const r = resultados.get(a.codigo_atividade);
       a.folga_total_dias = r ? r.folga_total_dias : null;
       if (!manterPlanilha) a.caminho_critico = r ? r.caminho_critico : false;
     });
-    return { resumo: { ...resumo, origem_marcacao: manterPlanilha ? 'planilha' : 'cpm' }, avisos };
+
+    let concordancia = null;
+    if (resumo.metodo === 'ms_project') {
+      try {
+        const motor = calcularPeloMotor(atividades, { calendario });
+        const comparadas = atividades.filter((a) => !a.resumo && Number(a.avanco_fisico_real) < 100 && motor.resultados.has(a.codigo_atividade));
+        const divergentes = comparadas.filter((a) => motor.resultados.get(a.codigo_atividade).caminho_critico !== a.caminho_critico);
+        concordancia = {
+          comparadas: comparadas.length,
+          iguais: comparadas.length - divergentes.length,
+          percentual: comparadas.length ? Math.round(((comparadas.length - divergentes.length) / comparadas.length) * 1000) / 10 : null,
+          divergentes: divergentes.slice(0, 30).map((a) => a.codigo_atividade),
+        };
+      } catch (err) {
+        if (!(err instanceof AppError)) throw err;
+      }
+    }
+
+    return {
+      resumo: { ...resumo, origem_marcacao: manterPlanilha ? 'planilha' : resumo.metodo, concordancia_motor: concordancia },
+      avisos,
+    };
   } catch (err) {
     if (err instanceof AppError) return { resumo: null, avisos: [err.message] };
     throw err;
@@ -421,9 +470,9 @@ function normalizar(texto) {
     .trim();
 }
 
-function diasUteisEntre(a, b) {
+function diasUteisEntre(a, b, calendario) {
   if (!a || !b) return null;
-  return emDias(paraMinutosUteis(data(a)) - paraMinutosUteis(data(b)));
+  return emDias(calendario.paraMinutos(data(a)) - calendario.paraMinutos(data(b)), calendario);
 }
 
 /**
@@ -460,7 +509,12 @@ async function obterCaminhoCritico(obraIdParam, query = {}) {
   const atividades = versao.atividades || [];
   const raiz = atividades.find((a) => a.nivel === Math.min(...atividades.map((x) => x.nivel)));
   const terminoContratual = versao.resumo?.termino_lb || raiz?.data_fim_lb || null;
-  const { resultados, resumo, avisos } = calcularCaminhoCritico(atividades, { prazo, terminoContratual });
+  const { resultados, resumo, avisos } = calcularCaminhoCritico(atividades, {
+    prazo,
+    terminoContratual,
+    calendario: versao.calendario || null,
+  });
+  const calendarioVersao = criarCalendario(versao.calendario || null);
 
   // Contexto: trilha da EAP e restrições abertas ligadas à atividade.
   const porCodigo = new Map(atividades.map((a) => [a.codigo_atividade, a]));
@@ -497,7 +551,7 @@ async function obterCaminhoCritico(obraIdParam, query = {}) {
       const lista = (valor) => (Array.isArray(valor) ? valor : []);
       const funcoes = lista(a.recursos_mao_de_obra).map((r) => r.funcao).filter(Boolean);
       const equipamentos = lista(a.recursos_equipamentos).map((r) => r.equipamento).filter(Boolean);
-      const atrasoLb = diasUteisEntre(a.data_fim, a.data_fim_lb);
+      const atrasoLb = diasUteisEntre(a.data_fim, a.data_fim_lb, calendarioVersao);
       const restricoes = restricoesDa(a);
       return {
         id: a.id,
@@ -553,9 +607,10 @@ async function obterCaminhoCritico(obraIdParam, query = {}) {
 module.exports = {
   obterCaminhoCritico,
   calcularCaminhoCritico,
+  calcularPeloMotor,
+  calcularPeloMsProject,
   aplicarNoUpload,
   // Exportados para testes.
   interpretarPredecessoras,
-  paraMinutosUteis,
-  deMinutosUteis,
+
 };

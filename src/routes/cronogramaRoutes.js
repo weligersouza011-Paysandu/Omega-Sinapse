@@ -3,22 +3,22 @@
 const { Router } = require('express');
 const cronogramaController = require('../controllers/cronogramaController');
 const { autorizar } = require('../middlewares/auth');
-const { uploadPlanilha } = require('../config/multer');
+const { uploadCronograma } = require('../config/multer');
 const { PERFIS_ENVIO } = require('../services/cronogramaService');
 
 const router = Router();
 
 /**
- * Ingestão e versionamento de cronogramas de obra (modelo padrão .xlsx).
+ * Ingestão e versionamento de cronogramas de obra (MS Project .mpp ou .xml).
  * Cada upload gera uma revisão imutável ("Rev 00", "Rev 01", ...).
  */
 
-// POST /api/cronogramas/upload  (multipart/form-data: arquivo, obra_id, observacao?, data_snapshot?, forcar?)
+// POST /api/cronogramas/upload  (multipart/form-data: arquivo .mpp/.xml, obra_id, observacao?, data_snapshot?, forcar?)
 // 409 ARQUIVO_DUPLICADO quando a mesma planilha já foi importada na obra (reenvie com forcar=true).
 router.post(
   '/upload',
   autorizar(...PERFIS_ENVIO),
-  uploadPlanilha.single('arquivo'),
+  uploadCronograma.single('arquivo'),
   cronogramaController.enviarCronograma
 );
 

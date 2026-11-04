@@ -62,36 +62,39 @@ const uploadDocumento = multer({
   },
 });
 
-/** Planilhas do cronograma (modelo padrão): .xlsx, .xlsm e .xls. */
-const MIME_PLANILHAS = [
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  'application/vnd.ms-excel.sheet.macroEnabled.12',
-  'application/vnd.ms-excel',
+/** Cronogramas do MS Project: .mpp (binário) ou .xml (Arquivo → Salvar como → XML). */
+const MIME_CRONOGRAMAS = [
+  'application/vnd.ms-project',
+  'application/msproj',
+  'application/msproject',
+  'application/x-msproject',
+  'application/xml',
+  'text/xml',
 ];
-const EXTENSOES_PLANILHA = /\.(xlsx|xlsm|xls)$/i;
-const TAMANHO_MAXIMO_PLANILHA = Number(process.env.CRONOGRAMA_MAX_BYTES || 25 * 1024 * 1024); // 25 MB
+const EXTENSOES_CRONOGRAMA = /\.(mpp|xml)$/i;
+const TAMANHO_MAXIMO_CRONOGRAMA = Number(process.env.CRONOGRAMA_MAX_BYTES || 25 * 1024 * 1024); // 25 MB
 
-const uploadPlanilha = multer({
+const uploadCronograma = multer({
   storage,
   fileFilter(req, file, cb) {
-    // Alguns navegadores enviam .xlsx como application/octet-stream: vale a extensão.
-    if (MIME_PLANILHAS.includes(file.mimetype) || EXTENSOES_PLANILHA.test(file.originalname || '')) {
+    // Navegadores costumam enviar .mpp como application/octet-stream: vale a extensão.
+    if (EXTENSOES_CRONOGRAMA.test(file.originalname || '') || MIME_CRONOGRAMAS.includes(file.mimetype)) {
       return cb(null, true);
     }
     return cb(
-      new AppError(400, `Formato não suportado (${file.mimetype}). Envie a planilha do cronograma em Excel (.xlsx).`)
+      new AppError(400, `Formato não suportado (${file.originalname || file.mimetype}). Envie o cronograma do MS Project (.mpp).`)
     );
   },
   limits: {
-    fileSize: TAMANHO_MAXIMO_PLANILHA,
+    fileSize: TAMANHO_MAXIMO_CRONOGRAMA,
     files: 1,
   },
 });
 
 module.exports = upload;
 module.exports.upload = upload;
-module.exports.uploadPlanilha = uploadPlanilha;
-module.exports.MIME_PLANILHAS = MIME_PLANILHAS;
+module.exports.uploadCronograma = uploadCronograma;
+module.exports.MIME_CRONOGRAMAS = MIME_CRONOGRAMAS;
 module.exports.uploadDocumento = uploadDocumento;
 module.exports.MIME_TIPOS_ACEITOS = MIME_TIPOS_ACEITOS;
 module.exports.MIME_DOCUMENTOS = MIME_DOCUMENTOS;

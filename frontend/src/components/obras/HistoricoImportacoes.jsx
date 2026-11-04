@@ -146,7 +146,7 @@ export function ModalExcluirRevisao({ versao, onCancelar, onConfirmar }) {
               id="motivo-exclusao"
               className="campo min-h-[5rem]"
               maxLength={500}
-              placeholder="Ex.: Planilha enviada errada (relatório no lugar do cronograma)"
+              placeholder="Ex.: Arquivo enviado errado (revisão desatualizada)"
               value={motivo}
               onChange={(evento) => setMotivo(evento.target.value)}
               disabled={excluindo}
@@ -167,12 +167,12 @@ export function ModalExcluirRevisao({ versao, onCancelar, onConfirmar }) {
   );
 }
 
-/** Pergunta se a mesma planilha deve ser importada de novo. */
+/** Pergunta se o mesmo arquivo deve ser importado de novo. */
 export function ModalArquivoRepetido({ duplicado, onCancelar, onConfirmar, enviando }) {
   return (
     <ModalBase
       aberto={Boolean(duplicado)}
-      titulo="Esta planilha já foi importada"
+      titulo="Este arquivo já foi importado"
       subtitulo={duplicado?.versao_existente ? `Mesmo arquivo da ${duplicado.versao_existente.versao}` : ''}
       onFechar={() => (enviando ? null : onCancelar())}
       tamanho="md"
@@ -181,7 +181,7 @@ export function ModalArquivoRepetido({ duplicado, onCancelar, onConfirmar, envia
         <div className="space-y-3 p-5">
           <p className="text-sm text-slate-700">{duplicado.mensagem}</p>
           <p className="text-xs text-slate-500">
-            Importar de novo cria uma revisão idêntica à anterior. Se o objetivo é corrigir algo, ajuste a planilha antes de enviar ou
+            Importar de novo cria uma revisão idêntica à anterior. Se o objetivo é corrigir algo, ajuste o cronograma no MS Project antes de enviar ou
             exclua a revisão errada.
           </p>
           <div className="flex justify-end gap-2">

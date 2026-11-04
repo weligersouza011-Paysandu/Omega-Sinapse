@@ -7,7 +7,9 @@ const cronogramaRepository = require('../repositories/cronogramaRepository');
 /**
  * Carga de trabalho e alocação por função (MOD, MOI e Equipamentos).
  *
- * Fonte: histogramas da versão de cronograma (abas MOD_MOI e EQP do modelo).
+ * Fonte: histogramas da versão de cronograma, montados a partir das atribuições de
+ * recursos do MS Project (demanda da linha de base até a data de status e do
+ * cronograma atual depois dela; realizado pelo trabalho real).
  * Para cada recurso e semana o modelo traz:
  *  - efetivo da semana (coluna "Sxx" = pico diário da semana);
  *  - efetivo diário (seg..sáb) → somado em homens-dia (ou equipamento-dia).
@@ -77,7 +79,7 @@ function picoDe(semanas, campo) {
 /* -------------------------------------------------------------------------- */
 
 /** Recursos dos dois histogramas em um formato único, com dias por semana. */
-function recursosDaVersao(histogramaMo, histogramaEqp) {
+function recursosDaVersao(histogramaMo, histogramaEqp, horasPorDia = HORAS_POR_DIA_PADRAO) {
   const normalizar = (recurso, categoriaPadrao) => ({
     nome: recurso.nome,
     unidade: recurso.unidade || null,
@@ -90,8 +92,12 @@ function recursosDaVersao(histogramaMo, histogramaEqp) {
         previsto: Number(s.previsto) || 0,
         realizado: Number(s.realizado) || 0,
         // Versões sem colunas diárias: efetivo × 5 dias úteis.
-        previsto_dias: s.previsto_dias ?? (Number(s.previsto) || 0) * DIAS_UTEIS_SEMANA,
-        realizado_dias: s.realizado_dias ?? (Number(s.realizado) || 0) * DIAS_UTEIS_SEMANA,
+        // HH vindo do MS Project (trabalho das atribuições) prevalece: convertido em
+        // homens-dia na jornada informada, o HH exibido fica exatamente igual ao do Project.
+        previsto_dias:
+          s.previsto_hh !== undefined ? Number(s.previsto_hh) / horasPorDia : s.previsto_dias ?? (Number(s.previsto) || 0) * DIAS_UTEIS_SEMANA,
+        realizado_dias:
+          s.realizado_hh !== undefined ? Number(s.realizado_hh) / horasPorDia : s.realizado_dias ?? (Number(s.realizado) || 0) * DIAS_UTEIS_SEMANA,
       })),
   });
   return [
@@ -290,10 +296,6 @@ function calcularCargaTrabalho(recursos, opcoes) {
       });
       return { inicio, semana: numeroSemana.get(inicio) ?? null, atividades_ativas: ativas.length, recursos: [...demanda.values()] };
     });
-  } else {
-    avisos.push(
-      'As atividades do cronograma não têm recursos vinculados: a demanda do lookahead vem dos histogramas (MOD_MOI e EQP).'
-    );
   }
 
   // ------------------------------------------------------- Gargalos
@@ -322,17 +324,22 @@ function calcularCargaTrabalho(recursos, opcoes) {
     'previsto'
   );
   const lookaheadSemPlano = semanasLookahead.filter((s) => !s.histograma_planejado);
-  if (lookaheadSemPlano.length) {
+  if (lookaheadSemPlano.length && recursos.length) {
     const comAtividades = lookaheadSemPlano.filter((s) => s.atividades_em_execucao > 0);
     avisos.push(
-      `O histograma de recursos só tem demanda prevista até a semana de ${fimPlanoHistograma ? fimPlanoHistograma.split('-').reverse().join('/') : '—'}; ` +
+      `As atribuições de recursos só têm demanda prevista até a semana de ${fimPlanoHistograma ? fimPlanoHistograma.split('-').reverse().join('/') : '—'}; ` +
         `${lookaheadSemPlano.length} semana(s) do lookahead ficaram sem planejamento por função` +
         (comAtividades.length ? `, embora ${comAtividades.length} delas tenham atividades em execução no cronograma` : '') +
-        '. Atualize o histograma (MOD_MOI/EQP) no próximo envio.'
+        '. Atribua os recursos a essas tarefas no MS Project e envie a nova revisão.'
     );
   }
 
-  if (!recursos.length) avisos.push('A versão do cronograma não possui histogramas de recursos.');
+  if (!recursos.length) {
+    avisos.push(
+      'O cronograma não tem recursos atribuídos às tarefas, então não há carga por função. ' +
+        'No MS Project, atribua as funções às tarefas (Recurso → Atribuir Recursos) e envie a nova revisão.'
+    );
+  }
 
   return {
     data_status: dataStatus,
@@ -402,7 +409,7 @@ async function obterCargaTrabalho(obraIdParam, query = {}) {
   if (!versao) throw new AppError(404, 'Versão de cronograma não encontrada para esta obra.');
 
   const atividades = await cronogramaRepository.listarAtividadesComRecursos(versao.id);
-  const resultado = calcularCargaTrabalho(recursosDaVersao(versao.histograma_mao_de_obra, versao.histograma_equipamentos), {
+  const resultado = calcularCargaTrabalho(recursosDaVersao(versao.histograma_mao_de_obra, versao.histograma_equipamentos, horasPorDia), {
     dataStatus: versao.periodo_fim,
     dataReferencia: query.data_referencia || hojeLocal(),
     curvaS: Array.isArray(versao.curva_s) ? versao.curva_s : [],

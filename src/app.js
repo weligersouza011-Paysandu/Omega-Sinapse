@@ -4,6 +4,7 @@ const path = require('path');
 const express = require('express');
 const prisma = require('./config/prisma');
 const { estadoCloudinary } = require('./config/cloudinary');
+const { disponibilidade: disponibilidadeMpxj } = require('./services/mpxjConversor');
 const orcamentoRoutes = require('./routes/orcamentoRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const authRoutes = require('./routes/authRoutes');
@@ -51,6 +52,8 @@ app.get('/health', async (req, res) => {
       // Diagnóstico sem segredos: indica se o Cloudinary está utilizável.
       armazenamento: estadoCloudinary.configurado ? 'configurado' : 'indisponivel',
       ...(estadoCloudinary.configurado ? {} : { armazenamento_problemas: estadoCloudinary.problemas }),
+      // Leitor de cronogramas do MS Project (Java + MPXJ instalados no build).
+      leitor_mpp: disponibilidadeMpxj().disponivel ? 'instalado' : 'indisponivel',
     });
   } catch (err) {
     console.error('[health] Falha ao consultar o banco:', err.message);

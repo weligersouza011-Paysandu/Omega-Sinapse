@@ -8,3 +8,6 @@ npm-debug.log*
 
 # Dados locais de importação (planilhas e fotos de clientes) — não versionar
 13/
+
+# Leitor de .mpp (Java + MPXJ) instalado no build por scripts/instalarMpxj.js
+vendor/

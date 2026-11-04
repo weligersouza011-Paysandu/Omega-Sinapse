@@ -129,8 +129,8 @@ function ImportarCronograma({ obraId, temVersoes, onImportado, onFalha }) {
   function escolher(lista) {
     const selecionado = lista?.[0];
     if (!selecionado) return;
-    if (!/\.(xlsx|xlsm|xls)$/i.test(selecionado.name)) {
-      toast.erro('Envie a planilha do cronograma em Excel (.xlsx).');
+    if (!/\.(mpp|xml)$/i.test(selecionado.name)) {
+      toast.erro('Envie o cronograma do MS Project (.mpp).');
       return;
     }
     setArquivo(selecionado);
@@ -176,11 +176,12 @@ function ImportarCronograma({ obraId, temVersoes, onImportado, onFalha }) {
     <section className="card p-4">
       <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-800">
         <Upload className="h-4 w-4 text-omega-600" aria-hidden="true" />
-        {temVersoes ? 'Enviar nova revisão do cronograma' : 'Importar cronograma da obra'}
+        {temVersoes ? 'Enviar nova revisão do cronograma (MS Project)' : 'Importar cronograma da obra (MS Project)'}
       </h2>
       <p className="mb-3 text-xs text-slate-500">
-        Planilha do modelo padrão (relatório semanal): abas Cronograma, Avanço_Físico&amp;Financeiro, MOD_MOI, EQP e
-        Dashboard. Cada envio gera uma nova revisão (Rev 00, Rev 01, …) e as anteriores ficam guardadas.
+        Arquivo do MS Project (.mpp) atualizado na semana — também aceita o cronograma salvo como XML do Project. São lidos
+        a EAP, as predecessoras, a linha de base, o avanço, o caminho crítico, o calendário da obra e os recursos atribuídos.
+        Cada envio gera uma nova revisão (Rev 00, Rev 01, …) e as anteriores ficam guardadas.
       </p>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_13.5rem_16rem_auto] lg:items-start">
@@ -202,16 +203,16 @@ function ImportarCronograma({ obraId, temVersoes, onImportado, onFalha }) {
           <FileSpreadsheet className="h-8 w-8 shrink-0 text-emerald-600" aria-hidden="true" />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-slate-700">
-              {arquivo ? arquivo.name : 'Clique para escolher ou arraste a planilha aqui'}
+              {arquivo ? arquivo.name : 'Clique para escolher ou arraste o arquivo .mpp aqui'}
             </p>
             <p className="text-[11px] text-slate-500">
-              {arquivo ? `${(arquivo.size / 1024 / 1024).toFixed(1)} MB` : 'Formatos .xlsx, .xlsm ou .xls — até 25 MB'}
+              {arquivo ? `${(arquivo.size / 1024 / 1024).toFixed(1)} MB` : 'MS Project .mpp (ou .xml) — até 25 MB'}
             </p>
           </div>
           <input
             ref={entrada}
             type="file"
-            accept=".xlsx,.xlsm,.xls"
+            accept=".mpp,.xml"
             className="sr-only"
             onChange={(evento) => escolher(evento.target.files)}
             disabled={enviando}
@@ -436,7 +437,11 @@ function CaminhoCritico({ critico, prazo, onPrazo, carregando }) {
       titulo="Caminho crítico (CPM)"
       subtitulo={
         critico
-          ? `${resumo.atividades_criticas} atividade(s) com folga ≤ 0 de ${resumo.atividades_na_rede} na rede · término projetado ${formatarData(resumo.termino_projeto)}`
+          ? `${resumo.atividades_criticas} atividade(s) crítica(s) de ${resumo.atividades_na_rede} na rede · término projetado ${formatarData(
+              resumo.termino_projeto
+            )} · ${resumo.metodo === 'ms_project' ? 'calculado pelo MS Project' : 'calculado pela Synapse'}${
+              resumo.calendario ? ` · ${resumo.calendario}` : ''
+            }`
           : 'Atividades com folga total menor ou igual a zero.'
       }
       icone={CalendarClock}
@@ -743,8 +748,8 @@ export default function AbaCronograma({ obra, podeEditar }) {
           <p className="text-sm font-semibold text-slate-700">Nenhum cronograma importado para esta obra</p>
           <p className="max-w-md text-xs text-slate-500">
             {podeEditar
-              ? 'Use o quadro acima para enviar a planilha do cronograma. A Curva S, o caminho crítico, o lookahead de 6 semanas e a carga de trabalho são montados a partir dela.'
-              : 'Peça ao planejador responsável para importar a planilha do cronograma.'}
+              ? 'Use o quadro acima para enviar o cronograma do MS Project (.mpp). A Curva S, o caminho crítico, o lookahead de 6 semanas e a carga de trabalho são montados a partir dele.'
+              : 'Peça ao planejador responsável para importar o cronograma do MS Project.'}
           </p>
         </div>
       ) : null}
@@ -774,7 +779,7 @@ export default function AbaCronograma({ obra, podeEditar }) {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[10px] font-semibold uppercase text-slate-400">Período do relatório</dt>
+                  <dt className="text-[10px] font-semibold uppercase text-slate-400">Semana de status</dt>
                   <dd>
                     {formatarData(versao.periodo_inicio)} a {formatarData(versao.periodo_fim)}
                   </dd>

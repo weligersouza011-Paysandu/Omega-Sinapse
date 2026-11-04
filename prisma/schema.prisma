@@ -644,6 +644,8 @@ model VersaoCronograma {
   histograma_mao_de_obra  Json?
   /// Histograma semanal de equipamentos (aba EQP).
   histograma_equipamentos Json?
+  /// Calendário de trabalho da obra (expediente, feriados) usado no CPM e nas curvas.
+  calendario              Json?
   created_at              DateTime  @default(now()) @db.Timestamptz(6)
 
   obra       Obra                            @relation(fields: [obra_id], references: [id], onDelete: Cascade)
@@ -689,6 +691,8 @@ model AtividadeCronograma {
   /// Folga total calculada pelo CPM, em dias úteis (negativa = atraso).
   folga_total_dias       Float?
   caminho_critico        Boolean   @default(false)
+  /// Campos de origem do MS Project (Id, CPM do Project, datas reais, restrição, farol).
+  dados_origem           Json?
 
   versao     VersaoCronograma     @relation(fields: [versao_cronograma_id], references: [id], onDelete: Cascade)
   restricoes RestricaoAtividade[]

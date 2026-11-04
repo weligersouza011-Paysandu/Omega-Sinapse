@@ -6,7 +6,8 @@ const AppError = require('../errors/AppError');
 const obraRepository = require('../repositories/obraRepository');
 const cronogramaRepository = require('../repositories/cronogramaRepository');
 const uploadService = require('./uploadService');
-const { analisarCronograma } = require('./cronogramaParser');
+const { converterProjeto } = require('./mpxjConversor');
+const { mapearProjeto } = require('./cronogramaMppParser');
 const { aplicarNoUpload } = require('./caminhoCriticoService');
 
 /** Perfis autorizados a enviar novas revisões de cronograma. */
@@ -33,7 +34,7 @@ async function garantirObra(valor) {
 }
 
 function dataSnapshotDe(valor) {
-  if (valor === undefined || valor === null || String(valor).trim() === '') return new Date();
+  if (valor === undefined || valor === null || String(valor).trim() === '') return null;
   const texto = String(valor).trim();
   // Data sem hora (input type="date"): meio-dia de Brasília, para não mudar de dia com o fuso.
   const data = /^\d{4}-\d{2}-\d{2}$/.test(texto) ? new Date(`${texto}T12:00:00-03:00`) : new Date(texto);
@@ -63,20 +64,27 @@ function dataDoPeriodo(valor) {
   return valor ? new Date(`${valor}T00:00:00Z`) : null;
 }
 
+/** Lê o cronograma do MS Project (.mpp/.xml) com o MPXJ e mapeia para a análise do módulo. */
+async function analisarProjeto(arquivo) {
+  const json = await converterProjeto(arquivo.buffer, arquivo.originalname);
+  return mapearProjeto(json);
+}
+
 /**
- * POST /api/cronogramas/upload — recebe o arquivo do modelo padrão, faz o parse,
- * guarda o original no Cloudinary e cria o snapshot com todas as atividades.
+ * POST /api/cronogramas/upload — recebe o cronograma do MS Project (.mpp ou
+ * .xml), faz a leitura, guarda o original no Cloudinary e cria o snapshot com
+ * todas as atividades, o calendário da obra e o CPM do próprio Project.
  */
 async function enviarCronograma(arquivo, payload = {}, usuario) {
   if (!usuario || !PERFIS_ENVIO.includes(usuario.perfil)) {
     throw new AppError(403, `Apenas perfis ${PERFIS_ENVIO.join(', ')} podem enviar cronogramas.`);
   }
   if (!arquivo || !arquivo.buffer || arquivo.size === 0) {
-    throw new AppError(400, 'Envie a planilha do cronograma no campo "arquivo" (multipart/form-data).');
+    throw new AppError(400, 'Envie o cronograma do MS Project (.mpp) no campo "arquivo" (multipart/form-data).');
   }
 
   const obraId = await garantirObra(payload.obra_id ?? payload.obraId);
-  const dataSnapshot = dataSnapshotDe(payload.data_snapshot ?? payload.dataSnapshot);
+  const dataInformada = dataSnapshotDe(payload.data_snapshot ?? payload.dataSnapshot);
   const hash = crypto.createHash('sha256').update(arquivo.buffer).digest('hex');
   const arquivoNome = textoOpcional(arquivo.originalname, 255);
   const forcar = ['true', '1', 'sim'].includes(String(payload.forcar ?? '').toLowerCase());
@@ -118,7 +126,7 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
   // 1) Parse antes do upload: arquivos fora do modelo não chegam ao Cloudinary.
   let analise;
   try {
-    analise = analisarCronograma(arquivo.buffer);
+    analise = await analisarProjeto(arquivo);
   } catch (err) {
     if (err instanceof AppError) {
       await registrarFalha(err.message, { motivo: 'ARQUIVO_INVALIDO', ...(err.details || {}) });
@@ -129,9 +137,20 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     analise.avisos.push(`Arquivo idêntico ao da ${repetida.versao}, importado novamente por confirmação do usuário.`);
   }
 
-  // 1b) Caminho crítico (CPM) e folgas de cada atividade.
+  // Data de corte: a informada no envio ou, sem ela, a data de status do cronograma.
+  const dataSnapshot = dataInformada || analise.data_status || new Date();
+  if (dataInformada && analise.data_status && Math.abs(dataInformada - analise.data_status) > 3 * 24 * 3600 * 1000) {
+    const br = (d) => d.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    analise.avisos.push(
+      `A data de corte informada (${br(dataInformada)}) difere da data de status do cronograma (${br(analise.data_status)}). ` +
+        'As curvas e o % previsto usam a data de status do arquivo.'
+    );
+  }
+
+  // 1b) Caminho crítico (CPM do MS Project, conferido pelo motor próprio) e folgas.
   const cpm = aplicarNoUpload(analise.atividades, {
     possuiColunaCritica: (analise.resumo.colunas_detectadas || []).includes('critica'),
+    calendario: analise.calendario,
   });
   analise.avisos.push(...cpm.avisos);
   analise.resumo.atividades_criticas = analise.atividades.filter((a) => a.caminho_critico).length;
@@ -172,7 +191,8 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     arquivo_hash: hash,
     arquivo_tamanho: arquivo.size ?? null,
     observacao: textoOpcional(payload.observacao, 2000),
-    resumo: { ...analise.resumo, abas: analise.abas, avisos: analise.avisos },
+    resumo: { ...analise.resumo, fonte: analise.fonte, avisos: analise.avisos },
+    calendario: analise.calendario ?? Prisma.DbNull,
     curva_s: analise.curva_s ?? Prisma.DbNull,
     histograma_mao_de_obra: analise.histograma_mao_de_obra ?? Prisma.DbNull,
     histograma_equipamentos: analise.histograma_equipamentos ?? Prisma.DbNull,
@@ -181,6 +201,7 @@ async function enviarCronograma(arquivo, payload = {}, usuario) {
     ...atividade,
     recursos_mao_de_obra: atividade.recursos_mao_de_obra ?? Prisma.DbNull,
     recursos_equipamentos: atividade.recursos_equipamentos ?? Prisma.DbNull,
+    dados_origem: atividade.dados_origem ?? Prisma.DbNull,
   }));
 
   const historico = {
