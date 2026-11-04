@@ -1,10 +1,9 @@
-import { lazy, Suspense } from 'react';
-import { CheckCircle2, CircleAlert, Loader2, MapPin, Settings } from 'lucide-react';
-import AvancoFisicoTabela from './AvancoFisicoTabela.jsx';
-import CurvaSChart from './CurvaSChart.jsx';
-import IndicadoresAvanco from './IndicadoresAvanco.jsx';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { BarChart3, CheckCircle2, CircleAlert, FileSpreadsheet, Loader2, MapPin } from 'lucide-react';
+import { CurvaS, IndicadoresPrazo } from './AbaCronograma.jsx';
+import { obterCurvaS } from '../../services/cronogramaApi.js';
 import { formatarDataHora, formatarMoeda } from '../../utils/formatters.js';
-import { projetarFinanceiro, resumirOrcamento } from '../../utils/financeiroObra.js';
+import { resumirOrcamento } from '../../utils/financeiroObra.js';
 
 // Leaflet só é baixado quando a aba é aberta.
 const MapaLocalizacoes = lazy(() => import('./MapaLocalizacoes.jsx'));
@@ -63,7 +62,9 @@ function CartaoValor({ rotulo, valor, detalhe, tom = 'text-slate-800' }) {
 
 /**
  * Aba "Visão Geral" do detalhamento da obra: localização, dados do projeto e
- * documentação de partida, resumo orçamentário e avanço físico / Curva S.
+ * documentação de partida, resumo orçamentário, indicadores de prazo e a Curva S
+ * (previsto × real × tendência) da revisão vigente do cronograma — os mesmos da
+ * aba Cronograma.
  */
 export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
   const localizacoes = obra.localizacoes || [];
@@ -75,7 +76,31 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
       : [];
 
   const orcamento = resumirOrcamento(obra.revisoes, obra.valor);
-  const { medidoAcumulado } = projetarFinanceiro(obra.avanco_fisico, obra.valor);
+
+  // Curva S e indicadores da revisão vigente (mesma fonte da aba Cronograma).
+  const [curva, setCurva] = useState(null);
+  const [carregandoCurva, setCarregandoCurva] = useState(true);
+  const [erroCurva, setErroCurva] = useState(null);
+  useEffect(() => {
+    let ativo = true;
+    setCarregandoCurva(true);
+    obterCurvaS(obra.id)
+      .then((dados) => {
+        if (ativo) {
+          setCurva(dados);
+          setErroCurva(null);
+        }
+      })
+      .catch((err) => ativo && setErroCurva(err.message))
+      .finally(() => ativo && setCarregandoCurva(false));
+    return () => {
+      ativo = false;
+    };
+  }, [obra.id]);
+
+  const realAcumulado = curva?.indicadores?.fisico?.real_acumulado ?? 0;
+  const medidoAcumulado = (orcamento.vigente * realAcumulado) / 100;
+  const semDados = curva && (curva.fonte === 'sem_dados' || !curva.pontos?.length);
 
   return (
     <div className="space-y-4">
@@ -113,7 +138,7 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
                 </div>
               }
             >
-              <MapaLocalizacoes localizacoes={localizacoes} altura="h-80" />
+              <MapaLocalizacoes localizacoes={localizacoes} altura="h-80" satelite zoomPonto={13} />
             </Suspense>
           ) : (
             <div className="flex h-80 flex-col items-center justify-center gap-2 border-t border-slate-100 bg-slate-50 px-6 text-center">
@@ -193,41 +218,42 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
         <CartaoValor
           rotulo="Saldo"
           valor={formatarMoeda(orcamento.vigente - medidoAcumulado)}
-          detalhe="Vigente − medido (estimado pelo avanço físico)"
+          detalhe="Vigente − medido (estimado pelo avanço físico do cronograma)"
         />
       </section>
 
-      {/* ---------------------------------------- Avanço físico e Curva S */}
-      <IndicadoresAvanco resumo={obra.avanco_resumo} />
+      {/* ------------------------------- Indicadores de prazo e Curva S */}
+      {carregandoCurva && !curva ? (
+        <div className="card flex items-center justify-center gap-2 py-10 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Carregando Curva S…
+        </div>
+      ) : null}
 
-      <section className="card p-4">
-        <header className="mb-2 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800">Curva S — Previsto x Real x Tendência</h2>
-            <p className="text-xs text-slate-500">Avanço físico acumulado ao longo das semanas lançadas.</p>
-          </div>
-          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-            {obra.avanco_resumo?.semanas || 0} medição(ões)
-          </span>
-        </header>
-        <CurvaSChart linhas={obra.avanco_fisico || []} />
-      </section>
+      {erroCurva ? <div className="card px-4 py-3 text-sm text-red-700">{erroCurva}</div> : null}
 
-      <section className="card p-4">
-        <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-bold text-slate-800">Avanço Físico Geral</h2>
-            <p className="text-xs text-slate-500">Histórico de medições com previsão, linha de base e realizado.</p>
-          </div>
-          {podeEditar ? (
-            <button type="button" className="btn-neutro" onClick={() => onIrParaAba('configuracao')}>
-              <Settings className="h-4 w-4" aria-hidden="true" />
-              Editar medições
+      {semDados ? (
+        <div className="card flex flex-col items-center gap-2 px-6 py-10 text-center">
+          <BarChart3 className="h-8 w-8 text-slate-300" aria-hidden="true" />
+          <p className="text-sm font-semibold text-slate-700">Sem Curva S para esta obra</p>
+          <p className="max-w-md text-xs text-slate-500">
+            Importe o cronograma do MS Project na aba Cronograma para ver o previsto, o real e a tendência.
+          </p>
+          {podeEditar && onIrParaAba ? (
+            <button type="button" className="btn-primario mt-1" onClick={() => onIrParaAba('cronograma')}>
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              Ir para a aba Cronograma
             </button>
           ) : null}
-        </header>
-        <AvancoFisicoTabela linhas={obra.avanco_fisico || []} />
-      </section>
+        </div>
+      ) : null}
+
+      {curva && !semDados ? (
+        <>
+          <IndicadoresPrazo curva={curva} />
+          <CurvaS curva={curva} />
+        </>
+      ) : null}
     </div>
   );
 }

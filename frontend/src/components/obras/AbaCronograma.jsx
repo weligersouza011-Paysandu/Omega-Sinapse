@@ -304,7 +304,7 @@ function TooltipSerie({ active, payload, label, moeda }) {
   );
 }
 
-function CurvaS({ curva }) {
+export function CurvaS({ curva }) {
   const [dimensao, setDimensao] = useState('fisico');
   const financeiro = dimensao === 'financeiro';
   const prefixo = financeiro ? 'financeiro_' : '';
@@ -368,7 +368,7 @@ function CurvaS({ curva }) {
   );
 }
 
-function IndicadoresPrazo({ curva }) {
+export function IndicadoresPrazo({ curva }) {
   const fisico = curva.indicadores?.fisico || {};
   const financeiro = curva.indicadores?.financeiro;
   const status = STATUS_PRAZO[fisico.status_prazo] || STATUS_PRAZO.SEM_DADOS;
