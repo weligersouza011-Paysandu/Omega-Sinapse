@@ -14,7 +14,7 @@ import 'leaflet/dist/leaflet.css';
 import { coordenadasDe, paraNumero } from '../../utils/coordenadas.js';
 
 /**
- * Mapa interativo da obra (Leaflet + OpenStreetMap).
+ * Mapa interativo da obra (Leaflet + OpenStreetMap, ou satélite com `satelite`).
  *
  * - Exibe todos os pontos/trechos já cadastrados que possuem coordenadas.
  * - Com `onSelecionar`, permite escolher um ponto clicando no mapa ou
@@ -147,6 +147,7 @@ export default function MapaLocalizacoes({
   chaveFoco = 'selecao',
   altura = 'h-72',
   className = '',
+  satelite = false,
 }) {
   const interativo = typeof onSelecionar === 'function';
 
@@ -186,11 +187,19 @@ export default function MapaLocalizacoes({
       scrollWheelZoom={false}
       className={`mapa-leaflet ${altura} w-full ${className}`}
     >
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        maxZoom={19}
-      />
+      {satelite ? (
+        <TileLayer
+          attribution="Imagens &copy; Esri, Maxar, Earthstar Geographics"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+          maxZoom={19}
+        />
+      ) : (
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          maxZoom={19}
+        />
+      )}
 
       <AjustarLimites pontos={pontos} ativo={!posicaoSelecionada} />
       <FocarSelecionada posicao={posicaoSelecionada} chave={chaveFoco} />
@@ -205,7 +214,8 @@ export default function MapaLocalizacoes({
             center={posicao}
             radius={6.5}
             pathOptions={{
-              color: ehTrecho ? '#7c3aed' : '#1c5d99',
+              // Contorno branco para o ponto se destacar sobre a imagem de satélite.
+              color: satelite ? '#ffffff' : ehTrecho ? '#7c3aed' : '#1c5d99',
               fillColor: ehTrecho ? '#8b5cf6' : '#1c5d99',
               fillOpacity: 0.78,
               weight: 2,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { BarChart3, CheckCircle2, CircleAlert, FileSpreadsheet, Loader2, MapPin } from 'lucide-react';
 import { CurvaS, IndicadoresPrazo } from './AbaCronograma.jsx';
-import MapaGoogle from './MapaGoogle.jsx';
+import MapaObraVisaoGeral from './MapaObraVisaoGeral.jsx';
 import { obterCurvaS } from '../../services/cronogramaApi.js';
 import { formatarDataHora, formatarMoeda } from '../../utils/formatters.js';
 import { resumirOrcamento } from '../../utils/financeiroObra.js';
@@ -129,7 +129,7 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
           </header>
 
           {comCoordenadas.length > 0 ? (
-            <MapaGoogle localizacoes={localizacoes} altura="h-80" />
+            <MapaObraVisaoGeral localizacoes={localizacoes} altura="h-80" />
           ) : (
             <div className="flex h-80 flex-col items-center justify-center gap-2 border-t border-slate-100 bg-slate-50 px-6 text-center">
               <MapPin className="h-8 w-8 text-slate-300" aria-hidden="true" />
