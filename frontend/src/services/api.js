@@ -59,7 +59,7 @@ const MENSAGENS_HTTP = {
 
 /** Mensagens para falhas sem resposta HTTP (rede/timeout). */
 const MENSAGENS_CODIGO = {
-  ERR_NETWORK: 'Não foi possível conectar ao servidor. Verifique se o back-end está rodando.',
+  ERR_NETWORK: 'Não foi possível conectar ao servidor. Verifique sua conexão (internet, VPN ou antivírus) e tente novamente.',
   ECONNABORTED: 'O servidor demorou demais para responder. Tente novamente.',
   ETIMEDOUT: 'O servidor demorou demais para responder. Tente novamente.',
 };
@@ -94,6 +94,7 @@ api.interceptors.response.use(
 
     const erroNormalizado = new Error(mensagem);
     erroNormalizado.status = status;
+    erroNormalizado.codigo = error.code;
     erroNormalizado.detalhes = dados?.detalhes;
     return Promise.reject(erroNormalizado);
   }

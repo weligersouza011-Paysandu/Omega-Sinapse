@@ -44,7 +44,7 @@ export default function AnexoOsiAssinada({ obra, podeDocumentar, onAnexar, idCam
   const urlEnviada = useRef(null);
   const anexada = Boolean(obra?.osi_anexo_url);
 
-  function selecionar(evento) {
+  async function selecionar(evento) {
     const escolhido = evento.target.files?.[0];
     // Limpa o campo para que o mesmo arquivo possa ser escolhido de novo.
     evento.target.value = '';
@@ -61,8 +61,16 @@ export default function AnexoOsiAssinada({ obra, podeDocumentar, onAnexar, idCam
       setErro(`"${escolhido.name}" tem ${formatarTamanho(escolhido.size)}. O limite é de 10 MB: reduza o arquivo e tente de novo.`);
       return;
     }
-    setErro('');
-    setArquivo(escolhido);
+    // Lê o conteúdo já na escolha: se o arquivo mudar no disco antes da confirmação
+    // (OneDrive, pasta de rede, PDF salvo de novo), o navegador não consegue mais enviá-lo.
+    try {
+      const conteudo = await escolhido.arrayBuffer();
+      setErro('');
+      setArquivo(new File([conteudo], escolhido.name, { type: escolhido.type }));
+    } catch {
+      setArquivo(null);
+      setErro(`Não foi possível ler "${escolhido.name}". Feche o arquivo em outros programas ou copie-o para a pasta Downloads e escolha de novo.`);
+    }
   }
 
   function cancelar() {

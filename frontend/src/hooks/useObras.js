@@ -147,6 +147,8 @@ export async function listarPlanejadores() {
   return data?.data || [];
 }
 
+const TENTATIVAS_ENVIO_DOCUMENTO = 3;
+
 /**
  * Envia o documento comprobatório (imagem ou PDF) e devolve a URL pública.
  * Usado nos anexos da OSI assinada e da Ata de Reunião de Partida. O prazo é
@@ -156,11 +158,19 @@ export async function enviarDocumento(arquivo) {
   const formulario = new FormData();
   formulario.append('documento', arquivo);
 
-  const { data } = await api.post('/uploads/documento', formulario, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    timeout: 180000,
-  });
-  return data;
+  for (let tentativa = 1; ; tentativa += 1) {
+    try {
+      const { data } = await api.post('/uploads/documento', formulario, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 180000,
+      });
+      return data;
+    } catch (err) {
+      // Só repete quando a conexão caiu sem resposta do servidor.
+      if (err.codigo !== 'ERR_NETWORK' || tentativa >= TENTATIVAS_ENVIO_DOCUMENTO) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 1500 * tentativa));
+    }
+  }
 }
 
 /**
