@@ -18,7 +18,7 @@
     "postinstall": "prisma generate && node scripts/instalarMpxj.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:deploy": "prisma migrate deploy",
+    "prisma:deploy": "node scripts/migrarBanco.js",
     "prisma:status": "prisma migrate status",
     "prisma:format": "prisma format",
     "prisma:studio": "prisma studio"
