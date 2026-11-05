@@ -1,6 +1,7 @@
 'use strict';
 
 const prisma = require('../config/prisma');
+const { STATUS_ORCAMENTO_DE_OBRA } = require('./obraRepository');
 
 /**
  * Consultas do Dashboard de Planejamento.
@@ -93,6 +94,7 @@ const INCLUDE_DASHBOARD = {
 /** Carrega todas as obras com as relações necessárias ao dashboard. */
 async function findAll() {
   return prisma.obra.findMany({
+    where: { orcamento: { is: { status: { in: STATUS_ORCAMENTO_DE_OBRA } } } },
     include: INCLUDE_DASHBOARD,
     orderBy: { id: 'asc' },
   });

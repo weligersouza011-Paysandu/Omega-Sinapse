@@ -2,6 +2,13 @@
 
 const prisma = require('../config/prisma');
 
+/**
+ * Status do orçamento que o colocam no módulo de Obras: aprovado em diante.
+ * A obra de um orçamento desaprovado ou desativado depois de criada sai das
+ * listagens, mas seus dados são preservados caso ele volte a ser aprovado.
+ */
+const STATUS_ORCAMENTO_DE_OBRA = ['APROVADO', 'ENCAMINHADO_OSI', 'OSI_EMITIDA'];
+
 /** Relações carregadas na listagem e no detalhe da obra. */
 const INCLUDE_OBRA = {
   orcamento: {
@@ -332,7 +339,7 @@ async function findAll(filtros = {}) {
   }
 
   // Filtros sobre os dados do orçamento (relação 1:1).
-  const filtroOrcamento = {};
+  const filtroOrcamento = { status: { in: STATUS_ORCAMENTO_DE_OBRA } };
   if (pep) {
     filtroOrcamento.pep = { contains: pep, mode: 'insensitive' };
   }
@@ -344,9 +351,7 @@ async function findAll(filtros = {}) {
       { descricao: { contains: busca, mode: 'insensitive' } },
     ];
   }
-  if (Object.keys(filtroOrcamento).length > 0) {
-    where.orcamento = { is: filtroOrcamento };
-  }
+  where.orcamento = { is: filtroOrcamento };
 
   const [total, data] = await prisma.$transaction([
     prisma.obra.count({ where }),
@@ -657,6 +662,7 @@ async function removerMidia(obraId, id) {
 }
 
 module.exports = {
+  STATUS_ORCAMENTO_DE_OBRA,
   findAll,
   findById,
   existsById,

@@ -61,7 +61,7 @@ const STATUS_COMERCIAL = ['VISITA_TECNICA', 'AGUARDANDO_APROVACAO', 'APROVADO', 
  * comerciais anteriores (visita técnica, aguardando aprovação e desativado)
  * permanecem restritos à aba de Orçamentos.
  */
-const STATUS_OBRAS = ['APROVADO', 'ENCAMINHADO_OSI', 'OSI_EMITIDA'];
+const STATUS_OBRAS = obraRepository.STATUS_ORCAMENTO_DE_OBRA;
 
 /** Escopos aceitos pelo filtro de listagem → lista de status permitidos. */
 const ESCOPOS = {
