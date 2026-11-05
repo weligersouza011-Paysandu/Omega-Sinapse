@@ -136,6 +136,23 @@ const MIMES_IMAGEM = [
   'image/heif',
 ];
 
+/** Validade do link de PDF: o documento precisa continuar acessível na obra. */
+const VALIDADE_LINK_PDF_SEGUNDOS = 10 * 365 * 24 * 60 * 60;
+
+/**
+ * URL para abrir o arquivo enviado. A conta do Cloudinary bloqueia a entrega
+ * direta de PDF (401 "deny or ACL failure", mesmo com URL assinada), então o PDF
+ * é servido pela API de download, que não depende dessa restrição.
+ */
+function urlDeAcesso(result) {
+  if (result.format !== 'pdf') return result.secure_url;
+  return cloudinary.utils.private_download_url(result.public_id, 'pdf', {
+    resource_type: result.resource_type,
+    type: result.type,
+    expires_at: Math.floor(Date.now() / 1000) + VALIDADE_LINK_PDF_SEGUNDOS,
+  });
+}
+
 /**
  * Envia um buffer sem conversão (ex.: PDF) ao Cloudinary.
  * @param {Buffer} buffer
@@ -151,7 +168,7 @@ function enviarDocumento(buffer, { pasta = PASTA_PADRAO } = {}) {
           return reject(erroCloudinary(err, 'o documento'));
         }
         return resolve({
-          url: result.secure_url,
+          url: urlDeAcesso(result),
           public_id: result.public_id,
           bytes: result.bytes,
           formato: result.format,

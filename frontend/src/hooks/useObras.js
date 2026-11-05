@@ -149,7 +149,8 @@ export async function listarPlanejadores() {
 
 /**
  * Envia o documento comprobatório (imagem ou PDF) e devolve a URL pública.
- * Usado no anexo da Ata de Reunião de Partida.
+ * Usado nos anexos da OSI assinada e da Ata de Reunião de Partida. O prazo é
+ * maior que o padrão porque um documento digitalizado pode levar minutos para subir.
  */
 export async function enviarDocumento(arquivo) {
   const formulario = new FormData();
@@ -157,6 +158,7 @@ export async function enviarDocumento(arquivo) {
 
   const { data } = await api.post('/uploads/documento', formulario, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 180000,
   });
   return data;
 }

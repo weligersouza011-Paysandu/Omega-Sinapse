@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('path');
 const multer = require('multer');
 const AppError = require('../errors/AppError');
 
@@ -43,12 +44,29 @@ const upload = multer({
 });
 
 /**
- * Upload de documentos comprobatórios (Ata de Reunião de Partida).
+ * Tipo pela extensão, para quando o navegador não identifica o arquivo: no
+ * Windows sem leitor de PDF associado, o .pdf chega como application/octet-stream.
+ */
+const MIME_POR_EXTENSAO = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
+const MIMES_NAO_IDENTIFICADOS = ['', 'application/octet-stream', 'binary/octet-stream'];
+
+/**
+ * Upload de documentos comprobatórios (OSI assinada e Ata de Reunião de Partida).
  * Aceita imagens e PDF; um único arquivo por requisição.
  */
 const uploadDocumento = multer({
   storage,
   fileFilter(req, file, cb) {
+    if (MIMES_NAO_IDENTIFICADOS.includes(file.mimetype || '')) {
+      const extensao = path.extname(file.originalname || '').toLowerCase();
+      file.mimetype = MIME_POR_EXTENSAO[extensao] || file.mimetype;
+    }
     if (MIME_DOCUMENTOS.includes(file.mimetype)) {
       return cb(null, true);
     }
