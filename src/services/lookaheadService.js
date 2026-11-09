@@ -120,6 +120,31 @@ function percentual(parte, total) {
   return total > 0 ? Math.round((parte / total) * 10000) / 100 : null;
 }
 
+/** Dias de calendário entre duas datas AAAA-MM-DD (b − a). */
+function diasEntre(a, b) {
+  return Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / DIA_MS);
+}
+
+/**
+ * Situação de prazo da restrição na data de referência:
+ *  - vencida: pendente com data limite anterior a hoje (dias_atraso > 0);
+ *  - dias_para_vencer: pendente com prazo futuro (0 = vence hoje);
+ *  - bloqueia_inicio: a data limite cai depois do início programado da atividade.
+ */
+function enriquecerRestricao(restricao, { hoje, inicioAtividade }) {
+  const pendente = restricao.status === 'PENDENTE';
+  const limite = restricao.data_limite || null;
+  const diasAteLimite = pendente && limite ? diasEntre(hoje, limite) : null;
+  return {
+    ...restricao,
+    vencida: Boolean(pendente && limite && limite < hoje),
+    dias_atraso: pendente && limite && limite < hoje ? -diasAteLimite : 0,
+    dias_para_vencer: diasAteLimite !== null && diasAteLimite >= 0 ? diasAteLimite : null,
+    sem_prazo: pendente && !limite,
+    bloqueia_inicio: Boolean(pendente && limite && inicioAtividade && limite > inicioAtividade),
+  };
+}
+
 /** Restrições que valem para a atividade: mesmo EDT ou EDT de um ancestral. */
 function restricoesDaAtividade(atividade, restricoesPorCodigo) {
   const segmentos = atividade.codigo_atividade.split('.');
@@ -276,9 +301,18 @@ async function obterLookahead(obraIdParam, query = {}) {
       return inicio && fim && inicio < fimHorizonte && fim >= inicioHorizonte;
     })
     .map((a) => {
-      const aplicaveis = restricoesDaAtividade(a, restricoesPorCodigo);
-      const pendentes = aplicaveis.filter((r) => r.status === 'PENDENTE');
       const inicioAtividade = dataLocal(instante(a.data_inicio));
+      const aplicaveis = restricoesDaAtividade(a, restricoesPorCodigo).map((r) =>
+        enriquecerRestricao(r, { hoje, inicioAtividade })
+      );
+      // Pendentes primeiro (vencidas no topo), baixadas depois.
+      aplicaveis.sort(
+        (x, y) =>
+          Number(y.status === 'PENDENTE') - Number(x.status === 'PENDENTE') ||
+          Number(y.vencida) - Number(x.vencida) ||
+          String(x.data_limite || '9999').localeCompare(String(y.data_limite || '9999'))
+      );
+      const pendentes = aplicaveis.filter((r) => r.status === 'PENDENTE');
       return {
         id: a.id,
         codigo_atividade: a.codigo_atividade,
@@ -298,9 +332,12 @@ async function obterLookahead(obraIdParam, query = {}) {
         restricoes_pendentes: pendentes.length,
         restricoes_baixadas: aplicaveis.length - pendentes.length,
         /** Restrição pendente com data limite já vencida. */
-        restricao_vencida: pendentes.some((r) => r.data_limite && r.data_limite < hoje),
+        restricao_vencida: pendentes.some((r) => r.vencida),
+        restricoes_vencidas: pendentes.filter((r) => r.vencida).length,
         /** Restrição pendente cuja data limite é posterior ao início programado. */
-        restricao_apos_inicio: pendentes.some((r) => r.data_limite && r.data_limite > inicioAtividade),
+        restricao_apos_inicio: pendentes.some((r) => r.bloqueia_inicio),
+        /** Bloqueada e com ao menos uma restrição fora do prazo. */
+        bloqueio_vencido: pendentes.some((r) => r.vencida),
         restricoes: aplicaveis,
       };
     });
@@ -324,6 +361,8 @@ async function obterLookahead(obraIdParam, query = {}) {
       total: itens.length,
       liberadas,
       bloqueadas: itens.length - liberadas,
+      bloqueadas_vencidas: itens.filter((a) => a.bloqueio_vencido).length,
+      restricoes_pendentes: itens.reduce((t, a) => t + a.restricoes_pendentes, 0),
       percentual_liberado: percentual(liberadas, itens.length),
       /** Atividades que terminam na semana: compromissos que entram no PPC. */
       compromissos: itens.filter((a) => a.termina_na_semana).length,
@@ -354,6 +393,7 @@ async function obterLookahead(obraIdParam, query = {}) {
       criticas_bloqueadas: noHorizonte.filter((a) => a.caminho_critico && a.status_liberacao === 'BLOQUEADA').length,
       restricoes_pendentes: pendentes.length,
       restricoes_vencidas: pendentes.filter((r) => r.data_limite && r.data_limite < hoje).length,
+      atividades_bloqueadas_vencidas: noHorizonte.filter((a) => a.bloqueio_vencido).length,
       restricoes_pendentes_por_tipo: porTipo,
       /** Restrições cujo EDT não existe mais na versão analisada. */
       restricoes_sem_atividade: restricoes.filter((r) => !codigosAtuais.has(r.codigo_atividade)).length,
@@ -412,6 +452,8 @@ function camposEditaveis(payload) {
   }
   const responsavel = textoOpcional(payload.responsavel, 255);
   if (responsavel !== undefined) dados.responsavel = responsavel;
+  const planoAcao = textoOpcional(payload.plano_acao ?? payload.planoAcao, 4000);
+  if (planoAcao !== undefined) dados.plano_acao = planoAcao;
   const limite = dataLimiteDe(payload.data_limite ?? payload.dataLimite);
   if (limite !== undefined) dados.data_limite = limite;
   if (payload.status !== undefined) {
@@ -425,7 +467,7 @@ function camposEditaveis(payload) {
  * Cadastra (sem `id`) ou atualiza (com `id`) uma restrição de atividade.
  * Cadastro: `atividade_id` (UUID) ou `codigo_atividade` (+ `versao_id` opcional,
  * padrão a revisão mais recente), `tipo`, `descricao`; opcionais `responsavel`,
- * `data_limite` (AAAA-MM-DD) e `status`.
+ * `plano_acao`, `data_limite` (AAAA-MM-DD) e `status`.
  */
 async function salvarRestricao(obraIdParam, payload = {}, usuario) {
   if (!usuario || !PERFIS_ESCRITA.includes(usuario.perfil)) {
@@ -443,7 +485,10 @@ async function salvarRestricao(obraIdParam, payload = {}, usuario) {
     const dados = camposEditaveis(payload);
     if (dados.status && dados.status === existente.status) delete dados.data_baixa; // mantém a data original
     if (!Object.keys(dados).length) {
-      throw new AppError(400, 'Informe ao menos um campo para atualizar (status, descricao, tipo, responsavel, data_limite).');
+      throw new AppError(
+        400,
+        'Informe ao menos um campo para atualizar (status, descricao, tipo, responsavel, plano_acao, data_limite).'
+      );
     }
     return { criada: false, restricao: await lookaheadRepository.atualizarRestricao(payload.id, dados) };
   }

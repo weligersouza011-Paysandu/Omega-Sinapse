@@ -722,6 +722,8 @@ model RestricaoAtividade {
   descricao        String
   status           StatusRestricaoAtividade @default(PENDENTE)
   responsavel      String?                  @db.VarChar(255)
+  /// Plano de ação: como e por quem a restrição será removida.
+  plano_acao       String?
   /// Data limite para remoção da restrição.
   data_limite      DateTime?                @db.Date
   /// Momento em que a restrição foi baixada (removida).

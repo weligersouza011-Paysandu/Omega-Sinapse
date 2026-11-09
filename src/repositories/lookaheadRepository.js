@@ -36,6 +36,7 @@ const SELECT_RESTRICAO = {
   descricao: true,
   status: true,
   responsavel: true,
+  plano_acao: true,
   data_limite: true,
   data_baixa: true,
   criado_por: true,

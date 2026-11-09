@@ -70,6 +70,10 @@ router.get('/:id/carga-trabalho', lookaheadController.obterCargaTrabalho);
 // GET /api/obras/:id/exportar-rdo?semana=1|1,2&de=AAAA-MM-DD&ate=AAAA-MM-DD&versao_id=
 router.get('/:id/exportar-rdo', lookaheadController.exportarRdo);
 
+// Relatório executivo (PDF) das restrições do lookahead, por semana e frente de serviço.
+// GET /api/obras/:id/exportar-restricoes-pdf?semana=1|1,2&data_referencia=AAAA-MM-DD&versao_id=&baixadas=true
+router.get('/:id/exportar-restricoes-pdf', lookaheadController.exportarRestricoesPdf);
+
 // Restrições: com `atividade_id`/`codigo_atividade`/`id` UUID no corpo, cadastra ou
 // atualiza a restrição da atividade do cronograma; sem eles, cria a restrição da
 // tabela do Dashboard de Planejamento (comportamento anterior).

@@ -4,6 +4,7 @@ const lookaheadService = require('../services/lookaheadService');
 const dashboardController = require('./dashboardController');
 const workloadService = require('../services/workloadService');
 const exportRdoService = require('../services/exportRdoService');
+const exportRestricoesPdfService = require('../services/exportRestricoesPdfService');
 
 /** GET /api/obras/:id/lookahead — atividades das próximas 6 semanas, liberação e PPC. */
 async function obterLookahead(req, res, next) {
@@ -64,4 +65,34 @@ async function exportarRdo(req, res, next) {
   }
 }
 
-module.exports = { obterLookahead, salvarRestricao, criarOuAtualizarRestricao, obterCargaTrabalho, exportarRdo };
+/** GET /api/obras/:id/exportar-restricoes-pdf — relatório executivo (PDF) das restrições do lookahead. */
+async function exportarRestricoesPdf(req, res, next) {
+  try {
+    const { buffer, nomeArquivo, atividades, restricoes } = await exportRestricoesPdfService.gerarPdfRestricoes(
+      req.params.id,
+      req.query || {},
+      req.user
+    );
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="${nomeArquivo}"; filename*=UTF-8''${encodeURIComponent(nomeArquivo)}`,
+      'Content-Length': buffer.length,
+      'Cache-Control': 'no-store',
+      'X-Atividades-Listadas': String(atividades),
+      'X-Restricoes-Listadas': String(restricoes),
+      'Access-Control-Expose-Headers': 'Content-Disposition, X-Atividades-Listadas, X-Restricoes-Listadas',
+    });
+    return res.status(200).send(buffer);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+module.exports = {
+  obterLookahead,
+  salvarRestricao,
+  criarOuAtualizarRestricao,
+  obterCargaTrabalho,
+  exportarRdo,
+  exportarRestricoesPdf,
+};

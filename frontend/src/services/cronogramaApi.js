@@ -73,17 +73,14 @@ export async function salvarRestricaoAtividade(obraId, dados) {
   return data;
 }
 
-/** Baixa o .xlsx do RDO e dispara o download no navegador. */
-export async function baixarPlanilhaRdo(obraId, params = {}) {
-  const resposta = await api.get(`/obras/${obraId}/exportar-rdo`, {
-    params,
-    responseType: 'blob',
-    timeout: 120000,
-    // Erros chegam como Blob JSON: tratados aqui para exibir a mensagem da API.
-    validateStatus: () => true,
-  });
+/**
+ * Baixa um arquivo gerado pela API (xlsx, pdf…) e dispara o download no
+ * navegador. Erros chegam como Blob JSON: a mensagem da API é repassada.
+ */
+async function baixarArquivo(caminho, params, { mensagemErro, nomePadrao }) {
+  const resposta = await api.get(caminho, { params, responseType: 'blob', timeout: 120000, validateStatus: () => true });
   if (resposta.status !== 200) {
-    let mensagem = 'Não foi possível gerar a planilha do RDO.';
+    let mensagem = mensagemErro;
     try {
       mensagem = JSON.parse(await resposta.data.text()).erro || mensagem;
     } catch {
@@ -92,7 +89,7 @@ export async function baixarPlanilhaRdo(obraId, params = {}) {
     throw new Error(mensagem);
   }
   const cabecalho = resposta.headers['content-disposition'] || '';
-  const nome = /filename\*=UTF-8''([^;]+)/.exec(cabecalho)?.[1] || /filename="([^"]+)"/.exec(cabecalho)?.[1] || 'RDO.xlsx';
+  const nome = /filename\*=UTF-8''([^;]+)/.exec(cabecalho)?.[1] || /filename="([^"]+)"/.exec(cabecalho)?.[1] || nomePadrao;
   const url = URL.createObjectURL(resposta.data);
   const link = document.createElement('a');
   link.href = url;
@@ -101,5 +98,23 @@ export async function baixarPlanilhaRdo(obraId, params = {}) {
   link.click();
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  return { nome: link.download, linhas: Number(resposta.headers['x-linhas-exportadas'] || 0) };
+  return { nome: link.download, cabecalhos: resposta.headers };
+}
+
+/** Baixa o .xlsx do RDO. */
+export async function baixarPlanilhaRdo(obraId, params = {}) {
+  const { nome, cabecalhos } = await baixarArquivo(`/obras/${obraId}/exportar-rdo`, params, {
+    mensagemErro: 'Não foi possível gerar a planilha do RDO.',
+    nomePadrao: 'RDO.xlsx',
+  });
+  return { nome, linhas: Number(cabecalhos['x-linhas-exportadas'] || 0) };
+}
+
+/** Baixa o relatório executivo (PDF) das restrições do lookahead. */
+export async function baixarRestricoesPdf(obraId, params = {}) {
+  const { nome, cabecalhos } = await baixarArquivo(`/obras/${obraId}/exportar-restricoes-pdf`, params, {
+    mensagemErro: 'Não foi possível gerar o relatório de restrições.',
+    nomePadrao: 'Restricoes.pdf',
+  });
+  return { nome, atividades: Number(cabecalhos['x-atividades-listadas'] || 0), restricoes: Number(cabecalhos['x-restricoes-listadas'] || 0) };
 }
