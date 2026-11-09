@@ -672,7 +672,55 @@ async function removerMidia(obraId, id) {
   return resultado.count > 0;
 }
 
+/**
+ * Pontos georreferenciados das obras (para consultar onde as outras obras
+ * ficam ao cadastrar uma localização). `excluirObraId` omite a obra em edição.
+ */
+async function listarLocalizacoesReferencia(excluirObraId = null) {
+  const registros = await prisma.obraLocalizacao.findMany({
+    where: {
+      latitude: { not: null },
+      longitude: { not: null },
+      ...(excluirObraId ? { obra_id: { not: excluirObraId } } : {}),
+      obra: { orcamento: { is: { status: { in: STATUS_ORCAMENTO_DE_OBRA } } } },
+    },
+    select: {
+      id: true,
+      obra_id: true,
+      descricao: true,
+      tipo: true,
+      latitude: true,
+      longitude: true,
+      referencia: true,
+      obra: {
+        select: {
+          osi_numero: true,
+          status: true,
+          orcamento: { select: { ss: true, pep: true, descricao: true } },
+        },
+      },
+    },
+    orderBy: [{ obra_id: 'asc' }, { id: 'asc' }],
+  });
+
+  return registros.map((item) => ({
+    id: item.id,
+    obra_id: item.obra_id,
+    descricao: item.descricao,
+    tipo: item.tipo,
+    latitude: Number(item.latitude),
+    longitude: Number(item.longitude),
+    referencia: item.referencia,
+    osi: item.obra.osi_numero,
+    ss: item.obra.orcamento?.ss ?? null,
+    pep: item.obra.orcamento?.pep ?? null,
+    obra_descricao: item.obra.orcamento?.descricao ?? null,
+    obra_status: item.obra.status,
+  }));
+}
+
 module.exports = {
+  listarLocalizacoesReferencia,
   STATUS_ORCAMENTO_DE_OBRA,
   findAll,
   findById,

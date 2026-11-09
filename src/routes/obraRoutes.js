@@ -17,6 +17,9 @@ router.get('/', obraController.listarObras);
 // Declarada antes de "/:id" para não ser capturada pelo parâmetro de rota.
 router.get('/planejadores', autorizar('SUPERVISOR', 'ADMIN'), obraController.listarPlanejadores);
 
+// GET    /api/obras/localizacoes-referencia?excluir_obra= -> pontos das demais obras (consulta no mapa)
+router.get('/localizacoes-referencia', obraController.listarLocalizacoesReferencia);
+
 /* ------------------------- Detalhamento da obra --------------------------- */
 // Curva S consolidada (Previsto × Real × Tendência) e indicadores de prazo.
 // GET /api/obras/:id/curva-s?versao_id=&comparar=linha_base|nenhum&base_id=

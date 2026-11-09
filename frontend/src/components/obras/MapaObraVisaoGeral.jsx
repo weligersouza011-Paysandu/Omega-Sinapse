@@ -27,7 +27,7 @@ export default function MapaObraVisaoGeral({ localizacoes = [], altura = 'h-80' 
           </div>
         }
       >
-        <MapaLocalizacoes localizacoes={localizacoes} altura={altura} satelite />
+        <MapaLocalizacoes localizacoes={localizacoes} altura={altura} />
       </Suspense>
 
       <button

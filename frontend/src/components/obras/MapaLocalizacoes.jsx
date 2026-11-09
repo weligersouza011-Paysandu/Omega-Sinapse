@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
 import {
   CircleMarker,
+  LayersControl,
   MapContainer,
   Marker,
   Popup,
@@ -14,13 +15,22 @@ import 'leaflet/dist/leaflet.css';
 import { coordenadasDe, paraNumero } from '../../utils/coordenadas.js';
 
 /**
- * Mapa interativo da obra (Leaflet + OpenStreetMap, ou satélite com `satelite`).
+ * Mapa interativo da obra no estilo Google Maps (camadas Satélite, Mapa e
+ * Terreno; abre em satélite com nomes de ruas).
  *
  * - Exibe todos os pontos/trechos já cadastrados que possuem coordenadas.
  * - Com `onSelecionar`, permite escolher um ponto clicando no mapa ou
  *   arrastando o marcador; as coordenadas voltam para o formulário.
  * - Sem `onSelecionar`, funciona apenas como visualização.
+ * - Com `referencias`, mostra também os pontos de OUTRAS obras (em laranja),
+ *   para conferir o que já existe ao lado; o balão deles permite copiar as
+ *   coordenadas para o ponto em edição.
+ * - `focoReferencia` ({ latitude, longitude, chave }) leva o mapa até uma obra.
  */
+
+/** Camadas no estilo Google Maps. */
+const GOOGLE_TILES = (tipo) => `https://mt{s}.google.com/vt/lyrs=${tipo}&x={x}&y={y}&z={z}`;
+const SUBDOMINIOS = ['0', '1', '2', '3'];
 
 /** Região padrão (Pará) usada quando a obra ainda não tem coordenadas. */
 const CENTRO_PADRAO = [-6.05, -50.13];
@@ -94,6 +104,20 @@ function FocarSelecionada({ posicao, chave }) {
   return null;
 }
 
+/** Leva o mapa até um ponto quando a chave muda (ex.: "Ir para a obra"). */
+function IrPara({ foco }) {
+  const mapa = useMap();
+  const anterior = useRef(null);
+
+  useEffect(() => {
+    if (!foco || anterior.current === foco.chave) return;
+    anterior.current = foco.chave;
+    mapa.flyTo([Number(foco.latitude), Number(foco.longitude)], Math.max(mapa.getZoom(), 17), { duration: 0.8 });
+  }, [mapa, foco]);
+
+  return null;
+}
+
 /** Captura cliques no mapa quando a seleção está habilitada. */
 function CapturarClique({ onSelecionar }) {
   useMapEvents({
@@ -147,7 +171,8 @@ export default function MapaLocalizacoes({
   chaveFoco = 'selecao',
   altura = 'h-72',
   className = '',
-  satelite = false,
+  referencias = [],
+  focoReferencia = null,
 }) {
   const interativo = typeof onSelecionar === 'function';
 
@@ -187,19 +212,19 @@ export default function MapaLocalizacoes({
       scrollWheelZoom={false}
       className={`mapa-leaflet ${altura} w-full ${className}`}
     >
-      {satelite ? (
-        <TileLayer
-          attribution="Imagens &copy; Esri, Maxar, Earthstar Geographics"
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-          maxZoom={19}
-        />
-      ) : (
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
-      )}
+      <LayersControl position="topright">
+        <LayersControl.BaseLayer checked name="Satélite">
+          <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('y')} subdomains={SUBDOMINIOS} maxZoom={20} />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Mapa">
+          <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
+        </LayersControl.BaseLayer>
+        <LayersControl.BaseLayer name="Terreno">
+          <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('p')} subdomains={SUBDOMINIOS} maxZoom={20} />
+        </LayersControl.BaseLayer>
+      </LayersControl>
+
+      <IrPara foco={focoReferencia} />
 
       <AjustarLimites pontos={pontos} ativo={!posicaoSelecionada} />
       <FocarSelecionada posicao={posicaoSelecionada} chave={chaveFoco} />
@@ -215,7 +240,7 @@ export default function MapaLocalizacoes({
             radius={6.5}
             pathOptions={{
               // Contorno branco para o ponto se destacar sobre a imagem de satélite.
-              color: satelite ? '#ffffff' : ehTrecho ? '#7c3aed' : '#1c5d99',
+              color: '#ffffff',
               fillColor: ehTrecho ? '#8b5cf6' : '#1c5d99',
               fillOpacity: 0.78,
               weight: 2,
@@ -228,6 +253,46 @@ export default function MapaLocalizacoes({
           </CircleMarker>
         );
       })}
+
+      {referencias.map((ref) => (
+        <CircleMarker
+          key={`ref-${ref.id}`}
+          center={[Number(ref.latitude), Number(ref.longitude)]}
+          radius={6}
+          pathOptions={{ color: '#ffffff', fillColor: '#f59e0b', fillOpacity: 0.95, weight: 2 }}
+        >
+          <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
+            {ref.osi || ref.ss || `Obra #${ref.obra_id}`} · {ref.descricao}
+          </Tooltip>
+          <Popup maxWidth={300}>
+            <div className="space-y-1 text-xs">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-amber-600">Outra obra</p>
+              <p className="text-sm font-bold text-slate-800">
+                {ref.osi || ref.ss || `Obra #${ref.obra_id}`}
+                {ref.osi && ref.ss ? <span className="font-normal text-slate-400"> · SS {ref.ss}</span> : null}
+              </p>
+              {ref.obra_descricao ? <p className="text-slate-600">{ref.obra_descricao}</p> : null}
+              <p className="text-slate-500">
+                {ref.descricao} · {formatarCoordenada(ref.latitude)}, {formatarCoordenada(ref.longitude)}
+              </p>
+              <p className="flex flex-wrap gap-3 pt-1 font-bold">
+                {interativo ? (
+                  <button
+                    type="button"
+                    className="text-omega-700 hover:underline"
+                    onClick={() => onSelecionar({ latitude: Number(ref.latitude), longitude: Number(ref.longitude) })}
+                  >
+                    Usar estas coordenadas
+                  </button>
+                ) : null}
+                <a href={`/obras/${ref.obra_id}`} target="_blank" rel="noreferrer" className="text-omega-700 hover:underline">
+                  Abrir obra
+                </a>
+              </p>
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
 
       {posicaoSelecionada ? (
         <Marker

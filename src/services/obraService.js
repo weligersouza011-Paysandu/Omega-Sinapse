@@ -311,7 +311,17 @@ async function registrarOsi(idParam, payload, usuario) {
   return obraRepository.findById(id);
 }
 
+/** GET /api/obras/localizacoes-referencia?excluir_obra=ID — pontos das demais obras. */
+async function listarLocalizacoesReferencia(query = {}) {
+  const excluir = Number(query.excluir_obra);
+  const data = await obraRepository.listarLocalizacoesReferencia(
+    Number.isInteger(excluir) && excluir > 0 ? excluir : null
+  );
+  return { data, total: data.length };
+}
+
 module.exports = {
+  listarLocalizacoesReferencia,
   PERFIS,
   STATUS_VALIDOS,
   STATUS_INICIAL,

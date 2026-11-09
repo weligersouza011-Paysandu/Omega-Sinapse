@@ -66,7 +66,20 @@ async function registrarOsi(req, res, next) {
   }
 }
 
+/**
+ * GET /api/obras/localizacoes-referencia
+ * Pontos georreferenciados das outras obras (consulta ao cadastrar localizações).
+ */
+async function listarLocalizacoesReferencia(req, res, next) {
+  try {
+    return res.status(200).json(await obraService.listarLocalizacoesReferencia(req.query));
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
+  listarLocalizacoesReferencia,
   listarObras,
   listarPlanejadores,
   obterObra,

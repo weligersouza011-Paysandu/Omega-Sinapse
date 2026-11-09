@@ -6,6 +6,7 @@ import {
   MapPin,
   MousePointerClick,
   Pencil,
+  Layers,
   Plus,
   Route,
   Trash2,
@@ -16,6 +17,7 @@ import { useToast } from '../../context/ToastContext.jsx';
 import {
   atualizarLocalizacaoObra,
   criarLocalizacaoObra,
+  listarLocalizacoesReferencia,
   removerLocalizacaoObra,
 } from '../../hooks/useObras.js';
 import { geocodificarReverso } from '../../utils/geocodificacao.js';
@@ -209,6 +211,49 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
     }
   }
 
+  /* ---------------- Consulta às localizações de outras obras ---------------- */
+
+  const [verOutras, setVerOutras] = useState(false);
+  const [referencias, setReferencias] = useState(null);
+  const [carregandoRefs, setCarregandoRefs] = useState(false);
+  const [foco, setFoco] = useState(null);
+  const contadorFoco = useRef(0);
+
+  function setFocoComChave(item) {
+    contadorFoco.current += 1;
+    setFoco({ latitude: item.latitude, longitude: item.longitude, chave: `ref-${contadorFoco.current}` });
+  }
+
+  async function alternarOutrasObras() {
+    const proximo = !verOutras;
+    setVerOutras(proximo);
+    if (!proximo || referencias) return;
+
+    setCarregandoRefs(true);
+    try {
+      setReferencias(await listarLocalizacoesReferencia(obra.id));
+    } catch (err) {
+      setVerOutras(false);
+      toast.erro(err.message || 'Não foi possível carregar as localizações das outras obras.');
+    } finally {
+      setCarregandoRefs(false);
+    }
+  }
+
+  // Uma entrada por obra (primeiro ponto) para o seletor "Ir para a obra".
+  const obrasDeReferencia = useMemo(() => {
+    const porObra = new Map();
+    (referencias || []).forEach((ref) => {
+      if (!porObra.has(ref.obra_id)) porObra.set(ref.obra_id, ref);
+    });
+    return [...porObra.values()].map((ref) => ({
+      obra_id: ref.obra_id,
+      rotulo: `${ref.osi || ref.ss || `Obra #${ref.obra_id}`}${ref.obra_descricao ? ` — ${ref.obra_descricao}` : ''}`,
+      latitude: ref.latitude,
+      longitude: ref.longitude,
+    }));
+  }, [referencias]);
+
   async function remover(localizacao) {
     if (!window.confirm(`Remover a localização "${localizacao.descricao}"?`)) return;
 
@@ -256,8 +301,57 @@ export default function LocalizacoesObra({ obra, podeEditar = false, onObraAtual
                 onSelecionar={selecionarNoMapa}
                 chaveFoco={editandoId ?? 'novo'}
                 altura="h-64 sm:h-80"
+                referencias={verOutras ? referencias || [] : []}
+                focoReferencia={foco}
               />
             </Suspense>
+            <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-white px-3 py-2">
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
+                  verOutras
+                    ? 'border-amber-300 bg-amber-50 text-amber-800'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                }`}
+                onClick={alternarOutrasObras}
+                aria-pressed={verOutras}
+                disabled={carregandoRefs}
+              >
+                {carregandoRefs ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Layers className="h-3.5 w-3.5" aria-hidden="true" />
+                )}
+                {verOutras ? 'Ocultar outras obras' : 'Ver localizações de outras obras'}
+              </button>
+
+              {verOutras && referencias ? (
+                <>
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-amber-700">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500 ring-2 ring-white" aria-hidden="true" />
+                    {referencias.length} ponto(s) de {obrasDeReferencia.length} obra(s)
+                  </span>
+                  <select
+                    className="campo !h-8 !w-auto max-w-full !py-0 !text-[11px] sm:max-w-sm"
+                    aria-label="Ir para a localização de outra obra"
+                    value=""
+                    onChange={(e) => {
+                      const escolhida = obrasDeReferencia.find((item) => String(item.obra_id) === e.target.value);
+                      if (escolhida) {
+                        setFocoComChave(escolhida);
+                      }
+                    }}
+                  >
+                    <option value="">Ir para a obra…</option>
+                    {obrasDeReferencia.map((item) => (
+                      <option key={item.obra_id} value={item.obra_id}>
+                        {item.rotulo}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              ) : null}
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
               <span className="inline-flex items-center gap-1.5">
                 <MousePointerClick className="h-3.5 w-3.5 text-omega-600" aria-hidden="true" />

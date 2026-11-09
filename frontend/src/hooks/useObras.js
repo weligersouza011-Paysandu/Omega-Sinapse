@@ -187,6 +187,17 @@ export async function enviarFotosObra(arquivos = []) {
   return data;
 }
 
+/**
+ * Pontos das demais obras (consulta ao cadastrar uma localização).
+ * `obraId` omite a obra em edição.
+ */
+export async function listarLocalizacoesReferencia(obraId = null) {
+  const { data } = await api.get('/obras/localizacoes-referencia', {
+    params: obraId ? { excluir_obra: obraId } : {},
+  });
+  return data.data || [];
+}
+
 /** Tamanho máximo de página aceito pela API (validado no service do back-end). */
 const LIMITE_MAXIMO = 100;
 
