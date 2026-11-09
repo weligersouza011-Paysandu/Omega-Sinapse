@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import L from 'leaflet';
-import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import { CircleMarker, LayersControl, MapContainer, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ExternalLink, Globe2, Map as MapIcon, MapPin } from 'lucide-react';
+import { ExternalLink, Globe2, ListTree, Map as MapIcon, MapPin, PanelRightClose } from 'lucide-react';
 import { estiloCategoria } from './dashboardUtils.js';
 import { urlAbrirGoogle } from '../../utils/googleMaps.js';
 
 /** Região padrão (Carajás/PA) usada quando o filtro não retorna coordenadas. */
 const CENTRO_PADRAO = [-6.05, -50.13];
 
+/** Camadas no estilo Google Maps (mapa, satélite e híbrido). */
+const GOOGLE_TILES = (tipo) => `https://mt{s}.google.com/vt/lyrs=${tipo}&x={x}&y={y}&z={z}`;
+const SUBDOMINIOS = ['0', '1', '2', '3'];
+
 /** Enquadra todos os pontos e, ao escolher um ponto da lista, aproxima nele. */
-function Enquadrar({ pontos, foco }) {
+function Enquadrar({ pontos, foco, listaAberta }) {
   const mapa = useMap();
 
   useEffect(() => {
     // O contêiner pode ter sido dimensionado depois da montagem (layout em grade).
     const id = setTimeout(() => mapa.invalidateSize(), 150);
     return () => clearTimeout(id);
-  }, [mapa]);
+  }, [mapa, listaAberta]);
 
   useEffect(() => {
     if (foco) {
@@ -46,6 +50,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
     [mapa.pontos]
   );
   const [selecionadoId, setSelecionadoId] = useState(null);
+  const [listaAberta, setListaAberta] = useState(true);
   const chave = (p) => `${p.obra_id}-${p.id}`;
   const selecionado = pontos.find((p) => chave(p) === selecionadoId) || null;
 
@@ -65,12 +70,25 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
           <div>
             <h3 className="text-sm font-bold text-slate-800">Mapa Geral de Obras e Localizações</h3>
             <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-              Satélite com todas as localizações do ambiente de uma vez. Clique em um ponto para ver a obra ou escolha
+              Mapa estilo Google com todas as localizações do ambiente de uma vez (alterne entre Mapa, Satélite e Terreno). Clique em um ponto para ver a obra ou escolha
               na lista para aproximar.
             </p>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setListaAberta((aberta) => !aberta)}
+            aria-expanded={listaAberta}
+            className="btn-neutro !px-2.5 !py-1 !text-[11px]"
+          >
+            {listaAberta ? (
+              <PanelRightClose className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <ListTree className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {listaAberta ? 'Recolher lista de obras' : 'Mostrar lista de obras'}
+          </button>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-bold text-slate-600">
             <MapPin className="h-3.5 w-3.5 text-omega-600" aria-hidden="true" />
             {pontos.length} ponto(s)
@@ -90,15 +108,21 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem]">
+        <div className={`grid grid-cols-1 ${listaAberta ? 'lg:grid-cols-[1fr_22rem]' : ''}`}>
           <div className="relative h-[420px] bg-slate-200 sm:h-[460px] xl:h-[520px]">
             <MapContainer center={CENTRO_PADRAO} zoom={8} scrollWheelZoom className="h-full w-full">
-              <TileLayer
-                attribution="Imagens &copy; Esri, Maxar, Earthstar Geographics"
-                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                maxZoom={19}
-              />
-              <Enquadrar pontos={pontos} foco={selecionado} />
+              <LayersControl position="topleft">
+                <LayersControl.BaseLayer checked name="Mapa">
+                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Satélite">
+                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('y')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Terreno">
+                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('p')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                </LayersControl.BaseLayer>
+              </LayersControl>
+              <Enquadrar pontos={pontos} foco={selecionado} listaAberta={listaAberta} />
               {pontos.map((ponto) => {
                 const categoria = estiloCategoria(ponto.categoria);
                 const referencia = ponto.osi || ponto.ss || `Obra #${ponto.obra_id}`;
@@ -145,7 +169,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
               <button
                 type="button"
                 onClick={() => setSelecionadoId(null)}
-                className="absolute right-3 top-3 z-[500] inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                className="absolute bottom-6 left-3 z-[500] inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 <Globe2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Ver todas as obras
@@ -153,6 +177,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
             ) : null}
           </div>
 
+          {listaAberta ? (
           <aside className="flex max-h-[520px] flex-col border-t border-slate-100 lg:border-l lg:border-t-0">
             <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Pontos do recorte</p>
@@ -214,6 +239,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
               })}
             </ul>
           </aside>
+          ) : null}
         </div>
       )}
 
@@ -223,7 +249,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
             ? `${totalObras - obrasComLocalizacao} obra(s) ainda sem coordenadas no recorte.`
             : 'Todas as obras do recorte possuem localização geográfica.'}
         </span>
-        <span className="font-medium text-slate-400">Imagem de satélite · pontos na cor da carteira</span>
+        <span className="font-medium text-slate-400">Google Maps · pontos na cor da carteira</span>
       </footer>
     </section>
   );
