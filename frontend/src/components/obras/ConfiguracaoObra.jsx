@@ -252,8 +252,8 @@ export default function ConfiguracaoObra({
         </div>
 
         <p className="mt-2 text-[11px] text-slate-500">
-          Governança ISO 9001: a obra só assume <strong>Em Andamento</strong> ou <strong>Concluída</strong> com a
-          {ataObrigatoria ? 'OSI emitida e a Ata de Partida anexada.' : 'OSI emitida (a Ata de Partida é opcional na Cadeia de Ajuda).'}
+          Governança ISO 9001: a etapa pode ser alterada a qualquer momento; a documentação pendente (
+          {ataObrigatoria ? 'OSI e Ata de Partida' : 'OSI — a Ata de Partida é opcional na Cadeia de Ajuda'}) segue sinalizada no farol.
         </p>
 
         <div className="mt-4 border-t border-slate-200 pt-4">

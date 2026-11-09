@@ -96,8 +96,8 @@ export default function Obras() {
   }
 
   /**
-   * Persiste a nova etapa da obra a partir do arraste no Kanban. A régua
-   * ISO 9001 é aplicada no back-end (HTTP 422) e o quadro faz o rollback.
+   * Persiste a nova etapa da obra a partir do arraste no Kanban (a documentação
+   * pendente é só sinalizada pelo farol, não bloqueia a mudança).
    */
   const moverStatus = useCallback((id, novoStatus) => atualizarObra(id, { status: novoStatus }), []);
 

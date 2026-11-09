@@ -29,22 +29,11 @@ const CATEGORIAS_VALIDAS = ['CADEIA_DE_AJUDA', 'CARTEIRA_DA_COORDENACAO'];
 
 const STATUS_INICIAL = 'PARA_INICIAR';
 
-/**
- * Etapas de execução que só podem ser assumidas com a documentação de partida
- * completa (ISO 9001): OSI emitida e Ata de Reunião de Partida anexada.
- */
-const STATUS_QUE_EXIGEM_DOCUMENTACAO = ['EM_ANDAMENTO', 'CONCLUIDA'];
-
 const ROTULOS_STATUS = {
   PARA_INICIAR: 'Para Iniciar',
   EM_ANDAMENTO: 'Em Andamento',
   PARALISADA: 'Paralisada',
   CONCLUIDA: 'Concluída',
-};
-
-const ROTULOS_PENDENCIA = {
-  osi: 'OSI assinada (anexo)',
-  ata: 'Ata de Reunião de Partida',
 };
 
 /* -------------------------------------------------------------------------- */
@@ -80,14 +69,6 @@ function validarStatus(status) {
   if (!STATUS_VALIDOS.includes(status)) {
     throw new AppError(400, `Status da obra inválido. Valores aceitos: ${STATUS_VALIDOS.join(', ')}.`);
   }
-}
-
-/** Monta a mensagem das pendências documentais em aberto. */
-function descreverPendencias(pendencias) {
-  const itens = [];
-  if (pendencias.osi) itens.push(ROTULOS_PENDENCIA.osi);
-  if (pendencias.ata) itens.push(ROTULOS_PENDENCIA.ata);
-  return itens.join(' e ');
 }
 
 /* -------------------------------------------------------------------------- */
@@ -282,22 +263,7 @@ async function atualizarObra(idParam, payload, usuario) {
     validarStatus(novoStatus);
 
     if (novoStatus !== existente.status) {
-      // Régua ISO 9001: não se inicia nem conclui a obra com documentação pendente.
-      // A Ata pode ser anexada na mesma requisição que altera o status.
-      // A Ata só conta em obra da Carteira da Coordenação (Cadeia de Ajuda exige só a OSI).
-      const pendencias = obraRepository.calcularPendencias({
-        categoria: temCampo(dados, 'categoria') ? dados.categoria : existente.categoria,
-        osi_anexo_url: temCampo(dados, 'osi_anexo_url') ? dados.osi_anexo_url : existente.osi_anexo_url,
-        ata_partida_url: temCampo(dados, 'ata_partida_url') ? dados.ata_partida_url : existente.ata_partida_url,
-      });
-
-      if (STATUS_QUE_EXIGEM_DOCUMENTACAO.includes(novoStatus) && !pendencias.completa) {
-        throw new AppError(
-          422,
-          `Documentação pendente: conclua a ${descreverPendencias(pendencias)} antes de mover a obra para "${ROTULOS_STATUS[novoStatus]}".`
-        );
-      }
-
+      // A documentação pendente (OSI/Ata) é apenas sinalizada pelo farol; não bloqueia a troca de etapa.
       dados.status = novoStatus;
     }
   }
@@ -349,7 +315,6 @@ module.exports = {
   PERFIS,
   STATUS_VALIDOS,
   STATUS_INICIAL,
-  STATUS_QUE_EXIGEM_DOCUMENTACAO,
   PERFIS_QUE_ATRIBUEM_PLANEJADOR,
   PERFIS_QUE_EMITEM_OSI,
   MAX_PLANEJADORES,
