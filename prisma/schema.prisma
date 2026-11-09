@@ -252,11 +252,30 @@ model Orcamento {
   planejador   Usuario?           @relation("Planejador", fields: [planejador_id], references: [id], onDelete: SetNull)
   revisoes     OrcamentoRevisao[]
   fiscais      OrcamentoFiscal[]
+  peps         OrcamentoPep[]
   obra         Obra?
 
   @@index([status])
   @@index([pep])
   @@map("orcamentos")
+}
+
+// -----------------------------------------------------------------------------
+// PEPs (CC) do orçamento — vários por orçamento, um ativo por vez.
+// O PEP ativo é espelhado em `orcamentos.pep` (usado em buscas, listas e relatórios).
+// -----------------------------------------------------------------------------
+model OrcamentoPep {
+  id           Int      @id @default(autoincrement())
+  orcamento_id Int
+  pep          String   @db.VarChar(100)
+  ativo        Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  orcamento Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
+
+  @@unique([orcamento_id, pep], name: "uq_pep_por_orcamento")
+  @@index([orcamento_id])
+  @@map("orcamento_peps")
 }
 
 // -----------------------------------------------------------------------------

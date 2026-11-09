@@ -40,6 +40,7 @@ const INCLUDE_DETALHE = {
   orcamentista: { select: { nome: true } },
   planejador: { select: { nome: true } },
   fiscais: { orderBy: { id: 'asc' } },
+  peps: { orderBy: { id: 'asc' } },
   revisoes: {
     orderBy: { numero_revisao: 'asc' },
     include: { usuario: { select: { nome: true } } },
@@ -74,13 +75,14 @@ function mapearOrcamento(registro) {
     return null;
   }
 
-  const { orcamentista, planejador, revisoes, fiscais, ...orcamento } = registro;
+  const { orcamentista, planejador, revisoes, fiscais, peps, ...orcamento } = registro;
 
   return {
     ...orcamento,
     orcamentista_nome: orcamentista ? orcamentista.nome : null,
     planejador_nome: planejador ? planejador.nome : null,
     fiscais: (fiscais || []).map(({ id, nome, contato }) => ({ id, nome, contato })),
+    peps: (peps || []).map(({ id, pep, ativo }) => ({ id, pep, ativo })),
     revisoes: (revisoes || []).map(({ usuario, ...revisao }) => ({
       ...revisao,
       usuario_nome: usuario ? usuario.nome : null,
@@ -130,6 +132,7 @@ async function create(data) {
           foto_2: data.foto_2 ?? null,
           foto_3: data.foto_3 ?? null,
           fiscais: { create: fiscais },
+          peps: { create: [{ pep: data.pep, ativo: true }] },
         },
       });
 
@@ -188,6 +191,7 @@ async function findAll(filtros = {}) {
   if (busca) {
     where.OR = [
       { pep: { contains: busca, mode: 'insensitive' } },
+      { peps: { some: { pep: { contains: busca, mode: 'insensitive' } } } },
       { descricao: { contains: busca, mode: 'insensitive' } },
       { ss: { contains: busca, mode: 'insensitive' } },
       { cliente: { contains: busca, mode: 'insensitive' } },
@@ -333,7 +337,7 @@ async function obterEstatisticas(filtros = {}) {
  * @returns {Promise<object|null>}
  */
 async function update(id, data) {
-  const { fiscais, ...campos } = data;
+  const { fiscais, peps, ...campos } = data;
   const dados = {};
 
   for (const campo of CAMPOS_ATUALIZAVEIS) {
@@ -343,7 +347,7 @@ async function update(id, data) {
   }
 
   // Nada a atualizar: devolve o registro atual sem executar UPDATE vazio.
-  if (fiscais === undefined && Object.keys(dados).length === 0) {
+  if (fiscais === undefined && peps === undefined && Object.keys(dados).length === 0) {
     return findById(id);
   }
 
@@ -354,6 +358,22 @@ async function update(id, data) {
     async (tx) => {
       if (Object.keys(dados).length > 0) {
         await tx.orcamento.update({ where: { id }, data: dados });
+      }
+
+      if (peps !== undefined) {
+        // A lista enviada substitui a anterior; o PEP ativo vira o PEP do orçamento.
+        await tx.orcamentoPep.deleteMany({ where: { orcamento_id: id } });
+        await tx.orcamentoPep.createMany({
+          data: peps.map((item) => ({ orcamento_id: id, pep: item.pep, ativo: item.ativo })),
+        });
+      } else if (Object.prototype.hasOwnProperty.call(dados, 'pep')) {
+        // Só o PEP foi informado: ele passa a ser o ativo e entra na lista se for novo.
+        await tx.orcamentoPep.updateMany({ where: { orcamento_id: id }, data: { ativo: false } });
+        await tx.orcamentoPep.upsert({
+          where: { uq_pep_por_orcamento: { orcamento_id: id, pep: dados.pep } },
+          create: { orcamento_id: id, pep: dados.pep, ativo: true },
+          update: { ativo: true },
+        });
       }
 
       if (temFiscais) {

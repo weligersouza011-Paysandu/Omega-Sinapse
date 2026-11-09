@@ -142,6 +142,52 @@ function validarCamposObrigatorios(payload, { parcial = false } = {}) {
 }
 
 /**
+ * Normaliza a lista de PEPs (CC) do orçamento: `[{ pep, ativo }]`.
+ * Exige ao menos um PEP, sem repetições, e exatamente um ativo.
+ * Aceita array (JSON) ou string JSON (multipart/form-data).
+ * @returns {{pep:string, ativo:boolean}[]}
+ */
+function normalizarPeps(valor) {
+  let lista = valor;
+  if (typeof valor === 'string') {
+    try {
+      lista = JSON.parse(valor);
+    } catch {
+      throw new AppError(400, 'O campo "peps" deve ser uma lista válida.');
+    }
+  }
+  if (!Array.isArray(lista)) {
+    throw new AppError(400, 'O campo "peps" deve ser uma lista de PEPs.');
+  }
+
+  const vistos = new Set();
+  const peps = [];
+  lista.forEach((item) => {
+    const pep = estaVazio(item?.pep) ? '' : String(item.pep).trim();
+    if (!pep) return;
+    if (pep.length > 100) {
+      throw new AppError(400, `O PEP "${pep.slice(0, 20)}..." excede 100 caracteres.`);
+    }
+    const chave = pep.toLowerCase();
+    if (vistos.has(chave)) {
+      throw new AppError(400, `O PEP "${pep}" está repetido.`);
+    }
+    vistos.add(chave);
+    peps.push({ pep, ativo: item.ativo === true || item.ativo === 'true' });
+  });
+
+  if (peps.length === 0) {
+    throw new AppError(400, 'Informe ao menos um PEP (CC).');
+  }
+  const ativos = peps.filter((item) => item.ativo);
+  if (ativos.length !== 1) {
+    throw new AppError(400, 'Mantenha exatamente um PEP ativo.');
+  }
+
+  return peps;
+}
+
+/**
  * Normaliza a lista de fiscais recebida na requisição.
  * Aceita array (JSON) ou string JSON (multipart/form-data).
  * @returns {{nome:string, contato:string|null}[]}
@@ -446,6 +492,13 @@ async function atualizarOrcamento(idParam, payload, usuario) {
   // Monta apenas os campos permitidos que vieram na requisição, respeitando o RBAC.
   const dados = {};
   if (temCampo(payload, 'pep')) dados.pep = String(payload.pep).trim();
+
+  // PEPs (CC): a lista substitui a anterior e o PEP ativo vira o PEP do orçamento.
+  if (temCampo(payload, 'peps')) {
+    const peps = normalizarPeps(payload.peps);
+    dados.peps = peps;
+    dados.pep = peps.find((item) => item.ativo).pep;
+  }
   if (temCampo(payload, 'cliente')) dados.cliente = estaVazio(payload.cliente) ? null : String(payload.cliente).trim();
   if (temCampo(payload, 'ss')) dados.ss = estaVazio(payload.ss) ? null : String(payload.ss).trim();
   if (temCampo(payload, 'descricao')) dados.descricao = estaVazio(payload.descricao) ? null : String(payload.descricao).trim();

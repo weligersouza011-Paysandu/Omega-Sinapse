@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { History, LockKeyhole } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { History, ImagePlus, LockKeyhole, RefreshCw, Trash2 } from 'lucide-react';
 import ModalBase from './ModalBase.jsx';
 import Spinner from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
 import Autocomplete from './Autocomplete.jsx';
 import { atualizarOrcamento, obterOrcamento, useOpcoesOrcamento } from '../hooks/useOrcamentos.js';
+import { enviarFotosObra } from '../hooks/useObras.js';
 import { STATUS_OPCOES, STATUS_INICIAL } from '../utils/status.js';
 import { useToast } from '../context/ToastContext.jsx';
 import { formatarMoeda } from '../utils/formatters.js';
@@ -12,6 +13,15 @@ import { formatarMoeda } from '../utils/formatters.js';
 /** Linha vazia do repetidor de fiscais. */
 function criarFiscal() {
   return { nome: '', contato: '' };
+}
+
+const TOTAL_FOTOS = 3;
+const TAMANHO_MAXIMO_FOTO = 10 * 1024 * 1024;
+
+/** Slots de foto a partir do orçamento: { url, arquivo, preview }. */
+function slotsDeFotos(dados) {
+  const urls = [dados.foto_1, dados.foto_2, dados.foto_3];
+  return urls.map((url) => ({ url: url || '', arquivo: null, preview: '' }));
 }
 
 /** Normaliza texto para comparar nomes de fiscal (sem acentos, minúsculas). */
@@ -38,10 +48,12 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
   const [erroCarga, setErroCarga] = useState('');
   const [erro, setErro] = useState('');
   const [enviando, setEnviando] = useState(false);
-  const [novoPep, setNovoPep] = useState(false);
+  const [novoPepTexto, setNovoPepTexto] = useState('');
+  const [fotos, setFotos] = useState(() => slotsDeFotos({}));
+  const camposFoto = useRef([]);
 
-  // PEPs e fiscais do histórico orientam o dropdown e o autocompletar.
-  const { peps, fiscais, carregando: carregandoOpcoes } = useOpcoesOrcamento(aberto);
+  // PEPs e fiscais do histórico orientam as sugestões e o autocompletar.
+  const { peps: pepsHistorico, fiscais } = useOpcoesOrcamento(aberto);
 
   const carregar = useCallback(async () => {
     if (!orcamentoId) return;
@@ -52,7 +64,10 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
       const dados = await obterOrcamento(orcamentoId);
       setForm({
         ss: dados.ss || '',
-        pep: dados.pep || '',
+        // PEPs (CC): vários por orçamento, um ativo por vez.
+        peps: (dados.peps || []).length
+          ? dados.peps.map((item) => ({ pep: item.pep, ativo: Boolean(item.ativo) }))
+          : [{ pep: dados.pep || '', ativo: true }],
         endereco: dados.endereco || '',
         documentos_referencia: dados.documentos_referencia || '',
         status: dados.status || STATUS_INICIAL,
@@ -61,6 +76,7 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
           : [criarFiscal()],
         valor: Number(dados.valor) || 0,
       });
+      setFotos(slotsDeFotos(dados));
     } catch (err) {
       setErroCarga(err.message || 'Não foi possível carregar o orçamento.');
     } finally {
@@ -72,7 +88,7 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
     if (aberto && orcamentoId) {
       setForm(null);
       setErro('');
-      setNovoPep(false);
+      setNovoPepTexto('');
       setEnviando(false);
       carregar();
     }
@@ -119,11 +135,69 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
     }));
   }
 
-  /* ------------------------------ PEP --------------------------------- */
+  /* ------------------------------ PEPs -------------------------------- */
 
-  function alternarNovoPep() {
-    setNovoPep((anterior) => !anterior);
+  /** Torna um PEP o ativo (os demais ficam desativados). */
+  function ativarPep(indice) {
+    setForm((anterior) => ({
+      ...anterior,
+      peps: anterior.peps.map((item, posicao) => ({ ...item, ativo: posicao === indice })),
+    }));
   }
+
+  function removerPep(indice) {
+    setForm((anterior) => ({ ...anterior, peps: anterior.peps.filter((_, posicao) => posicao !== indice) }));
+  }
+
+  function adicionarPep() {
+    const pep = novoPepTexto.trim();
+    if (!pep) return;
+    if (form.peps.some((item) => item.pep.toLowerCase() === pep.toLowerCase())) {
+      setErro(`O PEP ${pep} já está na lista.`);
+      return;
+    }
+    setErro('');
+    setForm((anterior) => ({
+      ...anterior,
+      // O primeiro PEP cadastrado já nasce ativo; os seguintes entram desativados.
+      peps: [...anterior.peps, { pep, ativo: anterior.peps.length === 0 }],
+    }));
+    setNovoPepTexto('');
+  }
+
+  /* ------------------------------ Fotos ------------------------------- */
+
+  function trocarFoto(indice, arquivo) {
+    if (!arquivo) return;
+    if (!arquivo.type.startsWith('image/')) {
+      setErro('Escolha um arquivo de imagem (JPG, PNG ou WEBP).');
+      return;
+    }
+    if (arquivo.size > TAMANHO_MAXIMO_FOTO) {
+      setErro('Cada foto deve ter no máximo 10 MB.');
+      return;
+    }
+    setErro('');
+    setFotos((anterior) =>
+      anterior.map((slot, posicao) => {
+        if (posicao !== indice) return slot;
+        if (slot.preview) URL.revokeObjectURL(slot.preview);
+        return { url: slot.url, arquivo, preview: URL.createObjectURL(arquivo) };
+      })
+    );
+  }
+
+  function removerFoto(indice) {
+    setFotos((anterior) =>
+      anterior.map((slot, posicao) => {
+        if (posicao !== indice) return slot;
+        if (slot.preview) URL.revokeObjectURL(slot.preview);
+        return { url: '', arquivo: null, preview: '' };
+      })
+    );
+  }
+
+  const fotosPreenchidas = fotos.filter((slot) => slot.arquivo || slot.url).length;
 
   /** Ignora linhas vazias do repetidor; valida as que foram usadas. */
   function fiscaisPreenchidos() {
@@ -131,8 +205,12 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
   }
 
   function validar() {
+    const pepsValidos = form.peps.filter((item) => item.pep.trim());
+    if (pepsValidos.length === 0) return 'Informe ao menos um PEP (CC).';
+    if (pepsValidos.filter((item) => item.ativo).length !== 1) return 'Mantenha exatamente um PEP ativo.';
+    if (fotosPreenchidas === 0) return 'Mantenha ao menos uma foto.';
+
     const obrigatorios = [
-      ['pep', 'PEP (CC)'],
       ['endereco', 'Endereço'],
       ['documentos_referencia', 'Documentos de Referência'],
     ];
@@ -164,7 +242,9 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
 
     // O valor NÃO entra no payload: alterações de preço passam por Revisões.
     const payload = {
-      pep: form.pep.trim(),
+      peps: form.peps
+        .filter((item) => item.pep.trim())
+        .map((item) => ({ pep: item.pep.trim(), ativo: item.ativo })),
       ss: form.ss.trim(),
       endereco: form.endereco.trim(),
       documentos_referencia: form.documentos_referencia.trim(),
@@ -177,6 +257,21 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
 
     setEnviando(true);
     try {
+      // Fotos novas sobem primeiro; a lista final é compactada (foto 1 = principal).
+      const urls = [];
+      for (const slot of fotos) {
+        if (slot.arquivo) {
+          // eslint-disable-next-line no-await-in-loop
+          const enviado = await enviarFotosObra([slot.arquivo]);
+          urls.push(enviado.foto_1);
+        } else if (slot.url) {
+          urls.push(slot.url);
+        }
+      }
+      payload.foto_1 = urls[0] || '';
+      payload.foto_2 = urls[1] || '';
+      payload.foto_3 = urls[2] || '';
+
       const atualizado = await atualizarOrcamento(orcamentoId, payload);
       onSalvo(atualizado);
       toast.sucesso('Orçamento atualizado com sucesso.');
@@ -189,15 +284,6 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
       setEnviando(false);
     }
   }
-
-  // Garante que o PEP atual apareça no dropdown mesmo fora do histórico.
-  const opcoesPep = useMemo(() => {
-    const base = peps.map((pep) => ({ value: pep, label: pep }));
-    if (form?.pep && !peps.includes(form.pep)) {
-      return [{ value: form.pep, label: form.pep }, ...base];
-    }
-    return base;
-  }, [peps, form?.pep]);
 
   const opcoesStatus = STATUS_OPCOES.map((opcao) => ({
     value: opcao.value,
@@ -230,7 +316,7 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
       ) : (
         <form onSubmit={aoEnviar} noValidate>
           <div className="max-h-[64vh] space-y-5 overflow-y-auto px-5 py-5">
-            <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="rotulo" htmlFor="edit-ss">
                   SS (Solicitação de Serviço)
@@ -246,55 +332,6 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
               </div>
 
               <div>
-                <label className="rotulo" htmlFor="edit-pep">
-                  PEP (CC) *
-                </label>
-                <div className="flex items-center gap-2">
-                  {novoPep ? (
-                    <input
-                      id="edit-pep"
-                      className="campo"
-                      placeholder="Digite o PEP"
-                      value={form.pep}
-                      onChange={(e) => alterarCampo('pep', e.target.value)}
-                      disabled={enviando}
-                    />
-                  ) : (
-                    <div className="min-w-0 flex-1">
-                      <Dropdown
-                        id="edit-pep"
-                        value={form.pep}
-                        onChange={(valor) => alterarCampo('pep', valor)}
-                        opcoes={opcoesPep}
-                        carregando={carregandoOpcoes}
-                        placeholder="Selecione o PEP..."
-                        textoVazio="Nenhum PEP cadastrado."
-                        disabled={enviando}
-                      />
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={alternarNovoPep}
-                    disabled={enviando}
-                    title={novoPep ? 'Voltar para a lista de PEPs' : 'Informar outro PEP'}
-                    aria-label={novoPep ? 'Voltar para a lista de PEPs' : 'Informar outro PEP'}
-                    className={[
-                      'flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-md border',
-                      'text-lg font-bold leading-none transition focus:outline-none focus:ring-2 focus:ring-omega-500/30',
-                      'disabled:cursor-not-allowed disabled:opacity-50',
-                      novoPep
-                        ? 'border-slate-300 bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        : 'border-omega-500/40 bg-omega-50 text-omega-700 hover:bg-omega-100',
-                    ].join(' ')}
-                  >
-                    {novoPep ? '−' : '+'}
-                  </button>
-                </div>
-              </div>
-
-              <div>
                 <label className="rotulo" htmlFor="edit-status">
                   Status *
                 </label>
@@ -307,6 +344,151 @@ export default function EditarOrcamentoModal({ aberto, orcamentoId, onFechar, on
                   disabled={enviando}
                 />
               </div>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400">PEPs (CC) *</h3>
+              <p className="text-[11px] text-slate-500">
+                Cadastre mais de um PEP e escolha qual está ativo agora. Só um fica ativo por vez; ele aparece nos
+                cards e nas listas.
+              </p>
+
+              <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+                {form.peps.map((item, indice) => (
+                  <li key={`${item.pep}-${indice}`} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <span className={`min-w-0 truncate text-sm font-semibold ${item.ativo ? 'text-slate-800' : 'text-slate-400'}`}>
+                      {item.pep}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={item.ativo}
+                        aria-label={`${item.ativo ? 'PEP ativo' : 'Ativar PEP'} ${item.pep}`}
+                        onClick={() => ativarPep(indice)}
+                        disabled={enviando || item.ativo}
+                        title={item.ativo ? 'PEP ativo (ative outro para trocar)' : 'Tornar este PEP o ativo'}
+                        className={`relative h-5 w-9 rounded-full transition focus:outline-none focus-visible:ring-2 focus-visible:ring-omega-500/40 ${
+                          item.ativo ? 'bg-emerald-500' : 'bg-slate-300 hover:bg-slate-400'
+                        } disabled:cursor-default`}
+                      >
+                        <span
+                          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
+                            item.ativo ? 'left-[1.1rem]' : 'left-0.5'
+                          }`}
+                        />
+                      </button>
+                      <span className={`w-14 text-[10px] font-bold uppercase tracking-wide ${item.ativo ? 'text-emerald-700' : 'text-slate-400'}`}>
+                        {item.ativo ? 'Ativo' : 'Inativo'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removerPep(indice)}
+                        disabled={enviando || item.ativo || form.peps.length === 1}
+                        title={item.ativo ? 'Ative outro PEP para poder remover este' : 'Remover PEP'}
+                        aria-label={`Remover PEP ${item.pep}`}
+                        className="flex h-7 w-7 items-center justify-center rounded border border-slate-200 text-slate-400 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-slate-200 disabled:hover:bg-transparent disabled:hover:text-slate-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="flex gap-2">
+                <input
+                  className="campo"
+                  list="edit-peps-sugestoes"
+                  placeholder="Novo PEP (CC)"
+                  value={novoPepTexto}
+                  onChange={(e) => setNovoPepTexto(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      adicionarPep();
+                    }
+                  }}
+                  disabled={enviando}
+                  aria-label="Novo PEP (CC)"
+                />
+                <datalist id="edit-peps-sugestoes">
+                  {pepsHistorico.map((pep) => (
+                    <option key={pep} value={pep} />
+                  ))}
+                </datalist>
+                <button type="button" className="btn-neutro shrink-0" onClick={adicionarPep} disabled={enviando || !novoPepTexto.trim()}>
+                  Adicionar PEP
+                </button>
+              </div>
+            </section>
+
+            <section className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-slate-400">Fotos (até {TOTAL_FOTOS})</h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {fotos.map((slot, indice) => {
+                  const imagem = slot.preview || slot.url;
+                  const rotulo = indice === 0 ? 'Foto principal' : `Foto ${indice + 1}`;
+                  return (
+                    <div key={indice} className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                      <p className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                        {rotulo}
+                        {slot.arquivo ? <span className="text-omega-700">nova</span> : null}
+                      </p>
+                      <div className="mb-2 flex h-24 items-center justify-center overflow-hidden rounded-md bg-white ring-1 ring-slate-200">
+                        {imagem ? (
+                          <img src={imagem} alt={rotulo} className="h-full w-full object-cover" />
+                        ) : (
+                          <span className="text-[11px] text-slate-400">Sem foto</span>
+                        )}
+                      </div>
+                      <input
+                        ref={(el) => {
+                          camposFoto.current[indice] = el;
+                        }}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          trocarFoto(indice, e.target.files?.[0] || null);
+                          e.target.value = '';
+                        }}
+                        disabled={enviando}
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          className="btn-neutro !px-2 !py-1 !text-[11px]"
+                          onClick={() => camposFoto.current[indice]?.click()}
+                          disabled={enviando}
+                        >
+                          {imagem ? (
+                            <RefreshCw className="h-3 w-3" aria-hidden="true" />
+                          ) : (
+                            <ImagePlus className="h-3 w-3" aria-hidden="true" />
+                          )}
+                          {imagem ? 'Trocar' : 'Adicionar'}
+                        </button>
+                        {imagem ? (
+                          <button
+                            type="button"
+                            className="btn-neutro !px-2 !py-1 !text-[11px] hover:!border-red-300 hover:!text-red-600"
+                            onClick={() => removerFoto(indice)}
+                            disabled={enviando || fotosPreenchidas === 1}
+                            title={fotosPreenchidas === 1 ? 'Mantenha ao menos uma foto' : 'Remover foto'}
+                          >
+                            <Trash2 className="h-3 w-3" aria-hidden="true" />
+                            Remover
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] text-slate-500">
+                JPG, PNG ou WEBP, até 10 MB cada. Ao salvar, as fotos sobem na ordem e a primeira vira a principal.
+              </p>
             </section>
 
             <section className="space-y-4">
