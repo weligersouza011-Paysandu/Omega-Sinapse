@@ -7,6 +7,7 @@ import DashboardHero from './DashboardHero.jsx';
 import FiltrosDashboard from './FiltrosDashboard.jsx';
 import IndicadoresPlanejamento from './IndicadoresPlanejamento.jsx';
 import KpisDashboard from './KpisDashboard.jsx';
+import PainelAnaliseObra from './PainelAnaliseObra.jsx';
 import Metodologia6WLA from './Metodologia6WLA.jsx';
 import TabelaObrasDashboard from './TabelaObrasDashboard.jsx';
 import TabelaRestricoes6WLA from './TabelaRestricoes6WLA.jsx';
@@ -106,6 +107,14 @@ export default function ExecutiveDashboard() {
         <EstadoInicial />
       ) : dados ? (
         <>
+          <Suspense fallback={<MapaCarregando />}>
+            <MapaGeralObras mapa={dados.mapa} obras={dados.obras} />
+          </Suspense>
+
+          <TabelaObrasDashboard obras={dados.obras} />
+
+          <PainelAnaliseObra obras={dados.obras} />
+
           <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
             <Metodologia6WLA />
             <KpisDashboard resumo={dados.resumo} />
@@ -113,13 +122,7 @@ export default function ExecutiveDashboard() {
 
           <IndicadoresPlanejamento resumo={dados.resumo} />
 
-          <Suspense fallback={<MapaCarregando />}>
-            <MapaGeralObras mapa={dados.mapa} obras={dados.obras} />
-          </Suspense>
-
           <CurvaSConsolidada curva={dados.curva_s} />
-
-          <TabelaObrasDashboard obras={dados.obras} />
 
           <TabelaRestricoes6WLA restricoes={dados.restricoes} />
         </>

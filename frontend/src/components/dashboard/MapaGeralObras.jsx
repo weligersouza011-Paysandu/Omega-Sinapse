@@ -1,35 +1,53 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import L from 'leaflet';
+import { CircleMarker, MapContainer, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import { ExternalLink, Globe2, Map as MapIcon, MapPin } from 'lucide-react';
 import { estiloCategoria } from './dashboardUtils.js';
-import { urlAbrirGoogle, urlGoogleComPino, urlGoogleRegiao, zoomParaLimites } from '../../utils/googleMaps.js';
+import { urlAbrirGoogle } from '../../utils/googleMaps.js';
 
 /** Região padrão (Carajás/PA) usada quando o filtro não retorna coordenadas. */
 const CENTRO_PADRAO = [-6.05, -50.13];
 
+/** Enquadra todos os pontos e, ao escolher um ponto da lista, aproxima nele. */
+function Enquadrar({ pontos, foco }) {
+  const mapa = useMap();
+
+  useEffect(() => {
+    // O contêiner pode ter sido dimensionado depois da montagem (layout em grade).
+    const id = setTimeout(() => mapa.invalidateSize(), 150);
+    return () => clearTimeout(id);
+  }, [mapa]);
+
+  useEffect(() => {
+    if (foco) {
+      mapa.flyTo([Number(foco.latitude), Number(foco.longitude)], 17, { duration: 0.8 });
+      return;
+    }
+    const coordenadas = pontos.map((p) => [Number(p.latitude), Number(p.longitude)]);
+    if (!coordenadas.length) return;
+    if (coordenadas.length === 1) mapa.setView(coordenadas[0], 15);
+    else mapa.fitBounds(L.latLngBounds(coordenadas), { padding: [36, 36], maxZoom: 16 });
+  }, [mapa, pontos, foco]);
+
+  return null;
+}
+
 /**
- * Mapa geral do dashboard no Google Maps (satélite).
- *
- * O Google Maps incorporado mostra um ponto por vez: a visão inicial enquadra
- * a região de todos os pontos do recorte; a lista ao lado traz cada ponto
- * (cor da carteira) e, ao clicar, o mapa aproxima no ponto com o pino.
+ * Mapa geral do dashboard: imagem de satélite com TODAS as localizações das
+ * obras do recorte ao mesmo tempo (um marcador por ponto, na cor da carteira).
+ * A lista lateral aproxima o mapa no ponto escolhido.
  */
 export default function MapaGeralObras({ mapa = {}, obras = [] }) {
-  const pontos = useMemo(() => mapa.pontos || [], [mapa.pontos]);
-  const limites = mapa.bounds || null;
+  const pontos = useMemo(
+    () =>
+      (mapa.pontos || []).filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))),
+    [mapa.pontos]
+  );
   const [selecionadoId, setSelecionadoId] = useState(null);
-
-  const centro = useMemo(() => {
-    if (!limites || limites.length !== 2) return CENTRO_PADRAO;
-    return [(limites[0][0] + limites[1][0]) / 2, (limites[0][1] + limites[1][1]) / 2];
-  }, [limites]);
-  const zoomRegiao = useMemo(() => zoomParaLimites(limites, 900, 480, { minimo: 4, maximo: 15 }), [limites]);
-
   const chave = (p) => `${p.obra_id}-${p.id}`;
   const selecionado = pontos.find((p) => chave(p) === selecionadoId) || null;
-  const url = selecionado
-    ? urlGoogleComPino([selecionado.latitude, selecionado.longitude], 16)
-    : urlGoogleRegiao(centro, zoomRegiao);
 
   const obrasComLocalizacao = useMemo(
     () => (obras || []).filter((obra) => Number(obra.quantidade_localizacoes) > 0).length,
@@ -47,8 +65,8 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
           <div>
             <h3 className="text-sm font-bold text-slate-800">Mapa Geral de Obras e Localizações</h3>
             <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-              Imagem de satélite do Google Maps com a região das obras do recorte. Clique em um ponto da lista para
-              aproximar o mapa na obra.
+              Satélite com todas as localizações do ambiente de uma vez. Clique em um ponto para ver a obra ou escolha
+              na lista para aproximar.
             </p>
           </div>
         </div>
@@ -74,20 +92,60 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_22rem]">
           <div className="relative h-[420px] bg-slate-200 sm:h-[460px] xl:h-[520px]">
-            <iframe
-              key={url}
-              title={selecionado ? `Localização: ${selecionado.descricao}` : 'Região das obras'}
-              src={url}
-              className="h-full w-full border-0"
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
+            <MapContainer center={CENTRO_PADRAO} zoom={8} scrollWheelZoom className="h-full w-full">
+              <TileLayer
+                attribution="Imagens &copy; Esri, Maxar, Earthstar Geographics"
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                maxZoom={19}
+              />
+              <Enquadrar pontos={pontos} foco={selecionado} />
+              {pontos.map((ponto) => {
+                const categoria = estiloCategoria(ponto.categoria);
+                const referencia = ponto.osi || ponto.ss || `Obra #${ponto.obra_id}`;
+                const ativo = chave(ponto) === selecionadoId;
+                return (
+                  <CircleMarker
+                    key={chave(ponto)}
+                    center={[Number(ponto.latitude), Number(ponto.longitude)]}
+                    radius={ativo ? 11 : 8}
+                    pathOptions={{ color: '#ffffff', weight: 2, fillColor: categoria.hex, fillOpacity: 0.95 }}
+                    eventHandlers={{ click: () => setSelecionadoId(chave(ponto)) }}
+                  >
+                    <Tooltip direction="top" offset={[0, -6]}>
+                      {referencia} · {ponto.descricao || 'Ponto'}
+                    </Tooltip>
+                    <Popup>
+                      <div className="text-xs">
+                        <p className="font-bold text-slate-800">
+                          {referencia}
+                          {ponto.ss && ponto.osi ? ` · SS ${ponto.ss}` : ''}
+                        </p>
+                        <p className="mt-0.5 text-slate-600">{ponto.descricao_obra}</p>
+                        <p className="text-slate-400">{ponto.descricao}</p>
+                        <p className="mt-1 flex gap-3 font-bold">
+                          <Link to={`/obras/${ponto.obra_id}`} className="text-omega-700 hover:underline">
+                            Abrir obra
+                          </Link>
+                          <a
+                            href={urlAbrirGoogle([Number(ponto.latitude), Number(ponto.longitude)])}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-omega-700 hover:underline"
+                          >
+                            Google Maps
+                          </a>
+                        </p>
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                );
+              })}
+            </MapContainer>
             {selecionado ? (
               <button
                 type="button"
                 onClick={() => setSelecionadoId(null)}
-                className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+                className="absolute right-3 top-3 z-[500] inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
               >
                 <Globe2 className="h-3.5 w-3.5" aria-hidden="true" />
                 Ver todas as obras
@@ -141,7 +199,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
                           Abrir obra
                         </Link>
                         <a
-                          href={urlAbrirGoogle([ponto.latitude, ponto.longitude])}
+                          href={urlAbrirGoogle([Number(ponto.latitude), Number(ponto.longitude)])}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 text-omega-700 hover:underline"
@@ -165,7 +223,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
             ? `${totalObras - obrasComLocalizacao} obra(s) ainda sem coordenadas no recorte.`
             : 'Todas as obras do recorte possuem localização geográfica.'}
         </span>
-        <span className="font-medium text-slate-400">Google Maps · satélite</span>
+        <span className="font-medium text-slate-400">Imagem de satélite · pontos na cor da carteira</span>
       </footer>
     </section>
   );
