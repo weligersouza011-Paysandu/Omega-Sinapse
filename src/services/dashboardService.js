@@ -256,7 +256,7 @@ function restricoesDerivadas(obra) {
     });
   }
 
-  if (!obra.ata_partida_url) {
+  if (obra.ata_obrigatoria && !obra.ata_partida_url) {
     itens.push({
       id: `pendencia-${obra.id}-ata`,
       restricao_id: null,
@@ -397,6 +397,8 @@ function mapearObra(registro) {
     // Documentação da OSI só é considerada cumprida com a via assinada anexada.
     tem_osi: Boolean(registro.osi_anexo_url),
     tem_ata: Boolean(registro.ata_partida_url),
+    // Cadeia de Ajuda (classificada) exige só a OSI; sem categoria, a Ata vale.
+    ata_obrigatoria: registro.categoria !== 'CADEIA_DE_AJUDA',
     localizacoes,
     quantidade_localizacoes: localizacoes.length,
     centro,
@@ -536,7 +538,7 @@ function montarResumo(obras) {
     0
   );
   const pendenciasDocumentais = obras.reduce(
-    (total, obra) => total + (obra.tem_osi ? 0 : 1) + (obra.tem_ata ? 0 : 1),
+    (total, obra) => total + (obra.tem_osi ? 0 : 1) + (obra.ata_obrigatoria && !obra.tem_ata ? 1 : 0),
     0
   );
   const retrabalhos = obras.reduce(

@@ -284,13 +284,12 @@ async function atualizarObra(idParam, payload, usuario) {
     if (novoStatus !== existente.status) {
       // Régua ISO 9001: não se inicia nem conclui a obra com documentação pendente.
       // A Ata pode ser anexada na mesma requisição que altera o status.
-      const pendencias = {
-        ...existente.pendencias,
-        osi: temCampo(dados, 'osi_anexo_url') ? !dados.osi_anexo_url : existente.pendencias.osi,
-        ata: temCampo(dados, 'ata_partida_url') ? !dados.ata_partida_url : existente.pendencias.ata,
-      };
-      pendencias.total = (pendencias.osi ? 1 : 0) + (pendencias.ata ? 1 : 0);
-      pendencias.completa = !pendencias.osi && !pendencias.ata;
+      // A Ata só conta em obra da Carteira da Coordenação (Cadeia de Ajuda exige só a OSI).
+      const pendencias = obraRepository.calcularPendencias({
+        categoria: temCampo(dados, 'categoria') ? dados.categoria : existente.categoria,
+        osi_anexo_url: temCampo(dados, 'osi_anexo_url') ? dados.osi_anexo_url : existente.osi_anexo_url,
+        ata_partida_url: temCampo(dados, 'ata_partida_url') ? dados.ata_partida_url : existente.ata_partida_url,
+      });
 
       if (STATUS_QUE_EXIGEM_DOCUMENTACAO.includes(novoStatus) && !pendencias.completa) {
         throw new AppError(

@@ -87,15 +87,25 @@ const INCLUDE_DETALHE = {
   },
 };
 
+/** Categoria que dispensa a Ata de Reunião de Partida (exige só a OSI). */
+const CATEGORIA_SEM_ATA = 'CADEIA_DE_AJUDA';
+
+/** Filtro Prisma: obras em que a Ata é obrigatória (qualquer categoria, menos Cadeia de Ajuda). */
+const ATA_E_OBRIGATORIA = [{ categoria: null }, { categoria: { not: CATEGORIA_SEM_ATA } }];
+
 /**
  * Calcula a régua de pendências documentais obrigatórias (ISO 9001):
- * OSI assinada anexada e Ata de Reunião de Partida anexada. Emitir a OSI no
+ * OSI assinada anexada e Ata de Reunião de Partida anexada (esta dispensada na
+ * Cadeia de Ajuda, que exige somente a OSI). Emitir a OSI no
  * sistema não conclui a pendência: ela só é cumprida com o documento assinado.
  */
 function calcularPendencias(obra) {
+  // A Ata de Partida é obrigatória na Carteira da Coordenação (e em obra ainda
+  // sem categoria); a Cadeia de Ajuda exige apenas a OSI.
+  const ataObrigatoria = obra.categoria !== CATEGORIA_SEM_ATA;
   const osi = !obra.osi_anexo_url;
-  const ata = !obra.ata_partida_url;
-  return { osi, ata, total: (osi ? 1 : 0) + (ata ? 1 : 0), completa: !osi && !ata };
+  const ata = ataObrigatoria && !obra.ata_partida_url;
+  return { osi, ata, ata_obrigatoria: ataObrigatoria, total: (osi ? 1 : 0) + (ata ? 1 : 0), completa: !osi && !ata };
 }
 
 /** Converte Decimal/null em número (ou null), preservando o contrato JSON. */
@@ -331,11 +341,12 @@ async function findAll(filtros = {}) {
     where.osi_anexo_url = null;
   } else if (pendencia === 'ata') {
     where.ata_partida_url = null;
+    where.OR = ATA_E_OBRIGATORIA;
   } else if (pendencia === 'pendentes') {
-    where.OR = [{ osi_anexo_url: null }, { ata_partida_url: null }];
+    where.OR = [{ osi_anexo_url: null }, { ata_partida_url: null, OR: ATA_E_OBRIGATORIA }];
   } else if (pendencia === 'ok') {
     where.osi_anexo_url = { not: null };
-    where.ata_partida_url = { not: null };
+    where.OR = [{ ata_partida_url: { not: null } }, { categoria: CATEGORIA_SEM_ATA }];
   }
 
   // Filtros sobre os dados do orçamento (relação 1:1).

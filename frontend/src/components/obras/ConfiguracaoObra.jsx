@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   Building2,
   CircleAlert,
+  CircleMinus,
   CircleCheck,
   FileText,
   Paperclip,
@@ -41,12 +42,14 @@ function Linha({ rotulo, valor }) {
 }
 
 /** Item da régua de pendências documentais (ISO 9001). */
-function ItemPendencia({ titulo, descricao, cumprido, children }) {
+function ItemPendencia({ titulo, descricao, cumprido, opcional = false, children }) {
   return (
     <li className="flex flex-col gap-3 border-t border-slate-100 px-4 py-3 first:border-t-0 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
         {cumprido ? (
           <CircleCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
+        ) : opcional ? (
+          <CircleMinus className="mt-0.5 h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
         ) : (
           <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
         )}
@@ -103,6 +106,8 @@ export default function ConfiguracaoObra({
     );
   }
   const ataAnexada = Boolean(obra?.ata_partida_url);
+  // Cadeia de Ajuda exige só a OSI; a Ata de Partida é opcional nessa categoria.
+  const ataObrigatoria = obra?.pendencias?.ata_obrigatoria !== false;
   const alterouStatus = Boolean(obra) && statusSelecionado !== obra.status;
 
   async function executar(chave, acao, mensagemSucesso) {
@@ -248,7 +253,7 @@ export default function ConfiguracaoObra({
 
         <p className="mt-2 text-[11px] text-slate-500">
           Governança ISO 9001: a obra só assume <strong>Em Andamento</strong> ou <strong>Concluída</strong> com a
-          OSI emitida e a Ata de Partida anexada.
+          {ataObrigatoria ? 'OSI emitida e a Ata de Partida anexada.' : 'OSI emitida (a Ata de Partida é opcional na Cadeia de Ajuda).'}
         </p>
 
         <div className="mt-4 border-t border-slate-200 pt-4">
@@ -337,13 +342,16 @@ export default function ConfiguracaoObra({
           </ItemPendencia>
 
           <ItemPendencia
-            titulo="2. Ata de Reunião de Partida"
+            titulo={ataObrigatoria ? '2. Ata de Reunião de Partida' : '2. Ata de Reunião de Partida (não obrigatória)'}
             descricao={
               ataAnexada
                 ? 'Documento comprobatório do kick-off anexado.'
-                : 'Anexe a ata assinada do kick-off da obra (imagem ou PDF).'
+                : ataObrigatoria
+                  ? 'Anexe a ata assinada do kick-off da obra (imagem ou PDF).'
+                  : 'Não obrigatória na Cadeia de Ajuda: não gera pendência. Anexe apenas se houver.'
             }
             cumprido={ataAnexada}
+            opcional={!ataObrigatoria}
           >
             <div className="flex flex-wrap items-center justify-end gap-2">
               {ataAnexada ? (
