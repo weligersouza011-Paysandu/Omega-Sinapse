@@ -129,6 +129,22 @@ async function editarRevisao(req, res, next) {
   }
 }
 
+async function obterImpactoExclusao(req, res, next) {
+  try {
+    return res.json(await orcamentoService.obterImpactoExclusao(req.params.id, req.user));
+  } catch (err) {
+    return next(err);
+  }
+}
+
+async function excluirOrcamento(req, res, next) {
+  try {
+    return res.json(await orcamentoService.excluirOrcamento(req.params.id, req.query, req.user));
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   criarOrcamento,
   listarOrcamentos,
@@ -139,4 +155,6 @@ module.exports = {
   adicionarRevisao,
   atualizarStatusRevisao,
   editarRevisao,
+  obterImpactoExclusao,
+  excluirOrcamento,
 };

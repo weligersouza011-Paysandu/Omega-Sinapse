@@ -119,6 +119,26 @@ export async function editarRevisao(id, revisaoId, campos) {
   return data;
 }
 
+/** Resume o que será apagado junto com o orçamento (obra, medições, revisões...). */
+export async function obterImpactoExclusao(id) {
+  if (MODO_DEMO) {
+    throw new Error('A exclusão de orçamentos não está disponível no modo demonstração.');
+  }
+
+  const { data } = await api.get(`/orcamentos/${id}/impacto-exclusao`);
+  return data;
+}
+
+/** Exclui o orçamento (somente ADMIN). `forcar` confirma a exclusão de uma obra com execução. */
+export async function excluirOrcamento(id, { forcar = false } = {}) {
+  if (MODO_DEMO) {
+    throw new Error('A exclusão de orçamentos não está disponível no modo demonstração.');
+  }
+
+  const { data } = await api.delete(`/orcamentos/${id}`, { params: forcar ? { forcar: true } : {} });
+  return data;
+}
+
 /** Busca os PEPs e fiscais já usados no histórico (dropdowns/autocomplete). */
 export async function obterOpcoes() {
   const { data } = await api.get('/orcamentos/opcoes');

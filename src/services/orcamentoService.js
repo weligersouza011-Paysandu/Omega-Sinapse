@@ -646,6 +646,85 @@ async function editarRevisao(idParam, revisaoIdParam, payload, usuario) {
   return formatarOrcamento(await orcamentoRepository.findById(id));
 }
 
+/** Nomes legíveis dos registros que acompanham a obra na exclusão. */
+const ROTULOS_IMPACTO = {
+  localizacoes: 'localização(ões)',
+  avanco_fisico: 'medição(ões) de avanço físico',
+  relatorios: 'relatório(s)',
+  atividades: 'atividade(s)',
+  restricoes: 'restrição(ões)',
+  ocorrencias: 'ocorrência(s)',
+  comentarios: 'comentário(s)',
+  midias: 'mídia(s)',
+  tarefas: 'tarefa(s)',
+  cronogramas: 'atividade(s) de cronograma',
+};
+
+function montarImpacto(resumo) {
+  const itens = [];
+  if (resumo._count.revisoes > 0) {
+    itens.push({ chave: 'revisoes', rotulo: 'revisão(ões) de valor', total: resumo._count.revisoes });
+  }
+  const contagem = resumo.obra?._count || {};
+  Object.entries(ROTULOS_IMPACTO).forEach(([chave, rotulo]) => {
+    if (contagem[chave] > 0) itens.push({ chave, rotulo, total: contagem[chave] });
+  });
+
+  return {
+    orcamento: { id: resumo.id, pep: resumo.pep, ss: resumo.ss, descricao: resumo.descricao, status: resumo.status },
+    obra: resumo.obra
+      ? { id: resumo.obra.id, status: resumo.obra.status, osi_numero: resumo.obra.osi_numero }
+      : null,
+    itens,
+    // Execução registrada na obra (além das revisões): exige confirmação reforçada.
+    possui_execucao: itens.some((item) => item.chave !== 'revisoes'),
+  };
+}
+
+/** GET /api/orcamentos/:id/impacto-exclusao — o que sai junto se o orçamento for excluído. */
+async function obterImpactoExclusao(idParam, usuario) {
+  const id = validarId(idParam);
+  validarUsuario(usuario);
+
+  const resumo = await orcamentoRepository.resumirExclusao(id);
+  if (!resumo) {
+    throw new AppError(404, `Orçamento ${id} não encontrado.`);
+  }
+  return montarImpacto(resumo);
+}
+
+/**
+ * DELETE /api/orcamentos/:id — exclui o orçamento e, em cascata, a obra e os
+ * registros ligados. Somente ADMIN. Se a obra já tem execução registrada, é
+ * preciso confirmar com `forcar=true`.
+ */
+async function excluirOrcamento(idParam, query, usuario) {
+  const id = validarId(idParam);
+  validarUsuario(usuario);
+
+  if (usuario.perfil !== PERFIS.ADMIN) {
+    throw new AppError(403, 'Apenas administradores podem excluir orçamentos.');
+  }
+
+  const resumo = await orcamentoRepository.resumirExclusao(id);
+  if (!resumo) {
+    throw new AppError(404, `Orçamento ${id} não encontrado.`);
+  }
+
+  const impacto = montarImpacto(resumo);
+  const forcar = String(query?.forcar ?? '').toLowerCase() === 'true';
+  if (impacto.possui_execucao && !forcar) {
+    throw new AppError(
+      409,
+      'Este orçamento tem uma obra com registros de execução. Confirme a exclusão para apagar tudo.',
+      impacto
+    );
+  }
+
+  await orcamentoRepository.excluir(id);
+  return { id, pep: resumo.pep, excluido: true, removidos: impacto.itens };
+}
+
 module.exports = {
   PERFIS,
   STATUS_VALIDOS,
@@ -661,4 +740,6 @@ module.exports = {
   adicionarRevisao,
   atualizarStatusRevisao,
   editarRevisao,
+  obterImpactoExclusao,
+  excluirOrcamento,
 };

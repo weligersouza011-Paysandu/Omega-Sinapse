@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
-import { Check, FilePlus2, Paperclip, Pencil, X } from 'lucide-react';
+import { Check, FilePlus2, Paperclip, Pencil, Trash2, X } from 'lucide-react';
 import ModalBase from './ModalBase.jsx';
 import Spinner from './Spinner.jsx';
 import StatusBadge from './StatusBadge.jsx';
@@ -7,9 +7,12 @@ import {
   adicionarRevisao as registrarRevisao,
   atualizarStatusRevisao,
   editarRevisao,
+  excluirOrcamento,
+  obterImpactoExclusao,
   obterOrcamento,
 } from '../hooks/useOrcamentos.js';
 import { useToast } from '../context/ToastContext.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
 import { formatarDataHora, formatarMoeda, rotuloRevisao } from '../utils/formatters.js';
 import { STATUS_APROVACAO_REVISAO, TIPOS_ALTERACAO_REVISAO } from '../utils/status.js';
 
@@ -41,7 +44,39 @@ function Linha({ rotulo, valor }) {
 /** Modal de detalhes do orçamento + histórico e inclusão de revisões de valor. */
 export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, onAtualizado }) {
   const toast = useToast();
+  const { usuario } = useAuth();
+  const ehAdmin = usuario?.perfil === 'ADMIN';
   const [orcamento, setOrcamento] = useState(null);
+
+  // Exclusão do orçamento: { impacto, confirmacao } enquanto o diálogo está aberto.
+  const [exclusao, setExclusao] = useState(null);
+  const [excluindo, setExcluindo] = useState(false);
+
+  async function iniciarExclusao() {
+    setExclusao({ carregando: true, impacto: null, confirmacao: '' });
+    try {
+      const impacto = await obterImpactoExclusao(orcamentoId);
+      setExclusao({ carregando: false, impacto, confirmacao: '' });
+    } catch (err) {
+      setExclusao(null);
+      toast.erro(err.message || 'Não foi possível consultar o orçamento.');
+    }
+  }
+
+  async function confirmarExclusao() {
+    setExcluindo(true);
+    try {
+      await excluirOrcamento(orcamentoId, { forcar: exclusao.impacto.possui_execucao });
+      toast.sucesso(`Orçamento ${orcamento?.pep || ''} excluído.`);
+      setExclusao(null);
+      if (onAtualizado) onAtualizado();
+      onFechar();
+    } catch (err) {
+      toast.erro(err.message || 'Não foi possível excluir o orçamento.');
+    } finally {
+      setExcluindo(false);
+    }
+  }
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -658,11 +693,87 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
         ) : null}
       </div>
 
-      <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
+        {ehAdmin && orcamento ? (
+          <button type="button" className="btn-perigo" onClick={iniciarExclusao} disabled={Boolean(exclusao)}>
+            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            Excluir orçamento
+          </button>
+        ) : (
+          <span />
+        )}
         <button type="button" className="btn-neutro" onClick={onFechar}>
           Fechar
         </button>
       </div>
+
+      <ModalBase
+        aberto={Boolean(exclusao)}
+        titulo="Excluir orçamento?"
+        subtitulo={orcamento ? `${orcamento.pep} · SS ${orcamento.ss || '—'}` : ''}
+        onFechar={() => (excluindo ? null : setExclusao(null))}
+        tamanho="md"
+      >
+        {exclusao?.carregando ? (
+          <div className="flex items-center justify-center gap-2 p-8 text-sm text-slate-500">
+            <Spinner tamanho="md" className="text-omega-600" />
+            Verificando o que será apagado...
+          </div>
+        ) : exclusao?.impacto ? (
+          <div className="space-y-3 p-5">
+            <p className="text-sm text-slate-700">
+              O orçamento <strong>{exclusao.impacto.orcamento.pep}</strong> será removido
+              {exclusao.impacto.obra ? ' junto com a obra vinculada' : ''}. Esta ação <strong>não pode ser desfeita</strong>.
+            </p>
+
+            {exclusao.impacto.itens.length > 0 ? (
+              <ul className="rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-700">
+                {exclusao.impacto.itens.map((item) => (
+                  <li key={item.chave} className="flex justify-between py-0.5">
+                    <span>{item.rotulo}</span>
+                    <span className="font-bold tabular-nums">{item.total}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {exclusao.impacto.possui_execucao ? (
+              <div className="space-y-2 rounded-md border border-red-200 bg-red-50 px-3 py-2">
+                <p className="text-xs font-semibold text-red-800">
+                  Esta obra já tem registros de execução, que serão apagados. Para confirmar, digite o PEP{' '}
+                  <strong>{exclusao.impacto.orcamento.pep}</strong>.
+                </p>
+                <input
+                  className="campo"
+                  value={exclusao.confirmacao}
+                  onChange={(e) => setExclusao({ ...exclusao, confirmacao: e.target.value })}
+                  placeholder="Digite o PEP para confirmar"
+                  aria-label="Digite o PEP para confirmar a exclusão"
+                />
+              </div>
+            ) : null}
+
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-neutro" onClick={() => setExclusao(null)} disabled={excluindo}>
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-perigo"
+                onClick={confirmarExclusao}
+                disabled={
+                  excluindo ||
+                  (exclusao.impacto.possui_execucao &&
+                    exclusao.confirmacao.trim() !== String(exclusao.impacto.orcamento.pep).trim())
+                }
+              >
+                {excluindo ? <Spinner tamanho="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                Excluir definitivamente
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </ModalBase>
     </ModalBase>
   );
 }

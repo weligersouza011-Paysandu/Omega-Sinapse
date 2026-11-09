@@ -43,4 +43,10 @@ router.patch('/:id/revisoes/:revisaoId', orcamentoController.atualizarStatusRevi
 // PUT    /api/orcamentos/:id/revisoes/:revisaoId -> edita tipo, valor, observação e/ou situação da revisão
 router.put('/:id/revisoes/:revisaoId', orcamentoController.editarRevisao);
 
+// GET    /api/orcamentos/:id/impacto-exclusao -> o que sai junto se o orçamento for excluído
+router.get('/:id/impacto-exclusao', orcamentoController.obterImpactoExclusao);
+
+// DELETE /api/orcamentos/:id -> exclui o orçamento (somente ADMIN; obra com execução exige ?forcar=true)
+router.delete('/:id', orcamentoController.excluirOrcamento);
+
 module.exports = router;

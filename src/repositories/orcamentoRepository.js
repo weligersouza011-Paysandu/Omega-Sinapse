@@ -525,6 +525,51 @@ async function atualizarRevisao(orcamentoId, revisaoId, dados) {
   );
 }
 
+/**
+ * Resume o que será apagado junto com o orçamento: revisões, fotos e, se
+ * existir, a obra com todo o seu histórico de execução (exclusão em cascata).
+ */
+async function resumirExclusao(id) {
+  const orcamento = await prisma.orcamento.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      pep: true,
+      ss: true,
+      descricao: true,
+      status: true,
+      _count: { select: { revisoes: true } },
+      obra: {
+        select: {
+          id: true,
+          status: true,
+          osi_numero: true,
+          _count: {
+            select: {
+              localizacoes: true,
+              avanco_fisico: true,
+              relatorios: true,
+              atividades: true,
+              restricoes: true,
+              ocorrencias: true,
+              comentarios: true,
+              midias: true,
+              tarefas: true,
+              cronogramas: true,
+            },
+          },
+        },
+      },
+    },
+  });
+  return orcamento;
+}
+
+/** Exclui o orçamento (a obra e os registros ligados saem em cascata). */
+async function excluir(id) {
+  await prisma.orcamento.delete({ where: { id } });
+}
+
 module.exports = {
   create,
   findById,
@@ -535,6 +580,8 @@ module.exports = {
   addRevisao,
   atualizarStatusRevisao,
   atualizarRevisao,
+  resumirExclusao,
+  excluir,
   calcularValorVigente,
   CAMPOS_ATUALIZAVEIS,
 };
