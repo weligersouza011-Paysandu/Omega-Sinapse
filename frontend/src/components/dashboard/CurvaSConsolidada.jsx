@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -14,6 +13,7 @@ import { TrendingUp } from 'lucide-react';
 import Dropdown from '../Dropdown.jsx';
 import { formatarData, formatarPercentual } from '../../utils/formatters.js';
 import { corDesvio, formatarPp } from './dashboardUtils.js';
+import { CORES_CURVA_S, LegendaCurvaS, linhasPrevisto, marcosCurvaS, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
 
 function TooltipCurva({ active, payload, label }) {
   if (!active || !payload?.length) return null;
@@ -26,7 +26,7 @@ function TooltipCurva({ active, payload, label }) {
         {label}
         {ponto.data ? ` · ${formatarData(ponto.data)}` : ''}
       </p>
-      {payload.map((serie) => (
+      {seriesTooltip(payload).map((serie) => (
         <p key={serie.dataKey} className="flex items-center gap-2 text-slate-600">
           <span
             className="inline-block h-2 w-2 rounded-full"
@@ -111,6 +111,9 @@ export default function CurvaSConsolidada({ curva = {} }) {
     [serie.pontos]
   );
 
+  // Previsto amarelo até 100% e azul pontilhado depois; marcos de chegada a 100%.
+  const { dados: dadosGrafico, marcos } = useMemo(() => prepararCurvaS(dados, { alvo: 100 }), [dados]);
+
   const ultimo = dados[dados.length - 1] || {};
   const primeiro = dados[0] || {};
   const previsto = Number(ultimo.previsto || 0);
@@ -156,12 +159,12 @@ export default function CurvaSConsolidada({ curva = {} }) {
           <CartaoEstatistica
             rotulo="Real"
             valor={formatarPercentual(real, 1)}
-            classe="text-omega-700"
+            classe="text-emerald-700"
           />
           <CartaoEstatistica
             rotulo="Tendência"
             valor={formatarPercentual(tendencia, 1)}
-            classe="text-emerald-700"
+            classe="text-slate-600"
           />
           <CartaoEstatistica
             rotulo="Desvio Real × Previsto"
@@ -174,7 +177,7 @@ export default function CurvaSConsolidada({ curva = {} }) {
           <>
             <div className="mt-4 h-[300px] w-full sm:h-[340px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={dados} margin={{ top: 10, right: 18, bottom: 0, left: -10 }}>
+                <LineChart data={dadosGrafico} margin={{ top: 22, right: 18, bottom: 0, left: -10 }}>
                   <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
                   <XAxis
                     dataKey="rotulo"
@@ -191,7 +194,6 @@ export default function CurvaSConsolidada({ curva = {} }) {
                     axisLine={{ stroke: '#cbd5e1' }}
                   />
                   <Tooltip content={<TooltipCurva />} />
-                  <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                   <ReferenceLine
                     y={90}
                     stroke="#cbd5e1"
@@ -203,38 +205,34 @@ export default function CurvaSConsolidada({ curva = {} }) {
                       fontSize: 9,
                     }}
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="previsto"
-                    name="Previsto"
-                    stroke="#94a3b8"
-                    strokeWidth={2}
-                    strokeDasharray="5 4"
-                    dot={false}
-                    activeDot={{ r: 4 }}
-                  />
+                  {linhasPrevisto({ nome: 'Previsto' })}
                   <Line
                     type="monotone"
                     dataKey="real"
                     name="Real"
-                    stroke="#164b7d"
+                    stroke={CORES_CURVA_S.real}
                     strokeWidth={2.5}
                     dot={false}
                     activeDot={{ r: 5 }}
+                    isAnimationActive={false}
                   />
                   <Line
                     type="monotone"
                     dataKey="tendencia"
                     name="Tendência"
-                    stroke="#10b981"
+                    stroke={CORES_CURVA_S.tendencia}
                     strokeWidth={2}
-                    strokeDasharray="2 3"
+                    strokeDasharray="3 3"
                     dot={false}
                     activeDot={{ r: 4 }}
+                    connectNulls
+                    isAnimationActive={false}
                   />
+                  {marcosCurvaS(marcos)}
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <LegendaCurvaS marcos={marcos} rotuloPrevisto="Previsto" />
 
             <p className="mt-2 text-[10px] text-slate-400">
               {formatarData(primeiro.data)} a {formatarData(ultimo.data)} · {dados.length} ponto(s)

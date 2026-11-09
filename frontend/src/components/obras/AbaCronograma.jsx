@@ -24,6 +24,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { CORES_CURVA_S, LegendaCurvaS, linhasPrevisto, marcosCurvaS, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import RedeCaminhoCritico from './RedeCaminhoCritico.jsx';
 import { HistoricoImportacoes, ModalArquivoRepetido, ModalExcluirRevisao } from './HistoricoImportacoes.jsx';
@@ -289,9 +290,7 @@ function TooltipSerie({ active, payload, label, moeda }) {
       <p className="mb-1 font-bold text-slate-700">
         {label} · {formatarData(payload[0]?.payload?.data)}
       </p>
-      {payload
-        .filter((serie) => serie.value !== null && serie.value !== undefined)
-        .map((serie) => (
+      {seriesTooltip(payload).map((serie) => (
           <p key={serie.dataKey} className="flex items-center gap-2 text-slate-600">
             <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serie.color }} aria-hidden="true" />
             <span className="font-medium">{serie.name}:</span>
@@ -310,6 +309,12 @@ export function CurvaS({ curva }) {
   const prefixo = financeiro ? 'financeiro_' : '';
   const temFinanceiro = Boolean(curva.series?.financeiro);
   const temBase = curva.pontos.some((p) => p[`${prefixo}previsto_linha_base`] !== undefined);
+  // Previsto amarelo até 100% e azul pontilhado depois; marcos de chegada a 100%.
+  const { dados, marcos } = prepararCurvaS(curva.pontos, {
+    previsto: `${prefixo}previsto`,
+    tendencia: `${prefixo}tendencia`,
+    alvo: financeiro ? null : 100,
+  });
 
   return (
     <Secao
@@ -342,7 +347,7 @@ export function CurvaS({ curva }) {
     >
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={curva.pontos} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+          <ComposedChart data={dados} margin={{ top: 22, right: 18, left: 4, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
             <YAxis
@@ -354,16 +359,17 @@ export function CurvaS({ curva }) {
               tickFormatter={(v) => (financeiro ? formatarMoedaCompacta(v) : `${v}%`)}
             />
             <Tooltip content={<TooltipSerie moeda={financeiro} />} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Line type="monotone" dataKey={`${prefixo}previsto`} name="Previsto (LB)" stroke={CORES.previsto} strokeWidth={2} strokeDasharray="5 4" dot={false} connectNulls />
             {temBase ? (
-              <Line type="monotone" dataKey={`${prefixo}previsto_linha_base`} name="Linha de base Rev 00" stroke={CORES.base} strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls />
+              <Line type="monotone" dataKey={`${prefixo}previsto_linha_base`} name="Linha de base Rev 00" stroke={CORES_CURVA_S.base} strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls isAnimationActive={false} />
             ) : null}
-            <Line type="monotone" dataKey={`${prefixo}real`} name="Real" stroke={CORES.real} strokeWidth={2.5} dot={{ r: 2 }} />
-            <Line type="monotone" dataKey={`${prefixo}tendencia`} name="Tendência" stroke={CORES.tendencia} strokeWidth={2} dot={false} connectNulls />
+            {linhasPrevisto()}
+            <Line type="monotone" dataKey={`${prefixo}real`} name="Real" stroke={CORES_CURVA_S.real} strokeWidth={2.5} dot={{ r: 2 }} isAnimationActive={false} />
+            <Line type="monotone" dataKey={`${prefixo}tendencia`} name="Tendência" stroke={CORES_CURVA_S.tendencia} strokeWidth={2} strokeDasharray="3 3" dot={false} connectNulls isAnimationActive={false} />
+            {marcosCurvaS(marcos)}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
+      <LegendaCurvaS marcos={marcos} comBase={temBase} />
     </Secao>
   );
 }

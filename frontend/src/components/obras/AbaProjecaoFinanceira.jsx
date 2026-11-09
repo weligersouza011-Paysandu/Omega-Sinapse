@@ -3,7 +3,6 @@ import {
   Area,
   CartesianGrid,
   ComposedChart,
-  Legend,
   Line,
   ResponsiveContainer,
   Tooltip,
@@ -18,8 +17,8 @@ import {
   formatarSemana,
 } from '../../utils/formatters.js';
 import { projetarFinanceiro } from '../../utils/financeiroObra.js';
+import { CORES_CURVA_S, LegendaCurvaS, linhasPrevisto, marcosCurvaS, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
 
-const CORES = { previsto: '#64748b', medido: '#0f766e', tendencia: '#f59e0b' };
 
 function CartaoResumo({ rotulo, valor, detalhe, tom = 'text-slate-800' }) {
   return (
@@ -36,7 +35,7 @@ function TooltipDesembolso({ active, payload, label }) {
   return (
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
       <p className="mb-1 font-bold text-slate-700">{label}</p>
-      {payload.map((serie) => (
+      {seriesTooltip(payload).map((serie) => (
         <p key={serie.dataKey} className="flex items-center gap-2 text-slate-600">
           <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serie.color }} aria-hidden="true" />
           <span className="font-medium">{serie.name}:</span>
@@ -58,10 +57,14 @@ export default function AbaProjecaoFinanceira({ obra }) {
 
   const dadosGrafico = medicoes.map((medicao) => ({
     rotulo: formatarSemana(medicao.semana, medicao.data),
+    data: medicao.data,
     previsto: medicao.previstoAcumulado,
     medido: medicao.status === 'MEDIDO' ? medicao.valorAcumulado : null,
     tendencia: medicao.tendenciaAcumulada || null,
   }));
+
+  // Previsto amarelo até o total previsto (100%) e azul pontilhado depois.
+  const { dados: dadosCurva, marcos } = prepararCurvaS(dadosGrafico, { previsto: 'previsto', tendencia: 'tendencia' });
 
   const aderencia = projecao.aderencia;
   const tomAderencia =
@@ -111,9 +114,10 @@ export default function AbaProjecaoFinanceira({ obra }) {
             <p className="text-xs text-slate-500">Lance o avanço físico semanal para gerar a projeção.</p>
           </div>
         ) : (
+          <>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <ComposedChart data={dadosGrafico} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+              <ComposedChart data={dadosCurva} margin={{ top: 22, right: 18, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                 <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
                 <YAxis
@@ -124,23 +128,13 @@ export default function AbaProjecaoFinanceira({ obra }) {
                   tickFormatter={(valor) => formatarMoedaCompacta(valor)}
                 />
                 <Tooltip content={<TooltipDesembolso />} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Area
-                  type="monotone"
-                  dataKey="previsto"
-                  name="Previsto"
-                  stroke={CORES.previsto}
-                  fill={CORES.previsto}
-                  fillOpacity={0.08}
-                  strokeWidth={2}
-                  strokeDasharray="5 4"
-                />
+                {linhasPrevisto({ nome: 'Previsto' })}
                 <Area
                   type="monotone"
                   dataKey="medido"
                   name="Medido"
-                  stroke={CORES.medido}
-                  fill={CORES.medido}
+                  stroke={CORES_CURVA_S.real}
+                  fill={CORES_CURVA_S.real}
                   fillOpacity={0.15}
                   strokeWidth={2.5}
                   connectNulls
@@ -149,14 +143,18 @@ export default function AbaProjecaoFinanceira({ obra }) {
                   type="monotone"
                   dataKey="tendencia"
                   name="Tendência"
-                  stroke={CORES.tendencia}
+                  stroke={CORES_CURVA_S.tendencia}
                   strokeWidth={2}
+                  strokeDasharray="3 3"
                   dot={false}
                   connectNulls
                 />
+                {marcosCurvaS(marcos)}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
+          <LegendaCurvaS marcos={marcos} rotuloPrevisto="Previsto" rotuloReal="Medido" />
+          </>
         )}
       </section>
 
