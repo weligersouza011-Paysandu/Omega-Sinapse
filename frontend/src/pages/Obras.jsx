@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Columns3, LayoutGrid, Table, UserRound } from 'lucide-react';
 import CardObra from '../components/CardObra.jsx';
+import CategoriaObraBadge from '../components/CategoriaObraBadge.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import EtiquetasPendencia from '../components/EtiquetasPendencia.jsx';
 import ListaTabela from '../components/ListaTabela.jsx';
@@ -257,6 +258,7 @@ export default function Obras() {
                   onAtribuirPlanejador={podeAtribuirPlanejador ? atribuirPlanejador : undefined}
                   destacarSs
                   semValor
+                  exibirCategoria
                 />
               ))}
             </div>
@@ -266,6 +268,7 @@ export default function Obras() {
             itens={cards.itens}
             carregando={carregando}
             rotuloItem="obra"
+            mostrarCategoria
             onAbrirDetalhe={(id) => navigate(`/obras/${id}`)}
           />
         ) : (
@@ -280,6 +283,7 @@ export default function Obras() {
             textos={TEXTOS_QUADRO}
             renderInfo={(obra) => (
               <div className="flex flex-wrap items-center gap-1">
+                <CategoriaObraBadge categoria={obra.categoria} />
                 <EtiquetasPendencia pendencias={obra.pendencias} />
                 {!podeAtribuirPlanejador && obra.planejador_nome ? (
                   <span

@@ -1,4 +1,5 @@
 import { Eye, Pencil } from 'lucide-react';
+import CategoriaObraBadge from './CategoriaObraBadge.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import { formatarData, formatarMoeda } from '../utils/formatters.js';
 
@@ -21,6 +22,7 @@ function Vazio() {
  * @param {string} props.rotuloItem rótulo do registro (singular) para o vazio
  * @param {(id:number) => void} props.onAbrirDetalhe abre o detalhe do registro
  * @param {(item:object) => void} [props.onEditar] habilita a ação de edição
+ * @param {boolean} [props.mostrarCategoria] coluna "Categoria" (módulo de Obras)
  */
 export default function ListaTabela({
   itens = [],
@@ -28,8 +30,9 @@ export default function ListaTabela({
   rotuloItem = 'orçamento',
   onAbrirDetalhe,
   onEditar,
+  mostrarCategoria = false,
 }) {
-  const totalColunas = 8;
+  const totalColunas = mostrarCategoria ? 9 : 8;
 
   function abrir(item) {
     onAbrirDetalhe?.(item.id);
@@ -47,6 +50,7 @@ export default function ListaTabela({
               <th scope="col" className="px-4 py-3">Cliente / Local</th>
               <th scope="col" className="px-4 py-3 text-right">Valor atual (R$)</th>
               <th scope="col" className="px-4 py-3">Status</th>
+              {mostrarCategoria ? <th scope="col" className="px-4 py-3">Categoria</th> : null}
               <th scope="col" className="px-4 py-3">Data</th>
               <th scope="col" className="px-4 py-3 text-right">Ações</th>
             </tr>
@@ -106,6 +110,12 @@ export default function ListaTabela({
                   <td className="px-4 py-3">
                     <StatusBadge status={item.status} />
                   </td>
+
+                  {mostrarCategoria ? (
+                    <td className="whitespace-nowrap px-4 py-3">
+                      <CategoriaObraBadge categoria={item.categoria} />
+                    </td>
+                  ) : null}
 
                   <td className="whitespace-nowrap px-4 py-3 text-slate-500">
                     {formatarData(item.created_at)}

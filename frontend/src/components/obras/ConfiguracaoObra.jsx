@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import Dropdown from '../Dropdown.jsx';
 import SeletorPlanejador from '../SeletorPlanejador.jsx';
+import SeletorCategoriaObra from './SeletorCategoriaObra.jsx';
 import EtiquetasPendencia from '../EtiquetasPendencia.jsx';
 import ModalOsi from '../ModalOsi.jsx';
 import AnexoOsiAssinada, { descricaoOsi } from '../AnexoOsiAssinada.jsx';
@@ -136,6 +137,12 @@ export default function ConfiguracaoObra({
         STATUS_OBRA_OPCOES.find((opcao) => opcao.value === statusSelecionado)?.label || statusSelecionado
       }".`
     );
+  }
+
+  /** Grava a categoria da obra (Carteira da Coordenação / Cadeia de Ajuda). */
+  function alterarCategoria(categoria) {
+    if (categoria === obra.categoria) return undefined;
+    return executar('categoria', () => atualizarObra(obra.id, { categoria }), 'Categoria da obra atualizada.');
   }
 
   /** Grava a equipe de planejadores (principal primeiro). */
@@ -264,6 +271,19 @@ export default function ConfiguracaoObra({
                 'Nenhum planejador atribuído.'}
             </p>
           )}
+
+          <div className="mt-4">
+            <h3 className="mb-0.5 text-xs font-bold uppercase tracking-wide text-slate-500">Categoria da obra</h3>
+            <p className="mb-2 text-[11px] text-slate-500">
+              Define em qual frente a obra é acompanhada. Aparece nos cards, no Kanban, na lista e no Dashboard de Planejamento.
+            </p>
+            <SeletorCategoriaObra
+              categoria={obra.categoria}
+              podeAlterar={podeAtribuir}
+              salvando={salvando === 'categoria'}
+              onSelecionar={alterarCategoria}
+            />
+          </div>
         </div>
       </section>
 

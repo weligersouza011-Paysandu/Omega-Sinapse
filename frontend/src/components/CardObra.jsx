@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Check, Eye, EyeOff, Pencil, UserRound } from 'lucide-react';
+import CategoriaObraBadge from './CategoriaObraBadge.jsx';
 import EtiquetasPendencia from './EtiquetasPendencia.jsx';
 import SeletorPlanejador from './SeletorPlanejador.jsx';
 import StatusBadge from './StatusBadge.jsx';
@@ -30,6 +31,8 @@ function FotoIndisponivel() {
  *   revela o valor só neste card (o detalhe completo fica no modal).
  * - `semValor`: não exibe o valor de forma alguma (o detalhe da obra mostra).
  * - `destacarSs`: a SS vira o identificador principal e o PEP fica secundário.
+ * - `exibirCategoria`: selo da categoria da obra (Carteira da Coordenação /
+ *   Cadeia de Ajuda); só no módulo de Obras (orçamentos não têm categoria).
  * - `onAlternarSelecao`/`selecionado`: habilitam a seleção em lote.
  * - `acoesRapidas` + `onAcaoRapida`: botões de troca rápida de status
  *   (`[{ status, label, Icone, estilo }]`, já filtrados para o card).
@@ -44,6 +47,7 @@ export default function CardObra({
   ocultarValor = false,
   semValor = false,
   destacarSs = false,
+  exibirCategoria = false,
   selecionado = false,
   onAlternarSelecao,
   acoesRapidas = [],
@@ -133,8 +137,9 @@ export default function CardObra({
 
           {/* Governança ISO 9001: pendências documentais e planejador
               responsável (leitura para todos os perfis). */}
-          {orcamento.pendencias || (!podeAtribuirPlanejador && nomePlanejadores) ? (
+          {exibirCategoria || orcamento.pendencias || (!podeAtribuirPlanejador && nomePlanejadores) ? (
             <div className="flex flex-wrap items-center gap-1.5">
+              {exibirCategoria ? <CategoriaObraBadge categoria={orcamento.categoria} /> : null}
               <EtiquetasPendencia pendencias={orcamento.pendencias} />
               {!podeAtribuirPlanejador && nomePlanejadores ? (
                 <span

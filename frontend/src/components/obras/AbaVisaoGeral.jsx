@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BarChart3, CheckCircle2, CircleAlert, FileSpreadsheet, Loader2, MapPin } from 'lucide-react';
 import { CurvaS, IndicadoresPrazo } from './AbaCronograma.jsx';
 import MapaObraVisaoGeral from './MapaObraVisaoGeral.jsx';
+import CategoriaObraBadge from '../CategoriaObraBadge.jsx';
 import { obterCurvaS } from '../../services/cronogramaApi.js';
 import { formatarDataHora, formatarMoeda } from '../../utils/formatters.js';
 import { resumirOrcamento } from '../../utils/financeiroObra.js';
@@ -150,6 +151,12 @@ export default function AbaVisaoGeral({ obra, podeEditar, onIrParaAba }) {
             <Metadado rotulo="Cliente / Área" valor={obra.cliente} />
             <Metadado rotulo="Planejador principal" valor={equipe[0]?.nome || 'Sem responsável'} />
             <Metadado rotulo="Planejador secundário" valor={equipe[1]?.nome || '—'} />
+            <div className="col-span-2 min-w-0">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Categoria da obra</dt>
+              <dd className="mt-0.5">
+                <CategoriaObraBadge categoria={obra.categoria} />
+              </dd>
+            </div>
           </dl>
 
           <h3 className="mb-2 mt-4 border-t border-slate-100 pt-3 text-xs font-bold uppercase tracking-wide text-slate-500">
