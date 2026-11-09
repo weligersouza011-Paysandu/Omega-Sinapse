@@ -579,6 +579,73 @@ async function atualizarStatusRevisao(idParam, revisaoIdParam, payload, usuario)
   return formatarOrcamento(await orcamentoRepository.findById(id));
 }
 
+/**
+ * PATCH /api/orcamentos/:id/revisoes/:revisaoId
+ *
+ * Edita a revisão (tipo de alteração, valor, observação e/ou situação). Só os
+ * campos enviados são alterados; o valor vigente do orçamento é recalculado.
+ */
+async function editarRevisao(idParam, revisaoIdParam, payload, usuario) {
+  const id = validarId(idParam);
+  const revisaoId = validarId(revisaoIdParam);
+  validarUsuario(usuario);
+
+  const orcamento = await orcamentoRepository.findById(id);
+  if (!orcamento) {
+    throw new AppError(404, `Orçamento ${id} não encontrado.`);
+  }
+  const atual = (orcamento.revisoes || []).find((item) => item.id === revisaoId);
+  if (!atual) {
+    throw new AppError(404, `Revisão ${revisaoId} não encontrada no orçamento ${id}.`);
+  }
+
+  const dados = {};
+
+  if (!estaVazio(payload.tipo_alteracao)) {
+    const tipo = String(payload.tipo_alteracao).trim();
+    if (!TIPOS_ALTERACAO.includes(tipo)) {
+      throw new AppError(400, `"tipo_alteracao" inválido. Valores aceitos: ${TIPOS_ALTERACAO.join(', ')}.`);
+    }
+    dados.tipo_alteracao = tipo;
+  }
+
+  if (payload.valor !== undefined) {
+    dados.valor = normalizarValor(payload.valor, { obrigatorio: true });
+  }
+
+  if (payload.observacao !== undefined) {
+    if (estaVazio(payload.observacao)) {
+      throw new AppError(400, 'O campo "observacao" não pode ficar vazio.');
+    }
+    dados.observacao = String(payload.observacao).trim();
+  }
+
+  if (!estaVazio(payload.status_aprovacao)) {
+    const status = String(payload.status_aprovacao).trim();
+    if (!STATUS_APROVACAO.includes(status)) {
+      throw new AppError(400, `"status_aprovacao" inválido. Valores aceitos: ${STATUS_APROVACAO.join(', ')}.`);
+    }
+    dados.status_aprovacao = status;
+  }
+
+  if (Object.keys(dados).length === 0) {
+    throw new AppError(400, 'Informe ao menos um campo da revisão para alterar.');
+  }
+
+  const tipoFinal = dados.tipo_alteracao ?? atual.tipo_alteracao;
+  const valorFinal = dados.valor ?? Number(atual.valor);
+  if (tipoFinal === 'ADITIVO_FINANCEIRO' && !(valorFinal > 0)) {
+    throw new AppError(400, 'O valor de um aditivo financeiro deve ser maior que zero.');
+  }
+
+  const revisao = await orcamentoRepository.atualizarRevisao(id, revisaoId, dados);
+  if (!revisao) {
+    throw new AppError(404, `Revisão ${revisaoId} não encontrada no orçamento ${id}.`);
+  }
+
+  return formatarOrcamento(await orcamentoRepository.findById(id));
+}
+
 module.exports = {
   PERFIS,
   STATUS_VALIDOS,
@@ -593,4 +660,5 @@ module.exports = {
   atualizarOrcamento,
   adicionarRevisao,
   atualizarStatusRevisao,
+  editarRevisao,
 };

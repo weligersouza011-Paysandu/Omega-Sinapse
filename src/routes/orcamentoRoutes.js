@@ -40,4 +40,7 @@ router.post('/:id/revisoes', receberAnexoRevisao, processarAnexoRevisao, orcamen
 // PATCH  /api/orcamentos/:id/revisoes/:revisaoId -> aprova/rejeita a revisão (recalcula o valor)
 router.patch('/:id/revisoes/:revisaoId', orcamentoController.atualizarStatusRevisao);
 
+// PUT    /api/orcamentos/:id/revisoes/:revisaoId -> edita tipo, valor, observação e/ou situação da revisão
+router.put('/:id/revisoes/:revisaoId', orcamentoController.editarRevisao);
+
 module.exports = router;

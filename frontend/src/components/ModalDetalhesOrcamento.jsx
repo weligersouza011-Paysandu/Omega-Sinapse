@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, FilePlus2, Paperclip, X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Check, FilePlus2, Paperclip, Pencil, X } from 'lucide-react';
 import ModalBase from './ModalBase.jsx';
 import Spinner from './Spinner.jsx';
 import StatusBadge from './StatusBadge.jsx';
 import {
   adicionarRevisao as registrarRevisao,
   atualizarStatusRevisao,
+  editarRevisao,
   obterOrcamento,
 } from '../hooks/useOrcamentos.js';
 import { useToast } from '../context/ToastContext.jsx';
@@ -54,6 +55,62 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
   // Revisão com aprovação/rejeição em andamento (id).
   const [decidindo, setDecidindo] = useState(null);
   const campoAnexo = useRef(null);
+
+  // Edição de uma revisão do histórico: { id, tipo, valor, observacao, status }.
+  const [edicao, setEdicao] = useState(null);
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false);
+  const [erroEdicao, setErroEdicao] = useState('');
+
+  function iniciarEdicao(revisao) {
+    setErroEdicao('');
+    setEdicao({
+      id: revisao.id,
+      rotulo: revisao.rotulo || rotuloRevisao(revisao.numero_revisao),
+      tipo: revisao.tipo_alteracao || 'REVISAO_SUBSTITUTIVA',
+      valor: String(Number(revisao.valor)),
+      observacao: revisao.observacao || '',
+      status: revisao.status_aprovacao || 'APROVADO',
+    });
+  }
+
+  async function salvarEdicao(evento) {
+    evento.preventDefault();
+    setErroEdicao('');
+
+    const valor = Number(String(edicao.valor).replace(',', '.'));
+    if (edicao.valor === '' || !Number.isFinite(valor)) {
+      setErroEdicao('Informe o valor.');
+      return;
+    }
+    if (edicao.tipo === 'ADITIVO_FINANCEIRO' && valor <= 0) {
+      setErroEdicao('O valor do aditivo deve ser maior que zero.');
+      return;
+    }
+    if (!edicao.observacao.trim()) {
+      setErroEdicao('A observação (justificativa) é obrigatória.');
+      return;
+    }
+
+    setSalvandoEdicao(true);
+    try {
+      const atualizado = await editarRevisao(orcamentoId, edicao.id, {
+        tipo_alteracao: edicao.tipo,
+        valor,
+        observacao: edicao.observacao.trim(),
+        status_aprovacao: edicao.status,
+      });
+      setOrcamento(atualizado);
+      if (onAtualizado) onAtualizado();
+      toast.sucesso(`${edicao.rotulo} atualizada.`);
+      setEdicao(null);
+    } catch (err) {
+      const mensagem = err.message || 'Não foi possível editar a revisão.';
+      setErroEdicao(mensagem);
+      toast.erro(mensagem);
+    } finally {
+      setSalvandoEdicao(false);
+    }
+  }
 
   function limparFormulario() {
     setNovoValor('');
@@ -115,6 +172,7 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
   useEffect(() => {
     if (aberto && orcamentoId) {
       limparFormulario();
+      setEdicao(null);
       carregar();
     }
   }, [aberto, orcamentoId, carregar]);
@@ -276,7 +334,7 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
                 <table className="min-w-full divide-y divide-slate-200 text-sm">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Rev', 'Tipo', 'Valor', 'Aprovação', 'Anexo', 'Autor', 'Data', 'Observação'].map((titulo) => (
+                      {['Rev', 'Tipo', 'Valor', 'Aprovação', 'Anexo', 'Autor', 'Data', 'Observação', 'Ações'].map((titulo) => (
                         <th
                           key={titulo}
                           scope="col"
@@ -295,7 +353,8 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
                       const rejeitada = revisao.status_aprovacao === 'REJEITADO';
 
                       return (
-                        <tr key={revisao.id} className={`align-top ${rejeitada ? 'bg-slate-50/70' : ''}`}>
+                        <Fragment key={revisao.id}>
+                        <tr className={`align-top ${rejeitada ? 'bg-slate-50/70' : ''} ${edicao?.id === revisao.id ? 'bg-omega-50/50' : ''}`}>
                           <td className="whitespace-nowrap px-3 py-2 font-semibold text-omega-700">{rotulo}</td>
                           <td className="whitespace-nowrap px-3 py-2">
                             <Etiqueta
@@ -371,12 +430,100 @@ export default function ModalDetalhesOrcamento({ orcamentoId, aberto, onFechar, 
                             {formatarDataHora(revisao.created_at)}
                           </td>
                           <td className="min-w-[12rem] px-3 py-2 text-slate-600">{revisao.observacao}</td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            <button
+                              type="button"
+                              onClick={() => (edicao?.id === revisao.id ? setEdicao(null) : iniciarEdicao(revisao))}
+                              className="inline-flex items-center gap-1 rounded border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-omega-300 hover:text-omega-700"
+                              title={`Editar ${rotulo}`}
+                              aria-label={`Editar ${rotulo}`}
+                            >
+                              <Pencil className="h-3 w-3" aria-hidden="true" />
+                              Editar
+                            </button>
+                          </td>
                         </tr>
+                        {edicao?.id === revisao.id ? (
+                          <tr className="bg-omega-50/40">
+                            <td colSpan={9} className="px-3 py-3">
+                              <form onSubmit={salvarEdicao} className="space-y-3">
+                                <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+                                  Editando {rotulo}
+                                </p>
+                                <div className="grid gap-3 sm:grid-cols-[14rem_10rem_10rem_1fr]">
+                                  <div>
+                                    <label className="rotulo" htmlFor="edTipo">Tipo de alteração</label>
+                                    <select
+                                      id="edTipo"
+                                      className="campo"
+                                      value={edicao.tipo}
+                                      onChange={(e) => setEdicao({ ...edicao, tipo: e.target.value })}
+                                    >
+                                      {TIPOS_ALTERACAO_REVISAO.map((opcao) => (
+                                        <option key={opcao.value} value={opcao.value}>
+                                          {opcao.descricao}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="rotulo" htmlFor="edValor">Valor (R$)</label>
+                                    <input
+                                      id="edValor"
+                                      type="number"
+                                      step="0.01"
+                                      className="campo"
+                                      value={edicao.valor}
+                                      onChange={(e) => setEdicao({ ...edicao, valor: e.target.value })}
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="rotulo" htmlFor="edStatus">Situação</label>
+                                    <select
+                                      id="edStatus"
+                                      className="campo"
+                                      value={edicao.status}
+                                      onChange={(e) => setEdicao({ ...edicao, status: e.target.value })}
+                                    >
+                                      {STATUS_APROVACAO_REVISAO.map((opcao) => (
+                                        <option key={opcao.value} value={opcao.value}>
+                                          {opcao.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="rotulo" htmlFor="edObs">Justificativa / observação</label>
+                                    <input
+                                      id="edObs"
+                                      className="campo"
+                                      value={edicao.observacao}
+                                      onChange={(e) => setEdicao({ ...edicao, observacao: e.target.value })}
+                                    />
+                                  </div>
+                                </div>
+                                {erroEdicao ? (
+                                  <p role="alert" className="text-xs font-semibold text-red-600">{erroEdicao}</p>
+                                ) : null}
+                                <div className="flex gap-2">
+                                  <button type="submit" className="btn-primario" disabled={salvandoEdicao}>
+                                    {salvandoEdicao ? <Spinner tamanho="sm" /> : <Check className="h-4 w-4" aria-hidden="true" />}
+                                    Salvar alterações
+                                  </button>
+                                  <button type="button" className="btn-neutro" onClick={() => setEdicao(null)} disabled={salvandoEdicao}>
+                                    Cancelar
+                                  </button>
+                                </div>
+                              </form>
+                            </td>
+                          </tr>
+                        ) : null}
+                        </Fragment>
                       );
                     })}
                     {revisoes.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-3 py-4 text-center text-slate-500">
+                        <td colSpan={9} className="px-3 py-4 text-center text-slate-500">
                           Nenhuma revisão registrada.
                         </td>
                       </tr>

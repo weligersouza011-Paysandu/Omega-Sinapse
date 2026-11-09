@@ -494,6 +494,37 @@ async function atualizarStatusRevisao(orcamentoId, revisaoId, statusAprovacao) {
   );
 }
 
+/**
+ * Edita uma revisão já registrada (tipo, valor, observação e/ou situação) e
+ * recalcula o valor vigente do orçamento.
+ *
+ * @returns {Promise<object|null>} revisão atualizada (ou null se não existir no orçamento)
+ */
+async function atualizarRevisao(orcamentoId, revisaoId, dados) {
+  return prisma.$transaction(
+    async (tx) => {
+      if (!(await travarOrcamento(tx, orcamentoId))) {
+        return null;
+      }
+
+      const existente = await tx.orcamentoRevisao.findFirst({
+        where: { id: revisaoId, orcamento_id: orcamentoId },
+        select: { id: true },
+      });
+      if (!existente) {
+        return null;
+      }
+
+      const revisao = await tx.orcamentoRevisao.update({ where: { id: revisaoId }, data: dados });
+
+      await recalcularValor(tx, orcamentoId);
+
+      return revisao;
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
 module.exports = {
   create,
   findById,
@@ -503,6 +534,7 @@ module.exports = {
   update,
   addRevisao,
   atualizarStatusRevisao,
+  atualizarRevisao,
   calcularValorVigente,
   CAMPOS_ATUALIZAVEIS,
 };

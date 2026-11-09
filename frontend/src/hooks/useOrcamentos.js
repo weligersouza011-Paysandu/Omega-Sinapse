@@ -106,6 +106,19 @@ export async function atualizarStatusRevisao(id, revisaoId, statusAprovacao) {
   return data;
 }
 
+/**
+ * Edita uma revisão já registrada (tipo, valor, observação e/ou situação);
+ * devolve o orçamento com o valor vigente recalculado.
+ */
+export async function editarRevisao(id, revisaoId, campos) {
+  if (MODO_DEMO) {
+    throw new Error('A edição de revisões não está disponível no modo demonstração.');
+  }
+
+  const { data } = await api.put(`/orcamentos/${id}/revisoes/${revisaoId}`, campos);
+  return data;
+}
+
 /** Busca os PEPs e fiscais já usados no histórico (dropdowns/autocomplete). */
 export async function obterOpcoes() {
   const { data } = await api.get('/orcamentos/opcoes');

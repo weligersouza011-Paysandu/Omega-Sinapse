@@ -115,6 +115,20 @@ async function atualizarStatusRevisao(req, res, next) {
   }
 }
 
+async function editarRevisao(req, res, next) {
+  try {
+    const orcamento = await orcamentoService.editarRevisao(
+      req.params.id,
+      req.params.revisaoId,
+      req.body,
+      req.user
+    );
+    return res.json(orcamento);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
   criarOrcamento,
   listarOrcamentos,
@@ -124,4 +138,5 @@ module.exports = {
   atualizarOrcamento,
   adicionarRevisao,
   atualizarStatusRevisao,
+  editarRevisao,
 };
