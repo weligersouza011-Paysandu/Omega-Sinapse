@@ -30,7 +30,7 @@ function FotoIndisponivel() {
  * - `ocultarValor`: não exibe o valor financeiro diretamente; um botão "olho"
  *   revela o valor só neste card (o detalhe completo fica no modal).
  * - `semValor`: não exibe o valor de forma alguma (o detalhe da obra mostra).
- * - `destacarSs`: a SS vira o identificador principal e o PEP fica secundário.
+ * - `destacarSs`: a SS (cliente) e a OSI (controle interno) viram os identificadores principais e o PEP fica secundário.
  * - `exibirCategoria`: selo da categoria da obra (Carteira da Coordenação /
  *   Cadeia de Ajuda); só no módulo de Obras (orçamentos não têm categoria).
  * - `onAlternarSelecao`/`selecionado`: habilitam a seleção em lote.
@@ -109,8 +109,17 @@ export default function CardObra({
         <div className="flex flex-1 flex-col gap-3 p-4">
           {destacarSs ? (
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
-              <p className="truncate text-lg font-bold leading-tight text-slate-800">{orcamento.ss || '—'}</p>
+              {/* SS é do cliente; OSI (Ordem de Serviço Interna) é o controle interno — ambas em destaque. */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
+                  <p className="truncate text-lg font-bold leading-tight text-slate-800">{orcamento.ss || '—'}</p>
+                </div>
+                <div className="min-w-0" title="OSI — Ordem de Serviço Interna (controle interno)">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">OSI</p>
+                  <p className="truncate text-lg font-bold leading-tight text-slate-800">{orcamento.osi_numero || '—'}</p>
+                </div>
+              </div>
               <p className="mt-0.5 truncate text-xs font-medium text-slate-500">
                 <span className="font-semibold uppercase tracking-wide text-slate-400">PEP (CC)</span>{' '}
                 {orcamento.pep || '—'}
@@ -126,6 +135,12 @@ export default function CardObra({
                 <div className="shrink-0 text-right">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">SS</p>
                   <p className="text-sm font-semibold text-slate-700">{orcamento.ss}</p>
+                </div>
+              ) : null}
+              {orcamento.osi_numero ? (
+                <div className="shrink-0 text-right" title="OSI — Ordem de Serviço Interna">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">OSI</p>
+                  <p className="text-sm font-semibold text-slate-700">{orcamento.osi_numero}</p>
                 </div>
               ) : null}
             </div>
