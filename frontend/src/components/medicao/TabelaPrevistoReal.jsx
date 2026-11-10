@@ -136,7 +136,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
     <section className="card overflow-hidden" aria-label="Previsto versus real por mês">
       <header className="flex flex-wrap items-start justify-between gap-3 px-5 pb-3 pt-4">
         <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-red-50 text-red-700 ring-1 ring-red-100">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100">
             <TableProperties className="h-5 w-5" aria-hidden="true" />
           </span>
           <div>
