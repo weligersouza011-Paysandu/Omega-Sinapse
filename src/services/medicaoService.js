@@ -559,13 +559,66 @@ async function atualizarBoletim(idParam, boletimIdParam, payload = {}, usuario) 
   if (Object.prototype.hasOwnProperty.call(payload, 'observacao')) {
     dados.observacao = estaVazio(payload.observacao) ? null : String(payload.observacao).trim();
   }
-  if (Object.keys(dados).length === 0) {
-    throw new AppError(400, 'Informe "status" e/ou "observacao" para atualizar o boletim.');
-  }
-
-  if (!(await boletimRepository.buscar(id, boletimId))) {
+  const existente = await boletimRepository.buscar(id, boletimId);
+  if (!existente) {
     throw new AppError(404, `Boletim ${boletimId} não encontrado neste contrato.`);
   }
+
+  // Correção do número, do ciclo e (sem detalhamento por SS) do valor medido.
+  if (!estaVazio(payload.numero_bmm)) {
+    const numero = String(payload.numero_bmm).trim().toUpperCase();
+    if (numero.length > 30) {
+      throw new AppError(400, 'O campo "numero_bmm" aceita no máximo 30 caracteres.');
+    }
+    if (numero !== existente.numero_bmm) {
+      if (await boletimRepository.existeNumero(id, numero, boletimId)) {
+        throw new AppError(409, `O boletim ${numero} já está registrado neste contrato.`);
+      }
+      dados.numero_bmm = numero;
+    }
+  }
+
+  if (!estaVazio(payload.mes_referencia) || !estaVazio(payload.ciclo_inicio) || !estaVazio(payload.ciclo_fim)) {
+    let inicio;
+    let fim;
+    if (!estaVazio(payload.mes_referencia)) {
+      ({ inicio, fim } = cicloDoMes(payload.mes_referencia));
+    } else {
+      inicio = parseData(payload.ciclo_inicio, 'ciclo_inicio');
+      fim = parseData(payload.ciclo_fim, 'ciclo_fim');
+    }
+    if (fim < inicio) {
+      throw new AppError(400, 'O fim do ciclo não pode ser anterior ao início.');
+    }
+    const mudou = dataISO(existente.ciclo_inicio) !== dataISO(inicio) || dataISO(existente.ciclo_fim) !== dataISO(fim);
+    if (mudou) {
+      const sobreposto = await boletimRepository.existeCicloSobreposto(id, inicio, fim, boletimId);
+      if (sobreposto) {
+        throw new AppError(409, `O ciclo informado se sobrepõe ao do boletim ${sobreposto}.`);
+      }
+      dados.ciclo_inicio = inicio;
+      dados.ciclo_fim = fim;
+    }
+  }
+
+  if (!estaVazio(payload.valor_medido)) {
+    const valor = valorNaoNegativo(payload.valor_medido, 'valor_medido');
+    if ((existente.itens || []).length > 0) {
+      if (emCentavos(valor) !== emCentavos(existente.valor_medido)) {
+        throw new AppError(
+          400,
+          'Este boletim tem o valor detalhado por SS: o total é a soma das SS. Exclua o boletim e lance de novo para mudar os valores.'
+        );
+      }
+    } else {
+      dados.valor_medido = valor;
+    }
+  }
+
+  if (Object.keys(dados).length === 0) {
+    throw new AppError(400, 'Informe ao menos um campo do boletim para alterar (número, ciclo, valor, status ou observação).');
+  }
+
   return formatarBoletim(await boletimRepository.atualizar(id, boletimId, dados));
 }
 

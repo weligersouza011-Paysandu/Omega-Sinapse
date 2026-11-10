@@ -24,6 +24,12 @@ const obterContrato = acao((req) => contratoService.obterContrato(req.params.id,
 /** POST /api/contratos */
 const criarContrato = acao((req) => contratoService.criarContrato(req.body || {}, req.user), 201);
 
+/** PUT /api/contratos/:id */
+const atualizarContrato = acao((req) => contratoService.atualizarContrato(req.params.id, req.body || {}, req.user));
+
+/** DELETE /api/contratos/:id (somente ADMIN; com dados dependentes exige ?forcar=true) */
+const excluirContrato = acao((req) => contratoService.excluirContrato(req.params.id, req.query, req.user));
+
 /** POST /api/contratos/:id/tac */
 const registrarTac = acao((req) => contratoService.registrarTac(req.params.id, req.body || {}, req.user), 201);
 
@@ -50,6 +56,8 @@ const importarMedicao = acao((req) =>
 );
 
 module.exports = {
+  atualizarContrato,
+  excluirContrato,
   importarMedicao,
   listarContratos,
   obterContrato,

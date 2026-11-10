@@ -11,7 +11,7 @@ const TRANSACAO_TIMEOUT_MS = 15000;
  * obras vinculadas com o valor vigente do orçamento (base do valor comprometido).
  */
 const INCLUDE_CONTRATO = {
-  _count: { select: { boletins: true } },
+  _count: { select: { boletins: true, itens_qqp: true, curva_financeira: true } },
   aditivos: {
     orderBy: [{ data_assinatura: 'asc' }, { id: 'asc' }],
     include: { usuario: { select: { nome: true } } },
@@ -53,6 +53,52 @@ async function existsById(id) {
 async function create(dados) {
   const contrato = await prisma.contrato.create({ data: dados });
   return findById(contrato.id);
+}
+
+/**
+ * Atualiza os dados do contrato. Como cada TAC guarda o teto que passou a valer na
+ * sua assinatura, os "novos valores totais" são recalculados em ordem quando o
+ * valor inicial muda.
+ */
+async function atualizar(id, dados) {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.contrato.update({ where: { id }, data: dados });
+
+      if (dados.valor_inicial !== undefined) {
+        const aditivos = await tx.termoAditivo.findMany({
+          where: { contrato_id: id },
+          orderBy: [{ data_assinatura: 'asc' }, { id: 'asc' }],
+        });
+        let teto = new Prisma.Decimal(dados.valor_inicial);
+        for (const tac of aditivos) {
+          teto = teto.plus(tac.valor_aditivo);
+          // eslint-disable-next-line no-await-in-loop
+          await tx.termoAditivo.update({ where: { id: tac.id }, data: { novo_valor_total: teto } });
+        }
+      }
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+  return findById(id);
+}
+
+/** Quantos registros dependem do contrato (para avisar antes de excluir). */
+async function resumirDependencias(id) {
+  const [boletins, aditivos, obras, itensQqp, curva, recursosEmUso] = await Promise.all([
+    prisma.boletimMedicao.count({ where: { contrato_id: id } }),
+    prisma.termoAditivo.count({ where: { contrato_id: id } }),
+    prisma.obra.count({ where: { contrato_id: id } }),
+    prisma.itemQqp.count({ where: { contrato_id: id } }),
+    prisma.curvaFinanceiraContrato.count({ where: { contrato_id: id } }),
+    prisma.recursoObraQqp.count({ where: { item: { contrato_id: id } } }),
+  ]);
+  return { boletins, aditivos, obras, itens_qqp: itensQqp, curva_ciclos: curva, recursos_em_uso: recursosEmUso };
+}
+
+/** Exclui o contrato; boletins, TACs, QQP e curva saem em cascata e as obras ficam sem contrato. */
+async function excluir(id) {
+  await prisma.contrato.delete({ where: { id } });
 }
 
 /**
@@ -116,6 +162,9 @@ async function vincularObras(contratoId, obraIds) {
 }
 
 module.exports = {
+  atualizar,
+  resumirDependencias,
+  excluir,
   findAll,
   findById,
   findByIdVale,

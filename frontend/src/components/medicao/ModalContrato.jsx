@@ -2,12 +2,12 @@ import { useEffect, useState } from 'react';
 import ModalBase from '../ModalBase.jsx';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
-import { criarContrato } from '../../hooks/useMedicao.js';
+import { atualizarContrato, criarContrato } from '../../hooks/useMedicao.js';
 
 const FORM_VAZIO = { id_vale: '', descricao: '', valor_inicial: '', data_inicio: '', data_fim: '' };
 
 /** Cadastro do contrato-mãe com a Vale (ex.: CT-251). */
-export default function ModalContrato({ aberto, onFechar, onCriado }) {
+export default function ModalContrato({ aberto, contrato = null, onFechar, onCriado }) {
   const toast = useToast();
   const [form, setForm] = useState(FORM_VAZIO);
   const [erro, setErro] = useState('');
@@ -15,11 +15,21 @@ export default function ModalContrato({ aberto, onFechar, onCriado }) {
 
   useEffect(() => {
     if (aberto) {
-      setForm(FORM_VAZIO);
+      setForm(
+        contrato
+          ? {
+              id_vale: contrato.id_vale,
+              descricao: contrato.descricao,
+              valor_inicial: String(contrato.valor_inicial),
+              data_inicio: contrato.data_inicio,
+              data_fim: contrato.data_fim,
+            }
+          : FORM_VAZIO
+      );
       setErro('');
       setEnviando(false);
     }
-  }, [aberto]);
+  }, [aberto, contrato]);
 
   const alterar = (campo, valor) => setForm((anterior) => ({ ...anterior, [campo]: valor }));
 
@@ -35,15 +45,16 @@ export default function ModalContrato({ aberto, onFechar, onCriado }) {
 
     setEnviando(true);
     try {
-      const contrato = await criarContrato({
+      const dados = {
         id_vale: form.id_vale.trim(),
         descricao: form.descricao.trim(),
         valor_inicial: Number(form.valor_inicial),
         data_inicio: form.data_inicio,
         data_fim: form.data_fim,
-      });
-      toast.sucesso(`Contrato ${contrato.id_vale} cadastrado.`);
-      onCriado(contrato);
+      };
+      const salvo = contrato ? await atualizarContrato(contrato.id, dados) : await criarContrato(dados);
+      toast.sucesso(contrato ? `Contrato ${salvo.id_vale} atualizado.` : `Contrato ${salvo.id_vale} cadastrado.`);
+      onCriado(salvo);
       onFechar();
       return undefined;
     } catch (err) {
@@ -59,8 +70,12 @@ export default function ModalContrato({ aberto, onFechar, onCriado }) {
   return (
     <ModalBase
       aberto={aberto}
-      titulo="Novo contrato"
-      subtitulo="Contrato-mãe com a Vale. Os aditivos (TAC) e as obras são vinculados depois."
+      titulo={contrato ? 'Corrigir contrato' : 'Novo contrato'}
+      subtitulo={
+        contrato
+          ? 'Altere o identificador, a descrição, o valor inicial ou a vigência. Os TACs são recalculados sobre o novo valor.'
+          : 'Contrato-mãe com a Vale. Os aditivos (TAC) e as obras são vinculados depois.'
+      }
       onFechar={() => (enviando ? null : onFechar())}
       tamanho="lg"
     >
@@ -139,7 +154,7 @@ export default function ModalContrato({ aberto, onFechar, onCriado }) {
           </button>
           <button type="submit" className="btn-primario" disabled={enviando}>
             {enviando ? <Spinner tamanho="sm" /> : null}
-            {enviando ? 'Salvando...' : 'Cadastrar contrato'}
+            {enviando ? 'Salvando...' : contrato ? 'Salvar correção' : 'Cadastrar contrato'}
           </button>
         </div>
       </form>

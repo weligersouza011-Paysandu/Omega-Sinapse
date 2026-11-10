@@ -51,9 +51,9 @@ async function existeCicloSobreposto(contratoId, inicio, fim, ignorarId = null) 
   return encontrado ? encontrado.numero_bmm : null;
 }
 
-async function existeNumero(contratoId, numeroBmm) {
-  const encontrado = await prisma.boletimMedicao.findUnique({
-    where: { uq_bmm_por_contrato: { contrato_id: contratoId, numero_bmm: numeroBmm } },
+async function existeNumero(contratoId, numeroBmm, ignorarId = null) {
+  const encontrado = await prisma.boletimMedicao.findFirst({
+    where: { contrato_id: contratoId, numero_bmm: numeroBmm, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
     select: { id: true },
   });
   return Boolean(encontrado);

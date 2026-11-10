@@ -7,6 +7,8 @@ import CurvaSFinanceira from '../components/medicao/CurvaSFinanceira.jsx';
 import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
 import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
+import HistoricoBoletins from '../components/medicao/HistoricoBoletins.jsx';
+import HistoricoContratos from '../components/medicao/HistoricoContratos.jsx';
 import ModalContrato from '../components/medicao/ModalContrato.jsx';
 import ModalImportarPlanilhas from '../components/medicao/ModalImportarPlanilhas.jsx';
 import ModalQqp from '../components/medicao/ModalQqp.jsx';
@@ -37,8 +39,10 @@ export default function Medicao() {
   const { contratos, contratoId, selecionarContrato, dados, carregando, carregandoContratos, erro, recarregar } =
     useDashboardMedicao();
 
-  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | 'importar' | null.
+  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | 'importar' | 'editar' | null.
   const [dialogo, setDialogo] = useState(null);
+  const [aba, setAba] = useState('dashboard');
+  const [contratoEmEdicao, setContratoEmEdicao] = useState(null);
   const [boletimOcupadoId, setBoletimOcupadoId] = useState(null);
   const [excluir, setExcluir] = useState(null);
   const [excluindo, setExcluindo] = useState(false);
@@ -160,6 +164,27 @@ export default function Medicao() {
         </div>
       </header>
 
+      <div role="tablist" aria-label="Seções da medição" className="inline-flex gap-1 rounded-lg bg-slate-100 p-1">
+        {[
+          ['dashboard', 'Dashboard de medição'],
+          ['medicoes', `Histórico de medições (${dados?.boletins?.length ?? 0})`],
+          ['historico', `Histórico de contratos (${contratos.length})`],
+        ].map(([id, rotulo]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={aba === id}
+            onClick={() => setAba(id)}
+            className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${
+              aba === id ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
       {erro ? (
         <div className="card flex flex-col gap-3 border-red-200 bg-red-50 p-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
@@ -176,7 +201,31 @@ export default function Medicao() {
         </div>
       ) : null}
 
-      {carregandoContratos && !contratos.length ? (
+      {aba === 'medicoes' ? (
+        <HistoricoBoletins
+          contratoId={contratoId}
+          boletins={dados?.boletins || []}
+          podeGerir={podeGerir}
+          onAtualizado={recarregar}
+          onExcluir={setExcluir}
+        />
+      ) : aba === 'historico' ? (
+        <HistoricoContratos
+          contratos={contratos}
+          contratoAbertoId={contratoId}
+          podeGerir={podeGerir}
+          ehAdmin={usuario?.perfil === 'ADMIN'}
+          onAbrir={(id) => {
+            selecionarContrato(id);
+            setAba('dashboard');
+          }}
+          onEditar={(item) => {
+            setContratoEmEdicao(item);
+            setDialogo('editar');
+          }}
+          onExcluido={recarregar}
+        />
+      ) : carregandoContratos && !contratos.length ? (
         <div className="card flex min-h-[260px] items-center justify-center gap-2 text-sm text-slate-500">
           <Spinner tamanho="md" className="text-omega-600" />
           Carregando contratos...
@@ -242,6 +291,12 @@ export default function Medicao() {
         contrato={contrato}
         onFechar={() => setDialogo(null)}
         onSalvo={recarregar}
+      />
+      <ModalContrato
+        aberto={dialogo === 'editar'}
+        contrato={contratoEmEdicao}
+        onFechar={() => setDialogo(null)}
+        onCriado={recarregar}
       />
       <ModalImportarPlanilhas
         aberto={dialogo === 'importar'}

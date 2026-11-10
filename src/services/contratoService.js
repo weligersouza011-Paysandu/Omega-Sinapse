@@ -121,6 +121,8 @@ function montarContrato(registro) {
     data_fim: fim,
     em_vigencia: inicio <= hoje && hoje <= fim,
     quantidade_boletins: contagem?.boletins ?? 0,
+    quantidade_itens_qqp: contagem?.itens_qqp ?? 0,
+    possui_curva: (contagem?.curva_financeira ?? 0) > 0,
     created_at: contrato.created_at,
     updated_at: contrato.updated_at,
     aditivos: aditivos.map(({ usuario, ...tac }) => ({
@@ -207,6 +209,82 @@ async function criarContrato(payload = {}, usuario) {
 }
 
 /**
+ * PUT /api/contratos/:id — corrige o contrato (identificador, descrição, valor inicial e vigência).
+ * Só os campos enviados mudam.
+ */
+async function atualizarContrato(idParam, payload = {}, usuario) {
+  exigirGestor(usuario);
+  const id = validarId(idParam);
+
+  const existente = await contratoRepository.findById(id);
+  if (!existente) {
+    throw new AppError(404, `Contrato ${id} não encontrado.`);
+  }
+
+  const tem = (campo) => Object.prototype.hasOwnProperty.call(payload, campo);
+  const dados = {};
+  if (tem('id_vale')) dados.id_vale = textoObrigatorio(payload.id_vale, 'id_vale', 60).toUpperCase();
+  if (tem('descricao')) dados.descricao = textoObrigatorio(payload.descricao, 'descricao');
+  if (tem('valor_inicial')) dados.valor_inicial = valorPositivo(payload.valor_inicial, 'valor_inicial');
+  if (tem('data_inicio')) dados.data_inicio = dataObrigatoria(payload.data_inicio, 'data_inicio');
+  if (tem('data_fim')) dados.data_fim = dataObrigatoria(payload.data_fim, 'data_fim');
+  if (Object.keys(dados).length === 0) {
+    throw new AppError(400, 'Informe ao menos um campo do contrato para alterar.');
+  }
+
+  const inicio = dados.data_inicio || new Date(`${dataISO(existente.data_inicio)}T00:00:00Z`);
+  const fim = dados.data_fim || new Date(`${dataISO(existente.data_fim)}T00:00:00Z`);
+  if (fim < inicio) {
+    throw new AppError(400, 'A data de fim do contrato não pode ser anterior à data de início.');
+  }
+
+  if (dados.id_vale && dados.id_vale !== existente.id_vale && (await contratoRepository.findByIdVale(dados.id_vale))) {
+    throw new AppError(409, `Já existe um contrato cadastrado com o identificador ${dados.id_vale}.`);
+  }
+
+  return montarContrato(await contratoRepository.atualizar(id, dados));
+}
+
+/**
+ * DELETE /api/contratos/:id — somente ADMIN. Remove também os boletins, TACs, QQP e a
+ * curva do contrato; as obras vinculadas apenas deixam de ter contrato. Quando há
+ * dados dependentes é preciso confirmar com `forcar=true`.
+ */
+async function excluirContrato(idParam, query = {}, usuario) {
+  validarUsuario(usuario);
+  if (usuario.perfil !== 'ADMIN') {
+    throw new AppError(403, 'Apenas administradores podem excluir contratos.');
+  }
+  const id = validarId(idParam);
+
+  const existente = await contratoRepository.findById(id);
+  if (!existente) {
+    throw new AppError(404, `Contrato ${id} não encontrado.`);
+  }
+
+  const dependencias = await contratoRepository.resumirDependencias(id);
+  if (dependencias.recursos_em_uso > 0) {
+    throw new AppError(
+      409,
+      `O QQP deste contrato está em uso em ${dependencias.recursos_em_uso} alocação(ões) de obra. Remova essas alocações antes de excluir o contrato.`
+    );
+  }
+
+  const temDados = dependencias.boletins + dependencias.aditivos + dependencias.itens_qqp + dependencias.curva_ciclos > 0;
+  const forcar = String(query?.forcar ?? '').toLowerCase() === 'true';
+  if (temDados && !forcar) {
+    throw new AppError(
+      409,
+      'Este contrato tem boletins, TACs ou curva cadastrados. Confirme a exclusão para apagar tudo.',
+      dependencias
+    );
+  }
+
+  await contratoRepository.excluir(id);
+  return { id, id_vale: existente.id_vale, excluido: true, removidos: dependencias };
+}
+
+/**
  * POST /api/contratos/:id/tac — registra um Termo Aditivo e atualiza o teto.
  * Devolve o contrato com o novo consolidado.
  */
@@ -267,6 +345,8 @@ async function vincularObras(idParam, payload = {}, usuario) {
 }
 
 module.exports = {
+  atualizarContrato,
+  excluirContrato,
   PERFIS_QUE_GEREM_CONTRATOS,
   listarContratos,
   obterContrato,

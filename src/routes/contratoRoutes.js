@@ -30,6 +30,12 @@ router.get('/:id', contratoController.obterContrato);
 // GET  /api/contratos/:id/dashboard-medicao -> KPIs, aderência financeira, árvore BMM x SS e Curva S financeira
 router.get('/:id/dashboard-medicao', contratoController.obterDashboardMedicao);
 
+// PUT    /api/contratos/:id -> corrige identificador, descrição, valor inicial e vigência
+router.put('/:id', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.atualizarContrato);
+
+// DELETE /api/contratos/:id -> exclui o contrato (ADMIN; com boletins/TACs exige ?forcar=true)
+router.delete('/:id', autorizar('ADMIN'), contratoController.excluirContrato);
+
 // POST /api/contratos            -> cadastra o contrato-mãe
 // { id_vale, descricao, valor_inicial, data_inicio, data_fim }
 router.post('/', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.criarContrato);

@@ -25,6 +25,18 @@ export async function criarContrato(dados) {
   return data;
 }
 
+/** Corrige o contrato (identificador, descrição, valor inicial e vigência). */
+export async function atualizarContrato(contratoId, dados) {
+  const { data } = await api.put(`/contratos/${contratoId}`, dados);
+  return data;
+}
+
+/** Exclui o contrato (ADMIN). Com boletins/TACs/curva é preciso `forcar`. */
+export async function excluirContrato(contratoId, { forcar = false } = {}) {
+  const { data } = await api.delete(`/contratos/${contratoId}`, { params: forcar ? { forcar: true } : {} });
+  return data;
+}
+
 /** Registra um Termo Aditivo (TAC); devolve o contrato com o novo teto. */
 export async function registrarTac(contratoId, dados) {
   const { data } = await api.post(`/contratos/${contratoId}/tac`, dados);
@@ -40,6 +52,12 @@ export async function vincularObrasAoContrato(contratoId, obraIds) {
 /** Lança um Boletim de Medição (BMM) com os valores por obra/SS. */
 export async function criarBoletim(contratoId, dados) {
   const { data } = await api.post(`/contratos/${contratoId}/boletins`, dados);
+  return data;
+}
+
+/** Corrige um boletim (número, mês do ciclo, valor sem SS, situação e observação). */
+export async function atualizarBoletim(contratoId, boletimId, dados) {
+  const { data } = await api.patch(`/contratos/${contratoId}/boletins/${boletimId}`, dados);
   return data;
 }
 
