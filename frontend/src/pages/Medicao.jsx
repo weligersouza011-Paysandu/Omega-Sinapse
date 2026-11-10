@@ -4,6 +4,7 @@ import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
 import CurvaSFinanceira from '../components/medicao/CurvaSFinanceira.jsx';
+import TabelaPrevistoReal from '../components/medicao/TabelaPrevistoReal.jsx';
 import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
 import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
@@ -297,6 +298,13 @@ export default function Medicao() {
             </div>
 
             <CurvaSFinanceira curva={dados.curva_s} fonte={dados.curva_s_fonte} />
+            <TabelaPrevistoReal
+              curva={dados.curva_s}
+              fonte={dados.curva_s_fonte}
+              contratoId={contratoId}
+              podeGerir={podeGerir}
+              onAlterado={recarregar}
+            />
           </div>
         </div>
       ) : null}

@@ -201,6 +201,15 @@ async function curvaDoContrato(contratoId) {
   });
 }
 
+/** Grava, na mesma transação, as alterações de vários ciclos da curva ([{ id, dados }]). */
+async function atualizarCiclosDaCurva(alteracoes) {
+  if (alteracoes.length === 0) return;
+  await prisma.$transaction(
+    alteracoes.map((alteracao) => prisma.curvaFinanceiraContrato.update({ where: { id: alteracao.id }, data: alteracao.dados })),
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
 /** Obra com orçamento, contrato e avanço físico (base da medição e da projeção). */
 async function obraParaProjecao(obraId) {
   return prisma.obra.findUnique({
@@ -255,6 +264,7 @@ module.exports = {
   alterarItem,
   removerItem,
   curvaDoContrato,
+  atualizarCiclosDaCurva,
   obraParaProjecao,
   itensDaObra,
   contarItensDaObra,
