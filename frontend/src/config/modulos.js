@@ -41,6 +41,14 @@ export const MODULOS = [
     icone: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
   },
   {
+    id: 'medicao',
+    rota: '/medicao',
+    label: 'Medição',
+    descricao: 'Contrato, TACs, boletins de medição e Curva S financeira.',
+    ativo: true,
+    icone: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm2 5h6M9 12h6M9 16h3',
+  },
+  {
     id: 'curva-s',
     rota: '/curva-s',
     label: 'Curva S & BI',

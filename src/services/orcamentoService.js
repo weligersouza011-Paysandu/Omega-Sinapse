@@ -2,6 +2,7 @@
 
 const AppError = require('../errors/AppError');
 const orcamentoRepository = require('../repositories/orcamentoRepository');
+const boletimMedicaoRepository = require('../repositories/boletimMedicaoRepository');
 const obraRepository = require('../repositories/obraRepository');
 
 /** Perfis reconhecidos pelo RBAC do módulo. */
@@ -762,6 +763,13 @@ async function excluirOrcamento(idParam, query, usuario) {
   const resumo = await orcamentoRepository.resumirExclusao(id);
   if (!resumo) {
     throw new AppError(404, `Orçamento ${id} não encontrado.`);
+  }
+
+  if (resumo.obra && (await boletimMedicaoRepository.contarItensDaObra(resumo.obra.id)) > 0) {
+    throw new AppError(
+      409,
+      'A obra deste orçamento tem valor medido em Boletins de Medição. Remova a medição antes de excluir o orçamento.'
+    );
   }
 
   const impacto = montarImpacto(resumo);

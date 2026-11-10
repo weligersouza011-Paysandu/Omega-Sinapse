@@ -1,6 +1,7 @@
 'use strict';
 
 const contratoService = require('../services/contratoService');
+const medicaoService = require('../services/medicaoService');
 
 /** Envolve um caso de uso assíncrono no contrato de resposta do Express. */
 function acao(metodo, status = 200) {
@@ -28,4 +29,28 @@ const registrarTac = acao((req) => contratoService.registrarTac(req.params.id, r
 /** POST /api/contratos/:id/obras */
 const vincularObras = acao((req) => contratoService.vincularObras(req.params.id, req.body || {}, req.user));
 
-module.exports = { listarContratos, obterContrato, criarContrato, registrarTac, vincularObras };
+/** GET /api/contratos/:id/dashboard-medicao */
+const obterDashboardMedicao = acao((req) => medicaoService.obterDashboardMedicao(req.params.id, req.user));
+
+/** POST /api/contratos/:id/boletins */
+const criarBoletim = acao((req) => medicaoService.criarBoletim(req.params.id, req.body || {}, req.user), 201);
+
+/** PATCH /api/contratos/:id/boletins/:boletimId */
+const atualizarBoletim = acao((req) =>
+  medicaoService.atualizarBoletim(req.params.id, req.params.boletimId, req.body || {}, req.user)
+);
+
+/** DELETE /api/contratos/:id/boletins/:boletimId */
+const excluirBoletim = acao((req) => medicaoService.excluirBoletim(req.params.id, req.params.boletimId, req.user));
+
+module.exports = {
+  listarContratos,
+  obterContrato,
+  criarContrato,
+  registrarTac,
+  vincularObras,
+  obterDashboardMedicao,
+  criarBoletim,
+  atualizarBoletim,
+  excluirBoletim,
+};

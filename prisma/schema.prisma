@@ -58,6 +58,15 @@ enum StatusAprovacaoRevisao {
   REJEITADO
 }
 
+enum StatusBoletim {
+  /// Boletim lançado e ainda não aprovado pela Vale: não entra no acumulado.
+  EM_ANALISE
+  /// Aprovado: conta no total acumulado e no Real da Curva S financeira.
+  APROVADO
+  /// Rejeitado ou cancelado: fica no histórico, fora dos cálculos.
+  REJEITADO
+}
+
 enum StatusObra {
   /// Aprovada e com documentação de partida pendente (OSI e/ou Ata).
   PARA_INICIAR
@@ -203,6 +212,7 @@ model Usuario {
   restricoes_atividades   RestricaoAtividade[]            @relation("RestricaoAtividadeAutor")
   historico_cronogramas   HistoricoImportacaoCronograma[] @relation("HistoricoCronogramaUsuario")
   aditivos_registrados    TermoAditivo[]                  @relation("AditivoAutor")
+  boletins_registrados    BoletimMedicao[]                @relation("BoletimAutor")
 
   @@map("usuarios")
 }
@@ -380,6 +390,8 @@ model Obra {
   cronogramas           VersaoCronograma[]
   restricoes_atividades RestricaoAtividade[]
   historico_cronogramas HistoricoImportacaoCronograma[]
+  /// Valores medidos desta obra (SS) nos Boletins de Medição do contrato.
+  itens_medicao         BoletimMedicaoItem[]
 
   @@index([status])
   @@index([planejador_id])
@@ -815,6 +827,7 @@ model Contrato {
 
   aditivos TermoAditivo[]
   obras    Obra[]
+  boletins BoletimMedicao[]
 
   @@map("contratos")
 }
@@ -839,4 +852,52 @@ model TermoAditivo {
   @@unique([contrato_id, numero_tac], name: "uq_tac_por_contrato")
   @@index([contrato_id])
   @@map("termos_aditivos")
+}
+
+// -----------------------------------------------------------------------------
+// Boletins de Medição (BMM) do contrato e o detalhamento por obra/SS
+//
+// O ciclo de medição padrão vai do dia 16 de um mês ao dia 15 do seguinte; o
+// boletim é identificado pelo mês em que o ciclo termina. O valor medido do
+// boletim é a soma dos seus itens (uma linha por obra/SS medida no ciclo).
+// -----------------------------------------------------------------------------
+model BoletimMedicao {
+  id           Int           @id @default(autoincrement())
+  contrato_id  Int
+  /// Identificação do boletim na Vale (ex.: "BMM19"), única dentro do contrato.
+  numero_bmm   String        @db.VarChar(30)
+  valor_medido Decimal       @db.Decimal(14, 2)
+  ciclo_inicio DateTime      @db.Date
+  ciclo_fim    DateTime      @db.Date
+  status       StatusBoletim @default(EM_ANALISE)
+  observacao   String?
+  /// Quem lançou o boletim no sistema.
+  usuario_id   Int?
+  created_at   DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+
+  contrato Contrato             @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  usuario  Usuario?             @relation("BoletimAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+  itens    BoletimMedicaoItem[]
+
+  @@unique([contrato_id, numero_bmm], name: "uq_bmm_por_contrato")
+  @@index([contrato_id, ciclo_fim])
+  @@map("boletins_medicao")
+}
+
+model BoletimMedicaoItem {
+  id         Int      @id @default(autoincrement())
+  boletim_id Int
+  obra_id    Int
+  /// Valor medido desta obra/SS no ciclo do boletim.
+  valor      Decimal  @db.Decimal(14, 2)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  boletim BoletimMedicao @relation(fields: [boletim_id], references: [id], onDelete: Cascade)
+  /// Restrict: uma obra com valor medido em boletim não pode ser apagada sem antes tratar a medição.
+  obra    Obra           @relation(fields: [obra_id], references: [id], onDelete: Restrict)
+
+  @@unique([boletim_id, obra_id], name: "uq_item_por_boletim_obra")
+  @@index([obra_id])
+  @@map("boletim_medicao_itens")
 }
