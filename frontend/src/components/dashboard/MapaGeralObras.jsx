@@ -107,7 +107,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [], foco = null, onS
           <div>
             <h3 className="text-sm font-bold text-slate-800">Mapa Geral de Obras e Localizações</h3>
             <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-              Mapa estilo Google com todas as localizações do ambiente de uma vez (alterne entre Mapa, Satélite e Terreno). Clique em um ponto para ver a obra ou escolha
+              Satélite do Google com todas as localizações do ambiente de uma vez (dá para alternar para Mapa ou Terreno). Clique em um ponto para ver a obra ou escolha
               na lista para aproximar.
             </p>
           </div>
@@ -149,11 +149,11 @@ export default function MapaGeralObras({ mapa = {}, obras = [], foco = null, onS
           <div className="relative h-[420px] bg-slate-200 sm:h-[460px] xl:h-[520px]">
             <MapContainer center={CENTRO_PADRAO} zoom={8} scrollWheelZoom className="h-full w-full">
               <LayersControl position="topleft">
-                <LayersControl.BaseLayer checked name="Mapa">
-                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
-                </LayersControl.BaseLayer>
-                <LayersControl.BaseLayer name="Satélite">
+                <LayersControl.BaseLayer checked name="Satélite">
                   <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('y')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                </LayersControl.BaseLayer>
+                <LayersControl.BaseLayer name="Mapa">
+                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
                 </LayersControl.BaseLayer>
                 <LayersControl.BaseLayer name="Terreno">
                   <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('p')} subdomains={SUBDOMINIOS} maxZoom={20} />

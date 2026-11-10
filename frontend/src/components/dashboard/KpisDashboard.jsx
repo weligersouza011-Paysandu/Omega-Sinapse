@@ -57,7 +57,7 @@ export default function KpisDashboard({ resumo = {} }) {
   ];
 
   return (
-    <section aria-label="Indicadores gerais" className="grid h-full grid-cols-2 gap-3">
+    <section aria-label="Indicadores gerais" className="grid h-full grid-cols-2 gap-3 xl:grid-cols-4">
       {cartoes.map(({ chave, rotulo, valor, detalhe, Icone, iconeClasse, valorClasse }) => (
         <div key={chave} className="card flex flex-col justify-between p-3.5">
           <div className="flex items-start justify-between gap-2">

@@ -1,7 +1,7 @@
 import { AlertTriangle, Target } from 'lucide-react';
 import { formatarPercentual } from '../../utils/formatters.js';
 import GaugeSemicircular from './GaugeSemicircular.jsx';
-import { corAderencia, formatarPp } from './dashboardUtils.js';
+import { corAderencia } from './dashboardUtils.js';
 
 function RodapeIndicador({ itens = [] }) {
   return (
@@ -25,7 +25,7 @@ function RodapeIndicador({ itens = [] }) {
  *  - aderência geral do avanço físico (real / previsto);
  *  - percentual de obras com desvio acima da tolerância (desvios/retrabalhos).
  */
-export default function IndicadoresPlanejamento({ resumo = {}, obraUnica = false }) {
+export default function IndicadoresPlanejamento({ resumo = {} }) {
   const aderencia = Number(resumo.aderencia_geral || 0);
   const comMedicao = Number(resumo.com_medicao || 0);
   const percentualDesvio = Number(resumo.percentual_obras_com_desvio || 0);
@@ -33,9 +33,6 @@ export default function IndicadoresPlanejamento({ resumo = {}, obraUnica = false
   const meta = Number(resumo.aderencia_meta || 90);
   const paletaAderencia = corAderencia(aderencia);
   const temMedicao = comMedicao > 0;
-
-  // Modo "obra em foco": o segundo gauge mostra se a obra está dentro da tolerância.
-  const foraDaTolerancia = obraUnica && obrasComDesvio > 0;
 
   const criticos = (resumo.faixas_desvio || []).find((item) => item.id === 'critico');
   const atencao = (resumo.faixas_desvio || []).find((item) => item.id === 'atencao');
@@ -108,12 +105,10 @@ export default function IndicadoresPlanejamento({ resumo = {}, obraUnica = false
             </span>
             <div>
               <h3 className="text-sm font-bold text-slate-800">
-                {obraUnica ? 'Desvio / Retrabalhos da Obra' : 'Indicador de Desvios / Retrabalhos'}
+                Indicador de Desvios / Retrabalhos
               </h3>
               <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-                {obraUnica
-                  ? 'Real menos previsto, com tolerância de -2 p.p.'
-                  : 'Obras medidas com desvio abaixo de -2 p.p. Quanto menor, melhor.'}
+                Obras medidas com desvio abaixo de -2 p.p. Quanto menor, melhor.
               </p>
             </div>
           </div>
@@ -126,61 +121,31 @@ export default function IndicadoresPlanejamento({ resumo = {}, obraUnica = false
           className="mt-3"
           percentual={temMedicao ? percentualDesvio : 0}
           cor={temMedicao ? corDesvios : '#94a3b8'}
-          textoPrincipal={
-            temMedicao ? (obraUnica ? formatarPp(resumo.desvio_medio, 1) : formatarPercentual(percentualDesvio, 1)) : '—'
-          }
+          textoPrincipal={temMedicao ? formatarPercentual(percentualDesvio, 1) : '—'}
           textoSecundario={
-            !temMedicao
-              ? obraUnica
-                ? 'obra sem medições'
-                : 'sem medições no filtro'
-              : obraUnica
-                ? foraDaTolerancia
-                  ? 'fora da tolerância'
-                  : 'dentro da tolerância'
-                : `${obrasComDesvio} de ${comMedicao} obras medidas`
+            temMedicao ? `${obrasComDesvio} de ${comMedicao} obras medidas` : 'sem medições no filtro'
           }
           ariaLabel={`Indicador de desvios: ${formatarPercentual(percentualDesvio, 1)} das obras medidas`}
         />
 
         <RodapeIndicador
-          itens={
-            obraUnica
-              ? [
-                  {
-                    label: 'Restrições abertas',
-                    valor: resumo.restricoes_abertas ?? 0,
-                    classe: 'text-amber-700',
-                  },
-                  {
-                    label: 'Pend. documentais',
-                    valor: resumo.pendencias_documentais ?? 0,
-                    classe: 'text-slate-700',
-                  },
-                  {
-                    label: 'Retrabalhos',
-                    valor: resumo.retrabalhos ?? 0,
-                    classe: classeDesvios,
-                  },
-                ]
-              : [
-                  {
-                    label: 'Desvio crítico',
-                    valor: criticos?.total ?? 0,
-                    classe: 'text-red-700',
-                  },
-                  {
-                    label: 'Em atenção',
-                    valor: atencao?.total ?? 0,
-                    classe: 'text-amber-700',
-                  },
-                  {
-                    label: 'Retrabalhos',
-                    valor: resumo.retrabalhos ?? 0,
-                    classe: classeDesvios,
-                  },
-                ]
-          }
+          itens={[
+            {
+              label: 'Desvio crítico',
+              valor: criticos?.total ?? 0,
+              classe: 'text-red-700',
+            },
+            {
+              label: 'Em atenção',
+              valor: atencao?.total ?? 0,
+              classe: 'text-amber-700',
+            },
+            {
+              label: 'Retrabalhos',
+              valor: resumo.retrabalhos ?? 0,
+              classe: classeDesvios,
+            },
+          ]}
         />
       </article>
     </section>

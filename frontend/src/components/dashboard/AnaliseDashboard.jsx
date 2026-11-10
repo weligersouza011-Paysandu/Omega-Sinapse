@@ -1,53 +1,53 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarRange, ExternalLink, LineChart, MapPin, Route, X } from 'lucide-react';
+import { CalendarRange, ExternalLink, LineChart, MapPin, Route } from 'lucide-react';
 import AbaCronograma from '../obras/AbaCronograma.jsx';
 import AbaProgramacao6Semanas from '../obras/AbaProgramacao6Semanas.jsx';
 import CurvaSConsolidada from './CurvaSConsolidada.jsx';
 import { CategoriaBadge, StatusObraBadge } from './DashboardBadges.jsx';
 import IndicadoresPlanejamento from './IndicadoresPlanejamento.jsx';
 import KpisDashboard from './KpisDashboard.jsx';
-import Metodologia6WLA from './Metodologia6WLA.jsx';
-import TabelaRestricoes6WLA from './TabelaRestricoes6WLA.jsx';
-
-const VISOES = [
-  { id: 'cronograma', rotulo: 'Curva S e Caminho Crítico', icone: Route },
-  { id: 'programacao', rotulo: 'Programação de 6 semanas', icone: CalendarRange },
-];
 
 function rotuloObra(obra) {
   const referencia = obra.ss || obra.osi || `Obra #${obra.id}`;
   return `${referencia}${obra.osi && obra.ss ? ` / ${obra.osi}` : ''} — ${obra.descricao || 'Sem descrição'}`;
 }
 
+function TituloSecao({ icone: Icone, titulo, texto }) {
+  return (
+    <div className="flex items-start gap-3 px-1">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-omega-50 text-omega-700 ring-1 ring-omega-100">
+        <Icone className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div>
+        <h3 className="text-sm font-bold text-slate-800">{titulo}</h3>
+        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{texto}</p>
+      </div>
+    </div>
+  );
+}
+
 /**
- * Análise do dashboard com um único seletor de obra (também acionado pelo clique
- * na tabela ou no mapa):
+ * Análise por obra do dashboard. Por padrão lista só as obras em andamento e já
+ * abre a primeira; a obra também pode ser escolhida na tabela ou no mapa.
  *
- *  - "Carteira consolidada": indicadores gerais, Curva S consolidada e todas as
- *    restrições 6WLA do recorte;
- *  - uma obra: indicadores, Curva S, caminho crítico, programação de 6 semanas e
- *    restrições só daquela obra.
+ * Para a obra escolhida mostra, uma abaixo da outra, as mesmas informações do
+ * detalhe da obra: Curva S, caminho crítico, carga e alocação por função e a
+ * programação de 6 semanas. Depois vêm os indicadores gerais da carteira.
  */
 export default function AnaliseDashboard({ dados, obraFocoId = null, onSelecionarObra }) {
-  const [apenasAndamento, setApenasAndamento] = useState(false);
-  const [visao, setVisao] = useState('cronograma');
+  const [apenasAndamento, setApenasAndamento] = useState(true);
 
   const obras = useMemo(() => dados.obras || [], [dados.obras]);
-  const obra = obraFocoId ? obras.find((item) => item.id === obraFocoId) || null : null;
+  const emAndamento = useMemo(() => obras.filter((item) => item.status === 'EM_ANDAMENTO'), [obras]);
+  const escolhida = obraFocoId ? obras.find((item) => item.id === obraFocoId) || null : null;
 
-  // A obra escolhida sempre aparece na lista, mesmo fora do filtro "em andamento".
+  // A obra escolhida na tabela/mapa sempre aparece na lista, mesmo fora do filtro.
   const opcoes = useMemo(
-    () => obras.filter((item) => !apenasAndamento || item.status === 'EM_ANDAMENTO' || item.id === obra?.id),
-    [obras, apenasAndamento, obra?.id]
+    () => obras.filter((item) => !apenasAndamento || item.status === 'EM_ANDAMENTO' || item.id === escolhida?.id),
+    [obras, apenasAndamento, escolhida?.id]
   );
-  const emAndamento = useMemo(() => obras.filter((item) => item.status === 'EM_ANDAMENTO').length, [obras]);
-
-  const restricoes = useMemo(
-    () => (obra ? (dados.restricoes || []).filter((item) => item.obra_id === obra.id) : dados.restricoes || []),
-    [dados.restricoes, obra]
-  );
-  const resumoObra = obra ? dados.resumos_por_obra?.[obra.id] || null : null;
+  const obra = escolhida || opcoes[0] || null;
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -58,15 +58,16 @@ export default function AnaliseDashboard({ dados, obraFocoId = null, onSeleciona
               <LineChart className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
-              <h3 className="text-sm font-bold text-slate-800">Análise por obra</h3>
+              <h3 className="text-sm font-bold text-slate-800">Curva S, Caminho Crítico e Programação por Obra</h3>
               <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-                Escolha uma obra aqui, clique numa linha da tabela ou num ponto do mapa: indicadores, Curva S, caminho
-                crítico, programação de 6 semanas e restrições passam a mostrar só essa obra.
+                Escolha a obra (ou clique nela na tabela ou no mapa) para ver a Curva S, o caminho crítico, a carga e
+                alocação por função e a programação de 6 semanas do cronograma importado.
               </p>
             </div>
           </div>
+
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-            {emAndamento} em andamento
+            {emAndamento.length} em andamento
           </span>
         </header>
 
@@ -76,9 +77,9 @@ export default function AnaliseDashboard({ dados, obraFocoId = null, onSeleciona
             <select
               className="campo w-full"
               value={obra?.id ?? ''}
-              onChange={(evento) => onSelecionarObra(evento.target.value ? Number(evento.target.value) : null, 'painel')}
+              onChange={(evento) => onSelecionarObra(Number(evento.target.value), 'painel')}
+              disabled={!opcoes.length}
             >
-              <option value="">Carteira consolidada (todas as obras do recorte)</option>
               {opcoes.map((item) => (
                 <option key={item.id} value={item.id}>
                   {rotuloObra(item)}
@@ -93,47 +94,38 @@ export default function AnaliseDashboard({ dados, obraFocoId = null, onSeleciona
               checked={apenasAndamento}
               onChange={(evento) => setApenasAndamento(evento.target.checked)}
             />
-            Só obras em andamento
+            Somente obras em andamento
           </label>
 
           {obra ? (
-            <div className="flex items-center gap-3 pb-2">
-              <Link
-                to={`/obras/${obra.id}`}
-                className="inline-flex items-center gap-1 text-xs font-bold text-omega-700 hover:underline"
-              >
-                Abrir obra
-                <ExternalLink className="h-3 w-3" aria-hidden="true" />
-              </Link>
-              <button
-                type="button"
-                onClick={() => onSelecionarObra(null, 'painel')}
-                className="inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-slate-700"
-              >
-                <X className="h-3 w-3" aria-hidden="true" />
-                Voltar à carteira
-              </button>
-            </div>
+            <Link
+              to={`/obras/${obra.id}`}
+              className="mb-1.5 inline-flex items-center gap-1 text-xs font-bold text-omega-700 hover:underline"
+            >
+              Abrir obra
+              <ExternalLink className="h-3 w-3" aria-hidden="true" />
+            </Link>
           ) : null}
         </div>
       </section>
 
       {!obra ? (
-        <>
-          <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-            <Metodologia6WLA />
-            <KpisDashboard resumo={dados.resumo} />
-          </section>
-
-          <IndicadoresPlanejamento resumo={dados.resumo} />
-
-          <CurvaSConsolidada curva={dados.curva_s} />
-        </>
+        <section className="card flex flex-col items-center gap-2 px-4 py-14 text-center">
+          <LineChart className="h-9 w-9 text-slate-300" aria-hidden="true" />
+          <p className="text-sm font-semibold text-slate-600">
+            {apenasAndamento ? 'Nenhuma obra em andamento neste recorte' : 'Nenhuma obra neste recorte'}
+          </p>
+          <p className="max-w-md text-xs text-slate-500">
+            {apenasAndamento
+              ? 'Desmarque "Somente obras em andamento" ou ajuste os filtros globais para ver as demais obras.'
+              : 'Ajuste os filtros globais para voltar a visualizar a carteira.'}
+          </p>
+        </section>
       ) : (
         <>
           <section className="card flex flex-wrap items-center gap-x-4 gap-y-2 px-5 py-3">
             <div className="min-w-0 flex-1">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Obra em foco</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Obra selecionada</p>
               <p className="truncate text-sm font-bold text-slate-800" title={rotuloObra(obra)}>
                 {rotuloObra(obra)}
               </p>
@@ -148,37 +140,36 @@ export default function AnaliseDashboard({ dados, obraFocoId = null, onSeleciona
             ) : null}
           </section>
 
-          {resumoObra ? <IndicadoresPlanejamento resumo={resumoObra} obraUnica /> : null}
+          <section className="space-y-3">
+            <TituloSecao
+              icone={Route}
+              titulo="Curva S, caminho crítico e carga por função"
+              texto="Planejado x realizado, rede do caminho crítico e alocação de trabalho do cronograma da obra."
+            />
+            <AbaCronograma key={`c-${obra.id}`} obra={obra} podeEditar={false} />
+          </section>
 
-          <section className="card p-4">
-            <div role="tablist" aria-label="Visão da obra" className="mb-4 inline-flex gap-1 rounded-lg bg-slate-100 p-1">
-              {VISOES.map(({ id, rotulo, icone: Icone }) => (
-                <button
-                  key={id}
-                  type="button"
-                  role="tab"
-                  aria-selected={visao === id}
-                  onClick={() => setVisao(id)}
-                  className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-bold transition ${
-                    visao === id ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  <Icone className="h-3.5 w-3.5" aria-hidden="true" />
-                  {rotulo}
-                </button>
-              ))}
-            </div>
-
-            {visao === 'cronograma' ? (
-              <AbaCronograma key={`c-${obra.id}`} obra={obra} podeEditar={false} />
-            ) : (
-              <AbaProgramacao6Semanas key={`p-${obra.id}`} obra={obra} podeEditar={false} />
-            )}
+          <section className="space-y-3">
+            <TituloSecao
+              icone={CalendarRange}
+              titulo="Programação de 6 semanas"
+              texto="Lookahead das atividades das próximas seis semanas, com restrições e plano de ação."
+            />
+            <AbaProgramacao6Semanas key={`p-${obra.id}`} obra={obra} podeEditar={false} />
           </section>
         </>
       )}
 
-      <TabelaRestricoes6WLA restricoes={restricoes} />
+      <section className="space-y-3">
+        <TituloSecao
+          icone={LineChart}
+          titulo="Carteira"
+          texto="Indicadores gerais e Curva S consolidada de todas as obras do recorte."
+        />
+        <KpisDashboard resumo={dados.resumo} />
+        <IndicadoresPlanejamento resumo={dados.resumo} />
+        <CurvaSConsolidada curva={dados.curva_s} />
+      </section>
     </div>
   );
 }
