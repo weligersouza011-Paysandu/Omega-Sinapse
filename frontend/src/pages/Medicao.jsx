@@ -4,6 +4,7 @@ import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
 import CurvaSFinanceira from '../components/medicao/CurvaSFinanceira.jsx';
+import EstudoSaudeContratual from '../components/medicao/EstudoSaudeContratual.jsx';
 import TabelaPrevistoReal from '../components/medicao/TabelaPrevistoReal.jsx';
 import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
@@ -188,6 +189,7 @@ export default function Medicao() {
       <div role="tablist" aria-label="Seções da medição" className="inline-flex gap-1 rounded-lg bg-slate-100 p-1">
         {[
           ['dashboard', 'Dashboard de medição'],
+          ['saude', 'Saúde contratual e TACs'],
           ['medicoes', `Histórico de medições (${dados?.boletins?.length ?? 0})`],
           ['historico', `Histórico de contratos (${contratos.length})`],
         ].map(([id, rotulo]) => (
@@ -222,7 +224,22 @@ export default function Medicao() {
         </div>
       ) : null}
 
-      {aba === 'medicoes' ? (
+      {aba === 'saude' ? (
+        contrato && dados ? (
+          <EstudoSaudeContratual contrato={contrato} curva={dados.curva_s || []} />
+        ) : (
+          <div className="card flex min-h-[260px] items-center justify-center gap-2 text-sm text-slate-500">
+            {carregando || carregandoContratos ? (
+              <>
+                <Spinner tamanho="md" className="text-omega-600" />
+                Carregando o estudo...
+              </>
+            ) : (
+              'Selecione um contrato com medição para ver o estudo de saúde contratual.'
+            )}
+          </div>
+        )
+      ) : aba === 'medicoes' ? (
         <HistoricoBoletins
           contratoId={contratoId}
           boletins={dados?.boletins || []}
