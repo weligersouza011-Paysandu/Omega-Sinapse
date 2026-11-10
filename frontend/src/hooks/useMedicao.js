@@ -17,6 +17,46 @@ export async function obterDashboardMedicao(contratoId) {
   return data;
 }
 
+/* ----------------------------- Escrita (SUPERVISOR/ADMIN) ----------------------------- */
+
+/** Cadastra o contrato-mãe. */
+export async function criarContrato(dados) {
+  const { data } = await api.post('/contratos', dados);
+  return data;
+}
+
+/** Registra um Termo Aditivo (TAC); devolve o contrato com o novo teto. */
+export async function registrarTac(contratoId, dados) {
+  const { data } = await api.post(`/contratos/${contratoId}/tac`, dados);
+  return data;
+}
+
+/** Vincula obras ao contrato (cada obra tem um único contrato-mãe). */
+export async function vincularObrasAoContrato(contratoId, obraIds) {
+  const { data } = await api.post(`/contratos/${contratoId}/obras`, { obra_ids: obraIds });
+  return data;
+}
+
+/** Lança um Boletim de Medição (BMM) com os valores por obra/SS. */
+export async function criarBoletim(contratoId, dados) {
+  const { data } = await api.post(`/contratos/${contratoId}/boletins`, dados);
+  return data;
+}
+
+/** Aprova, rejeita ou reabre (em análise) um boletim. */
+export async function atualizarStatusBoletim(contratoId, boletimId, status) {
+  const { data } = await api.patch(`/contratos/${contratoId}/boletins/${boletimId}`, { status });
+  return data;
+}
+
+export async function excluirBoletim(contratoId, boletimId) {
+  const { data } = await api.delete(`/contratos/${contratoId}/boletins/${boletimId}`);
+  return data;
+}
+
+/** Perfis que podem cadastrar contratos, TACs e boletins (espelha o back-end). */
+export const PERFIS_QUE_GEREM_MEDICAO = ['SUPERVISOR', 'ADMIN'];
+
 /**
  * Hook do Dashboard de Medição: carrega os contratos, mantém o contrato escolhido
  * (o vigente por padrão) e busca o dashboard dele. Respostas antigas são

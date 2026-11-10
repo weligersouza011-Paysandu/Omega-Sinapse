@@ -1,20 +1,45 @@
-import { useEffect } from 'react';
-import { AlertTriangle, FileSignature, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, FilePlus2, FileSignature, Link2, ReceiptText, RefreshCw, Trash2 } from 'lucide-react';
+import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
 import CurvaSFinanceira from '../components/medicao/CurvaSFinanceira.jsx';
 import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
-import { useDashboardMedicao } from '../hooks/useMedicao.js';
-import { formatarData } from '../utils/formatters.js';
+import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
+import ModalContrato from '../components/medicao/ModalContrato.jsx';
+import ModalTac from '../components/medicao/ModalTac.jsx';
+import ModalVincularObras from '../components/medicao/ModalVincularObras.jsx';
+import { useAuth } from '../context/AuthContext.jsx';
+import { useToast } from '../context/ToastContext.jsx';
+import {
+  PERFIS_QUE_GEREM_MEDICAO,
+  atualizarStatusBoletim,
+  excluirBoletim,
+  useDashboardMedicao,
+} from '../hooks/useMedicao.js';
+import { formatarData, formatarMoeda } from '../utils/formatters.js';
+
+const ROTULO_STATUS = { APROVADO: 'aprovado', REJEITADO: 'rejeitado', EM_ANALISE: 'voltou para análise' };
 
 /**
  * Dashboard de Medição: contrato (ex.: CT-251), TACs, boletins de medição (BMM)
- * por SS e Curva S financeira.
+ * por SS e Curva S financeira. SUPERVISOR e ADMIN também cadastram contratos,
+ * registram TACs, vinculam obras e lançam/aprovam boletins.
  */
 export default function Medicao() {
+  const toast = useToast();
+  const { usuario } = useAuth();
+  const podeGerir = PERFIS_QUE_GEREM_MEDICAO.includes(usuario?.perfil);
+
   const { contratos, contratoId, selecionarContrato, dados, carregando, carregandoContratos, erro, recarregar } =
     useDashboardMedicao();
+
+  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | null.
+  const [dialogo, setDialogo] = useState(null);
+  const [boletimOcupadoId, setBoletimOcupadoId] = useState(null);
+  const [excluir, setExcluir] = useState(null);
+  const [excluindo, setExcluindo] = useState(false);
 
   useEffect(() => {
     const anterior = document.title;
@@ -25,6 +50,33 @@ export default function Medicao() {
   }, []);
 
   const contrato = contratos.find((item) => item.id === contratoId) || null;
+
+  async function alterarStatus(boletim, status) {
+    setBoletimOcupadoId(boletim.id);
+    try {
+      await atualizarStatusBoletim(contratoId, boletim.id, status);
+      toast.sucesso(`${boletim.numero_bmm} ${ROTULO_STATUS[status]}.`);
+      recarregar();
+    } catch (err) {
+      toast.erro(err.message || 'Não foi possível alterar o boletim.');
+    } finally {
+      setBoletimOcupadoId(null);
+    }
+  }
+
+  async function confirmarExclusao() {
+    setExcluindo(true);
+    try {
+      await excluirBoletim(contratoId, excluir.id);
+      toast.sucesso(`${excluir.numero_bmm} excluído.`);
+      setExcluir(null);
+      recarregar();
+    } catch (err) {
+      toast.erro(err.message || 'Não foi possível excluir o boletim.');
+    } finally {
+      setExcluindo(false);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1680px] space-y-4 pb-4 sm:space-y-5">
@@ -59,6 +111,32 @@ export default function Medicao() {
               </select>
             </label>
           ) : null}
+
+          {podeGerir ? (
+            <>
+              <button type="button" className="btn-neutro" onClick={() => setDialogo('contrato')}>
+                <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+                Novo contrato
+              </button>
+              {contrato ? (
+                <>
+                  <button type="button" className="btn-neutro" onClick={() => setDialogo('tac')}>
+                    <FileSignature className="h-4 w-4" aria-hidden="true" />
+                    Registrar TAC
+                  </button>
+                  <button type="button" className="btn-neutro" onClick={() => setDialogo('obras')}>
+                    <Link2 className="h-4 w-4" aria-hidden="true" />
+                    Vincular obras
+                  </button>
+                  <button type="button" className="btn-primario" onClick={() => setDialogo('boletim')}>
+                    <ReceiptText className="h-4 w-4" aria-hidden="true" />
+                    Lançar boletim
+                  </button>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
           <button type="button" className="btn-neutro" onClick={recarregar} disabled={carregando}>
             {carregando ? <Spinner tamanho="sm" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
             Atualizar
@@ -95,6 +173,14 @@ export default function Medicao() {
             Cadastre o contrato com a Vale (ex.: CT-251), seus termos aditivos e os boletins de medição para acompanhar
             o saldo contratual e a Curva S financeira aqui.
           </p>
+          {podeGerir ? (
+            <button type="button" className="btn-primario mt-2" onClick={() => setDialogo('contrato')}>
+              <FilePlus2 className="h-4 w-4" aria-hidden="true" />
+              Cadastrar contrato
+            </button>
+          ) : (
+            <p className="mt-1 text-xs text-slate-400">O cadastro é feito por um supervisor ou administrador.</p>
+          )}
         </div>
       ) : dados ? (
         <div className={carregando ? 'opacity-70 transition-opacity' : 'transition-opacity'}>
@@ -103,13 +189,71 @@ export default function Medicao() {
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
               <GaugeAderencia aderencia={dados.aderencia_financeira} />
-              <ArvoreMedicao key={dados.contrato.id} boletins={dados.boletins} />
+              <ArvoreMedicao
+                key={dados.contrato.id}
+                boletins={dados.boletins}
+                podeGerir={podeGerir}
+                boletimOcupadoId={boletimOcupadoId}
+                onAlterarStatus={alterarStatus}
+                onExcluir={setExcluir}
+                onLancar={() => setDialogo('boletim')}
+              />
             </div>
 
             <CurvaSFinanceira curva={dados.curva_s} />
           </div>
         </div>
       ) : null}
+
+      <ModalContrato
+        aberto={dialogo === 'contrato'}
+        onFechar={() => setDialogo(null)}
+        onCriado={(novo) => {
+          selecionarContrato(novo.id);
+          recarregar();
+        }}
+      />
+      <ModalTac aberto={dialogo === 'tac'} contrato={contrato} onFechar={() => setDialogo(null)} onSalvo={recarregar} />
+      <ModalVincularObras
+        aberto={dialogo === 'obras'}
+        contrato={contrato}
+        onFechar={() => setDialogo(null)}
+        onSalvo={recarregar}
+      />
+      <ModalBoletim
+        aberto={dialogo === 'boletim'}
+        contrato={contrato}
+        boletins={dados?.boletins || []}
+        onFechar={() => setDialogo(null)}
+        onSalvo={recarregar}
+      />
+
+      <ModalBase
+        aberto={Boolean(excluir)}
+        titulo="Excluir boletim?"
+        subtitulo={excluir ? `${excluir.numero_bmm} · ${formatarMoeda(excluir.valor_medido)}` : ''}
+        onFechar={() => (excluindo ? null : setExcluir(null))}
+        tamanho="md"
+      >
+        {excluir ? (
+          <div className="space-y-3 p-5">
+            <p className="text-sm text-slate-700">
+              O boletim e o detalhamento por SS serão removidos
+              {excluir.status === 'APROVADO' ? ', e o total acumulado e a Curva S serão recalculados' : ''}. Esta ação
+              não pode ser desfeita.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-neutro" onClick={() => setExcluir(null)} disabled={excluindo}>
+                Cancelar
+              </button>
+              <button type="button" className="btn-perigo" onClick={confirmarExclusao} disabled={excluindo}>
+                {excluindo ? <Spinner tamanho="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                Excluir boletim
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </ModalBase>
     </div>
   );
 }

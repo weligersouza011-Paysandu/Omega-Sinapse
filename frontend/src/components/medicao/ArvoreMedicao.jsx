@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronRight, FolderTree } from 'lucide-react';
+import { Check, ChevronRight, FolderTree, RotateCcw, Trash2, X } from 'lucide-react';
 import { formatarData, formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
 
 const STATUS = {
@@ -47,7 +47,59 @@ function LinhaSs({ item }) {
   );
 }
 
-function LinhaBoletim({ boletim, aberto, onAlternar }) {
+/** Ações do gestor sobre um boletim: aprovar, rejeitar, reabrir e excluir. */
+function AcoesBoletim({ boletim, ocupado, onAlterarStatus, onExcluir }) {
+  const botao =
+    'inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition disabled:cursor-not-allowed disabled:opacity-50';
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2 px-4 pb-2.5 pl-11">
+      {boletim.status !== 'APROVADO' && boletim.status !== 'REJEITADO' ? (
+        <>
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => onAlterarStatus(boletim, 'APROVADO')}
+            className={`${botao} border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
+          >
+            <Check className="h-3 w-3" aria-hidden="true" />
+            Aprovar
+          </button>
+          <button
+            type="button"
+            disabled={ocupado}
+            onClick={() => onAlterarStatus(boletim, 'REJEITADO')}
+            className={`${botao} border-red-200 bg-red-50 text-red-700 hover:bg-red-100`}
+          >
+            <X className="h-3 w-3" aria-hidden="true" />
+            Rejeitar
+          </button>
+        </>
+      ) : (
+        <button
+          type="button"
+          disabled={ocupado}
+          onClick={() => onAlterarStatus(boletim, 'EM_ANALISE')}
+          className={`${botao} border-slate-200 bg-white text-slate-600 hover:bg-slate-50`}
+        >
+          <RotateCcw className="h-3 w-3" aria-hidden="true" />
+          Voltar para análise
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={ocupado}
+        onClick={() => onExcluir(boletim)}
+        className={`${botao} border-slate-200 bg-white text-slate-500 hover:border-red-300 hover:bg-red-50 hover:text-red-700`}
+        aria-label={`Excluir ${boletim.numero_bmm}`}
+      >
+        <Trash2 className="h-3 w-3" aria-hidden="true" />
+        Excluir
+      </button>
+    </div>
+  );
+}
+
+function LinhaBoletim({ boletim, aberto, onAlternar, podeGerir, ocupado, onAlterarStatus, onExcluir }) {
   const temDetalhe = boletim.itens.length > 0 || Math.abs(boletim.valor_sem_detalhamento) >= 0.01;
   const rejeitado = boletim.status === 'REJEITADO';
 
@@ -84,6 +136,10 @@ function LinhaBoletim({ boletim, aberto, onAlternar }) {
         </div>
       </button>
 
+      {podeGerir ? (
+        <AcoesBoletim boletim={boletim} ocupado={ocupado} onAlterarStatus={onAlterarStatus} onExcluir={onExcluir} />
+      ) : null}
+
       {aberto && temDetalhe ? (
         <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 pb-1">
           {boletim.itens.map((item) => (
@@ -106,7 +162,14 @@ function LinhaBoletim({ boletim, aberto, onAlternar }) {
  * Solicitações de Serviço (SS) que compõem o valor. Acordeão: o boletim mais
  * recente já abre expandido.
  */
-export default function ArvoreMedicao({ boletins = [] }) {
+export default function ArvoreMedicao({
+  boletins = [],
+  podeGerir = false,
+  boletimOcupadoId = null,
+  onAlterarStatus = () => {},
+  onExcluir = () => {},
+  onLancar = null,
+}) {
   const [abertos, setAbertos] = useState(() => new Set(boletins.length ? [boletins[0].id] : []));
 
   const todosIds = useMemo(() => boletins.filter((b) => b.itens.length > 0).map((b) => b.id), [boletins]);
@@ -153,6 +216,11 @@ export default function ArvoreMedicao({ boletins = [] }) {
           <p className="max-w-sm text-xs text-slate-500">
             Os boletins (BMM) do contrato aparecem aqui, com as SS que compõem cada um.
           </p>
+          {onLancar && podeGerir ? (
+            <button type="button" className="btn-primario mt-2" onClick={onLancar}>
+              Lançar o primeiro boletim
+            </button>
+          ) : null}
         </div>
       ) : (
         <ul className="max-h-[520px] flex-1 overflow-y-auto">
@@ -162,6 +230,10 @@ export default function ArvoreMedicao({ boletins = [] }) {
               boletim={boletim}
               aberto={abertos.has(boletim.id)}
               onAlternar={() => alternar(boletim.id)}
+              podeGerir={podeGerir}
+              ocupado={boletimOcupadoId === boletim.id}
+              onAlterarStatus={onAlterarStatus}
+              onExcluir={onExcluir}
             />
           ))}
         </ul>
