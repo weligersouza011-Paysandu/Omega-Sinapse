@@ -552,6 +552,13 @@ async function excluirBoletim(idParam, boletimIdParam, usuario) {
 }
 
 module.exports = {
+  emCentavos,
+  emReais,
+  percentualEm,
+  proximoMes,
+  fimDoCiclo,
+  rotuloDoMes,
+  dataISO,
   PERFIS_QUE_GEREM_MEDICAO,
   STATUS_BOLETIM,
   obterDashboardMedicao,

@@ -2,9 +2,11 @@
 
 const { Router } = require('express');
 const contratoController = require('../controllers/contratoController');
+const obraMedicaoController = require('../controllers/obraMedicaoController');
 const { autorizar } = require('../middlewares/auth');
 const { PERFIS_QUE_GEREM_CONTRATOS } = require('../services/contratoService');
 const { PERFIS_QUE_GEREM_MEDICAO } = require('../services/medicaoService');
+const { PERFIS_QUE_GEREM_QQP } = require('../services/qqpService');
 
 const router = Router();
 
@@ -33,6 +35,14 @@ router.post('/:id/tac', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoContro
 
 // POST /api/contratos/:id/obras  -> vincula obras ao contrato { obra_ids: [..] }
 router.post('/:id/obras', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.vincularObras);
+
+// QQP (Quadro de Quantidades e Preços) do contrato: itens com preço de HH, equipamentos e insumos.
+// GET /api/contratos/:id/qqp | POST (codigo, descricao, categoria, unidade, preco_unitario)
+// PUT/DELETE /api/contratos/:id/qqp/:itemId (item em uso só pode ser desativado)
+router.get('/:id/qqp', obraMedicaoController.listarItensQqp);
+router.post('/:id/qqp', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.criarItemQqp);
+router.put('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.atualizarItemQqp);
+router.delete('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.excluirItemQqp);
 
 // Boletins de Medição (BMM) do contrato.
 // POST   /api/contratos/:id/boletins -> { numero_bmm, mes_referencia | ciclo_inicio+ciclo_fim,

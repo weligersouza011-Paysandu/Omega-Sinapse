@@ -6,6 +6,7 @@ const obraDetalheController = require('../controllers/obraDetalheController');
 const dashboardController = require('../controllers/dashboardController');
 const curvaSController = require('../controllers/curvaSController');
 const lookaheadController = require('../controllers/lookaheadController');
+const obraMedicaoController = require('../controllers/obraMedicaoController');
 const { autorizar } = require('../middlewares/auth');
 
 const router = Router();
@@ -59,6 +60,18 @@ router.delete('/:id/comentarios/:comentarioId', obraDetalheController.removerCom
 // Fotos e vídeos.
 router.post('/:id/midias', obraDetalheController.criarMidia);
 router.delete('/:id/midias/:midiaId', obraDetalheController.removerMidia);
+
+// Medição e projeção financeira da obra (Módulo de Medição, fase 4).
+// GET /api/obras/:id/medicao             -> BMMs em que a SS pontuou, valor por ciclo e acumulado
+// GET /api/obras/:id/projecao-financeira -> previsto x realizado x medido e custo projetado do QQP (dias úteis)
+router.get('/:id/medicao', obraMedicaoController.obterMedicao);
+router.get('/:id/projecao-financeira', obraMedicaoController.obterProjecaoFinanceira);
+
+// Recursos planejados da obra com os preços do QQP do contrato (HH, equipamentos, insumos).
+router.get('/:id/recursos-qqp', obraMedicaoController.listarRecursos);
+router.post('/:id/recursos-qqp', obraMedicaoController.criarRecurso);
+router.put('/:id/recursos-qqp/:recursoId', obraMedicaoController.atualizarRecurso);
+router.delete('/:id/recursos-qqp/:recursoId', obraMedicaoController.excluirRecurso);
 
 // Lookahead 6 semanas (6WLA) sobre a versão mais recente do cronograma.
 // GET /api/obras/:id/lookahead?data_referencia=AAAA-MM-DD&versao_id=

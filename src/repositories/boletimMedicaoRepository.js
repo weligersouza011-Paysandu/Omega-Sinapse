@@ -121,6 +121,37 @@ async function obrasComAvanco(contratoId) {
   });
 }
 
+/** Obra com orçamento, contrato e avanço físico (base da medição e da projeção). */
+async function obraParaProjecao(obraId) {
+  return prisma.obra.findUnique({
+    where: { id: obraId },
+    select: {
+      id: true,
+      status: true,
+      osi_numero: true,
+      contrato: { select: { id: true, id_vale: true, descricao: true } },
+      orcamento: { select: { ss: true, pep: true, descricao: true, valor: true } },
+      avanco_fisico: {
+        orderBy: [{ data: 'asc' }, { id: 'asc' }],
+        select: { data: true, fisico_prev_acum: true, fisico_tend_acum: true, fisico_real_acum: true },
+      },
+    },
+  });
+}
+
+/** Linhas de todos os boletins em que a obra pontuou (com os dados do boletim). */
+async function itensDaObra(obraId) {
+  return prisma.boletimMedicaoItem.findMany({
+    where: { obra_id: obraId },
+    orderBy: [{ boletim: { ciclo_fim: 'asc' } }, { id: 'asc' }],
+    include: {
+      boletim: {
+        select: { id: true, numero_bmm: true, status: true, ciclo_inicio: true, ciclo_fim: true, valor_medido: true },
+      },
+    },
+  });
+}
+
 /** Quantos boletins referenciam a obra (protege a exclusão de obras medidas). */
 async function contarItensDaObra(obraId) {
   return prisma.boletimMedicaoItem.count({ where: { obra_id: obraId } });
@@ -136,5 +167,7 @@ module.exports = {
   atualizar,
   excluir,
   obrasComAvanco,
+  obraParaProjecao,
+  itensDaObra,
   contarItensDaObra,
 };
