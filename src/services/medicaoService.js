@@ -812,12 +812,30 @@ function alteracoesDeTendencia(linhas, tendencia) {
  * PUT /api/contratos/:id/curva/:referencia
  * Corpo: { previsto: number } — novo previsto do mês ("AAAA-MM"). O acumulado dos meses seguintes
  * acompanha a diferença e a tendência é recalculada. Devolve o dashboard atualizado.
+ *
+ * Ou { tendencia_acumulada: number } — ajuste manual da tendência acumulada daquele mês, sem mexer
+ * no previsto (a próxima edição de previsto ou o "recalcular tendência" volta ao cálculo automático).
  */
 async function atualizarPrevistoDaCurva(idParam, referenciaParam, payload = {}, usuario) {
   exigirGestor(usuario);
   const { id } = await carregarContrato(idParam);
   const referencia = String(referenciaParam || '').trim();
   cicloDoMes(referencia); // valida o formato AAAA-MM
+
+  if (!estaVazio(payload.tendencia_acumulada)) {
+    if (!estaVazio(payload.previsto)) {
+      throw new AppError(400, 'Informe o previsto ou a tendência do mês, não os dois ao mesmo tempo.');
+    }
+    const tendenciaCent = emCentavos(valorNaoNegativo(payload.tendencia_acumulada, 'tendencia_acumulada'));
+    const curvaAtual = await boletimRepository.curvaDoContrato(id);
+    const linhaAlvo = linhasEmCentavos(curvaAtual).find((linha) => linha.referencia === referencia);
+    if (!linhaAlvo) {
+      throw new AppError(404, `O mês ${referencia} não está na curva do contrato. Importe a planilha de acompanhamento primeiro.`);
+    }
+    await boletimRepository.atualizarCiclosDaCurva([{ id: linhaAlvo.id, dados: { tendencia_acumulada: emReais(tendenciaCent) } }]);
+    return obterDashboardMedicao(id, usuario);
+  }
+
   if (estaVazio(payload.previsto)) {
     throw new AppError(400, 'Informe o novo valor previsto do mês ("previsto").');
   }

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Check, Pencil, RefreshCw, TableProperties, X } from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
-import { atualizarPrevistoDaCurva, recalcularTendenciaDaCurva } from '../../hooks/useMedicao.js';
+import { atualizarPrevistoDaCurva, atualizarTendenciaDaCurva, recalcularTendenciaDaCurva } from '../../hooks/useMedicao.js';
 import { formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
 
 const Th = ({ children, className = '' }) => (
@@ -28,12 +28,62 @@ function percentualDe(parte, base) {
 }
 
 /**
+ * Célula de valor editável (previsto ou tendência): botão com lápis; ao clicar vira campo numérico
+ * (Enter salva, Esc cancela).
+ */
+function CelulaEditavel({ ponto, campo, valor, texto, classe, rotuloAria, podeEditar, edicao, setEdicao, salvar, salvando, vazio = false }) {
+  const emEdicao = edicao?.referencia === ponto.referencia && edicao?.campo === campo;
+  if (emEdicao) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input
+          type="number"
+          min="0"
+          step="0.01"
+          autoFocus
+          aria-label={`${rotuloAria} de ${ponto.rotulo}`}
+          className="campo !w-32 !px-2 !py-1 text-right text-xs"
+          value={edicao.valor}
+          onChange={(e) => setEdicao({ referencia: ponto.referencia, campo, valor: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') salvar();
+            if (e.key === 'Escape') setEdicao(null);
+          }}
+          disabled={salvando}
+        />
+        <button type="button" onClick={salvar} disabled={salvando} aria-label={`Salvar ${rotuloAria.toLowerCase()}`} className="flex h-6 w-6 items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
+          {salvando ? <Spinner tamanho="sm" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
+        </button>
+        <button type="button" onClick={() => setEdicao(null)} disabled={salvando} aria-label="Cancelar" className="flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-500 hover:bg-slate-50">
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </span>
+    );
+  }
+  if (podeEditar) {
+    return (
+      <button
+        type="button"
+        onClick={() => setEdicao({ referencia: ponto.referencia, campo, valor: vazio ? '' : String(valor) })}
+        className={`group inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 transition hover:bg-slate-100 ${classe}`}
+        aria-label={`Ajustar ${rotuloAria.toLowerCase()} de ${ponto.rotulo}`}
+        title={`Ajustar ${rotuloAria.toLowerCase()} deste mês`}
+      >
+        {texto}
+        <Pencil className="h-3 w-3 text-slate-300 transition group-hover:text-omega-600" aria-hidden="true" />
+      </button>
+    );
+  }
+  return <span className={classe}>{texto}</span>;
+}
+
+/**
  * Previsto × Real por mês, logo abaixo da Curva S. O previsto de cada mês pode ser ajustado aqui
  * (Supervisor/Admin): o acumulado dos meses seguintes acompanha e a tendência é recalculada.
  */
 export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, podeGerir, onAlterado }) {
   const toast = useToast();
-  const [edicao, setEdicao] = useState(null); // { referencia, valor }
+  const [edicao, setEdicao] = useState(null); // { referencia, campo: 'previsto' | 'tendencia', valor }
   const [salvando, setSalvando] = useState(false);
   const [recalculando, setRecalculando] = useState(false);
 
@@ -42,18 +92,24 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
   const ultimaMedida = [...curva].reverse().find((ponto) => ponto.real !== null && ponto.real !== undefined);
   const ritmo = ultimaMedida ? percentualDe(ultimaMedida.real_acumulado, ultimaMedida.previsto_acumulado) : null;
   const editavel = podeGerir && fonte === 'CONTRATO';
+  const celula = { edicao, setEdicao, salvar, salvando };
 
   async function salvar() {
     if (!edicao) return;
     const valor = Number(edicao.valor);
     if (edicao.valor === '' || Number.isNaN(valor) || valor < 0) {
-      toast.erro('Informe um valor previsto válido (zero ou mais).');
+      toast.erro('Informe um valor válido (zero ou mais).');
       return;
     }
     setSalvando(true);
     try {
-      await atualizarPrevistoDaCurva(contratoId, edicao.referencia, valor);
-      toast.sucesso('Previsto atualizado. Acumulado e tendência recalculados.');
+      if (edicao.campo === 'tendencia') {
+        await atualizarTendenciaDaCurva(contratoId, edicao.referencia, valor);
+        toast.sucesso('Tendência do mês atualizada.');
+      } else {
+        await atualizarPrevistoDaCurva(contratoId, edicao.referencia, valor);
+        toast.sucesso('Previsto atualizado. Acumulado e tendência recalculados.');
+      }
       setEdicao(null);
       onAlterado();
     } catch (err) {
@@ -87,7 +143,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
             <h3 className="text-sm font-bold text-slate-800">Previsto × Real por mês</h3>
             <p className="mt-0.5 max-w-3xl text-[11px] leading-relaxed text-slate-500">
               Real = boletins aprovados do ciclo (16 a 15). Desvio = real − previsto.
-              {editavel ? ' Clique no previsto de um mês para ajustá-lo: o acumulado dos meses seguintes acompanha e a tendência é recalculada.' : ''}
+              {editavel ? ' Clique no previsto de um mês para ajustá-lo (o acumulado seguinte acompanha e a tendência é recalculada) ou na tendência para fixar um valor manual.' : ''}
             </p>
           </div>
         </div>
@@ -128,7 +184,6 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
               const desvioAcum = medido ? ponto.real_acumulado - ponto.previsto_acumulado : null;
               const desvioAcumPct = medido ? percentualDe(desvioAcum, ponto.previsto_acumulado) : null;
               const ehUltima = ultimaMedida && ultimaMedida.referencia === ponto.referencia;
-              const emEdicao = edicao?.referencia === ponto.referencia;
 
               return (
                 <tr
@@ -141,44 +196,16 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                     {ehUltima ? <span className="ml-1.5 rounded bg-omega-100 px-1 py-px text-[9px] font-bold uppercase text-omega-700">último medido</span> : null}
                   </th>
                   <td className="px-3 py-1.5 text-right">
-                    {emEdicao ? (
-                      <span className="inline-flex items-center gap-1">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          autoFocus
-                          aria-label={`Previsto de ${ponto.rotulo}`}
-                          className="campo !w-32 !px-2 !py-1 text-right text-xs"
-                          value={edicao.valor}
-                          onChange={(e) => setEdicao({ referencia: ponto.referencia, valor: e.target.value })}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') salvar();
-                            if (e.key === 'Escape') setEdicao(null);
-                          }}
-                          disabled={salvando}
-                        />
-                        <button type="button" onClick={salvar} disabled={salvando} aria-label="Salvar previsto" className="flex h-6 w-6 items-center justify-center rounded border border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100">
-                          {salvando ? <Spinner tamanho="sm" /> : <Check className="h-3.5 w-3.5" aria-hidden="true" />}
-                        </button>
-                        <button type="button" onClick={() => setEdicao(null)} disabled={salvando} aria-label="Cancelar" className="flex h-6 w-6 items-center justify-center rounded border border-slate-300 bg-white text-slate-500 hover:bg-slate-50">
-                          <X className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
-                      </span>
-                    ) : editavel && ponto.editavel ? (
-                      <button
-                        type="button"
-                        onClick={() => setEdicao({ referencia: ponto.referencia, valor: String(ponto.previsto) })}
-                        className="group inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 font-semibold text-slate-800 transition hover:bg-slate-100"
-                        aria-label={`Ajustar o previsto de ${ponto.rotulo}`}
-                        title="Ajustar o previsto deste mês"
-                      >
-                        {formatarMoeda(ponto.previsto)}
-                        <Pencil className="h-3 w-3 text-slate-300 transition group-hover:text-omega-600" aria-hidden="true" />
-                      </button>
-                    ) : (
-                      <span className="font-semibold text-slate-800">{formatarMoeda(ponto.previsto)}</span>
-                    )}
+                    <CelulaEditavel
+                      ponto={ponto}
+                      campo="previsto"
+                      valor={ponto.previsto}
+                      texto={formatarMoeda(ponto.previsto)}
+                      classe="font-semibold text-slate-800"
+                      rotuloAria="Previsto"
+                      podeEditar={editavel && ponto.editavel}
+                      {...celula}
+                    />
                   </td>
                   <td className="px-3 py-1.5 text-right font-semibold text-slate-800">{medido ? formatarMoeda(ponto.real) : '—'}</td>
                   <td className={`px-3 py-1.5 text-right font-semibold ${classeDesvio(desvio)}`}>
@@ -193,8 +220,18 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                     {medido ? `${sinal(desvioAcum)}${formatarMoeda(desvioAcum)}` : '—'}
                     {desvioAcumPct === null ? '' : <span className="ml-1 text-[10px] opacity-80">({sinal(desvioAcumPct)}{formatarPercentual(desvioAcumPct, 1)})</span>}
                   </td>
-                  <td className="px-3 py-1.5 text-right text-amber-700">
-                    {ponto.tendencia_acumulada > 0 ? formatarMoeda(ponto.tendencia_acumulada) : '—'}
+                  <td className="px-3 py-1.5 text-right">
+                    <CelulaEditavel
+                      ponto={ponto}
+                      campo="tendencia"
+                      valor={ponto.tendencia_acumulada}
+                      vazio={!(ponto.tendencia_acumulada > 0)}
+                      texto={ponto.tendencia_acumulada > 0 ? formatarMoeda(ponto.tendencia_acumulada) : '—'}
+                      classe="text-amber-700"
+                      rotuloAria="Tendência"
+                      podeEditar={editavel && ponto.editavel}
+                      {...celula}
+                    />
                   </td>
                 </tr>
               );
