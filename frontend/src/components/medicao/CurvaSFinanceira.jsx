@@ -2,16 +2,19 @@ import { useMemo, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { formatarMoeda, formatarMoedaCompacta } from '../../utils/formatters.js';
-import { CG, GS } from '../../utils/coresGrafico.js';
+import { CG, CURVA_S } from '../../utils/coresGrafico.js';
 
-/** Cores no padrão do dashboard de acompanhamento do contrato. */
+/**
+ * Séries do gráfico. `cor` é a cor opaca (linha, borda, legenda); `fundo` é o preenchimento das colunas,
+ * que no tema escuro é translúcido para as barras agrupadas não pesarem.
+ */
 const SERIES = [
-  { chave: 'previsto', nome: 'Previsto', tipo: 'coluna', cor: GS.previsto },
-  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: GS.real },
-  { chave: 'previsto_replanejado', nome: 'Previsto mensal', tipo: 'coluna', cor: GS.mensal },
-  { chave: 'previsto_acumulado', nome: 'Prev. acum.', tipo: 'linha', cor: GS.previstoAcum },
-  { chave: 'real_acumulado', nome: 'Real acum.', tipo: 'linha', cor: '#7dc3f0' },
-  { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: GS.tendencia },
+  { chave: 'previsto', nome: 'Previsto', tipo: 'coluna', cor: CURVA_S.previsto.linha, fundo: CURVA_S.previsto.fundo },
+  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: CURVA_S.real.linha, fundo: CURVA_S.real.fundo },
+  { chave: 'previsto_replanejado', nome: 'Previsto mensal', tipo: 'coluna', cor: CURVA_S.mensal.linha, fundo: CURVA_S.mensal.fundo },
+  { chave: 'previsto_acumulado', nome: 'Prev. acum.', tipo: 'linha', cor: CURVA_S.previstoAcum.linha },
+  { chave: 'real_acumulado', nome: 'Real acum.', tipo: 'linha', cor: CURVA_S.realAcum.linha },
+  { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: CURVA_S.tendencia.linha },
 ];
 
 /** Eixo das colunas (valor do mês); as linhas acumuladas usam o eixo da direita. */
@@ -40,8 +43,8 @@ function TooltipFinanceiro({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   const ponto = payload[0]?.payload || {};
   return (
-    <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-      <p className="mb-1 font-bold text-slate-700">
+    <div className="min-w-[15rem] rounded-lg border border-slate-200 bg-white/95 px-3.5 py-2.5 text-xs shadow-xl shadow-slate-900/15 backdrop-blur-sm">
+      <p className="mb-1.5 border-b border-slate-200 pb-1.5 font-bold text-slate-800">
         {label}
         {ponto.ciclo_inicio ? (
           <span className="ml-1 font-normal text-slate-400">
@@ -53,10 +56,14 @@ function TooltipFinanceiro({ active, payload, label }) {
         const valor = ponto[serie.chave];
         if (valor === null || valor === undefined) return null;
         return (
-          <p key={serie.chave} className="flex items-center gap-2 text-slate-600">
-            <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: serie.cor }} aria-hidden="true" />
-            <span className="font-medium">{serie.nome}:</span>
-            <span className="font-bold text-slate-800">{formatarMoeda(valor)}</span>
+          <p key={serie.chave} className="flex items-center gap-2 py-0.5 text-slate-600">
+            <span
+              className="inline-block h-2 w-2 shrink-0 rounded-full"
+              style={{ backgroundColor: serie.fundo || serie.cor, boxShadow: `0 0 0 1px ${serie.cor}` }}
+              aria-hidden="true"
+            />
+            <span className="font-medium">{serie.nome}</span>
+            <span className="ml-auto pl-3 font-semibold tabular-nums text-slate-900">{formatarMoeda(valor)}</span>
           </p>
         );
       })}
@@ -125,7 +132,11 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
                 }`}
               >
                 {serie.tipo === 'coluna' ? (
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: serie.cor }} aria-hidden="true" />
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: serie.fundo, boxShadow: `0 0 0 1px ${serie.cor}` }}
+                    aria-hidden="true"
+                  />
                 ) : (
                   <span
                     className="inline-block h-0 w-5"
@@ -141,7 +152,7 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
           <div className="h-[420px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={dados} margin={{ top: 10, right: 6, left: 2, bottom: 12 }} barGap={1} barCategoryGap="18%">
-                <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} vertical={false} />
+                <CartesianGrid strokeDasharray="2 5" stroke={CURVA_S.grade.fundo} vertical={false} />
                 <XAxis dataKey="rotulo" interval={0} tickLine={false} height={42} tick={<TickMes dados={dados} />} />
                 <YAxis
                   yAxisId={EIXO_MENSAL}
@@ -160,7 +171,7 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
                   width={66}
                   tickFormatter={(valor) => formatarMoedaCompacta(valor)}
                 />
-                <Tooltip content={<TooltipFinanceiro />} cursor={{ fill: 'rgba(148,163,184,0.12)' }} />
+                <Tooltip content={<TooltipFinanceiro />} cursor={{ fill: 'rgb(var(--c-slate-500) / 0.1)' }} />
 
                 {SERIES.filter((serie) => serie.tipo === 'coluna' && visivel(serie.chave)).map((serie) => (
                   <Bar
@@ -168,9 +179,12 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
                     yAxisId={EIXO_MENSAL}
                     dataKey={serie.chave}
                     name={serie.nome}
-                    fill={serie.cor}
+                    fill={serie.fundo}
+                    stroke={serie.cor}
+                    strokeWidth={1}
+                    strokeOpacity={0.9}
                     maxBarSize={14}
-                    radius={[2, 2, 0, 0]}
+                    radius={[3, 3, 0, 0]}
                     isAnimationActive={false}
                   />
                 ))}
@@ -181,9 +195,11 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
                     dataKey={serie.chave}
                     name={serie.nome}
                     stroke={serie.cor}
-                    strokeWidth={serie.tipo === 'tracejada' ? 2.5 : 2.5}
-                    strokeDasharray={serie.tipo === 'tracejada' ? '5 4' : undefined}
-                    dot={serie.tipo === 'tracejada' ? { r: 3, fill: serie.cor, strokeWidth: 0 } : false}
+                    strokeWidth={serie.tipo === 'tracejada' ? 2 : 1.75}
+                    strokeLinecap="round"
+                    strokeDasharray={serie.tipo === 'tracejada' ? '6 5' : undefined}
+                    dot={serie.tipo === 'tracejada' ? { r: 2.5, fill: serie.cor, strokeWidth: 0 } : false}
+                    activeDot={{ r: 4, strokeWidth: 0 }}
                     connectNulls={serie.tipo === 'tracejada'}
                     isAnimationActive={false}
                   />

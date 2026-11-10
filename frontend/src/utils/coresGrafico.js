@@ -25,6 +25,21 @@ export const CG = {
   texto: v('--c-slate-800'),
 };
 
+/**
+ * Séries da Curva S financeira: `linha` é a cor opaca (linhas, bordas, legenda) e `fundo` a mesma cor
+ * com a transparência do tema (preenchimento das colunas).
+ */
+const serie = (nome) => ({ linha: `rgb(var(--s-${nome}))`, fundo: `rgb(var(--s-${nome}) / var(--s-${nome}-op))` });
+export const CURVA_S = {
+  previsto: serie('previsto'),
+  real: serie('real'),
+  mensal: serie('mensal'),
+  previstoAcum: serie('prevacum'),
+  realAcum: serie('realacum'),
+  tendencia: serie('tend'),
+  grade: serie('grade'),
+};
+
 /** Séries com cor própria por tema (a do tema claro escurece, a do escuro clareia). */
 export const GS = {
   previsto: v('--g-previsto'),
