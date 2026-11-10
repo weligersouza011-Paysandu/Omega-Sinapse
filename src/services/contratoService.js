@@ -101,7 +101,7 @@ function dataISO(valor) {
 function montarContrato(registro) {
   if (!registro) return null;
 
-  const { aditivos = [], obras = [], ...contrato } = registro;
+  const { aditivos = [], obras = [], _count: contagem, ...contrato } = registro;
   const valorInicial = arredondar(contrato.valor_inicial);
   const totalAditivos = arredondar(aditivos.reduce((soma, tac) => soma + Number(tac.valor_aditivo), 0));
   const tetoAtual = arredondar(valorInicial + totalAditivos);
@@ -120,6 +120,7 @@ function montarContrato(registro) {
     data_inicio: inicio,
     data_fim: fim,
     em_vigencia: inicio <= hoje && hoje <= fim,
+    quantidade_boletins: contagem?.boletins ?? 0,
     created_at: contrato.created_at,
     updated_at: contrato.updated_at,
     aditivos: aditivos.map(({ usuario, ...tac }) => ({

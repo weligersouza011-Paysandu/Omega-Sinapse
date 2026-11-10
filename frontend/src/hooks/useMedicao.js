@@ -194,8 +194,14 @@ export function useDashboardMedicao() {
         setContratos(lista);
         setContratoId((atual) => {
           if (atual && lista.some((contrato) => contrato.id === atual)) return atual;
-          const vigente = lista.find((contrato) => contrato.em_vigencia) || lista[0];
-          return vigente ? vigente.id : null;
+          // Abre o contrato que tem medição (vigente primeiro); contrato novo e vazio não esconde os dados.
+          const comDados = lista.filter((contrato) => contrato.quantidade_boletins > 0);
+          const escolhido =
+            comDados.find((contrato) => contrato.em_vigencia) ||
+            [...comDados].sort((a, b) => b.quantidade_boletins - a.quantidade_boletins)[0] ||
+            lista.find((contrato) => contrato.em_vigencia) ||
+            lista[0];
+          return escolhido ? escolhido.id : null;
         });
       })
       .catch((falha) => {

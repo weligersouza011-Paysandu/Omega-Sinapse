@@ -11,6 +11,7 @@ const TRANSACAO_TIMEOUT_MS = 15000;
  * obras vinculadas com o valor vigente do orçamento (base do valor comprometido).
  */
 const INCLUDE_CONTRATO = {
+  _count: { select: { boletins: true } },
   aditivos: {
     orderBy: [{ data_assinatura: 'asc' }, { id: 'asc' }],
     include: { usuario: { select: { nome: true } } },
