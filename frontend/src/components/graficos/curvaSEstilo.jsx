@@ -1,5 +1,6 @@
 import { Line, ReferenceDot } from 'recharts';
 import { formatarData } from '../../utils/formatters.js';
+import { CG } from '../../utils/coresGrafico.js';
 
 /**
  * Padrão visual único das Curvas S do Synapse (Cronograma, Visão Geral,
@@ -15,12 +16,12 @@ import { formatarData } from '../../utils/formatters.js';
  */
 export const CORES_CURVA_S = {
   previsto: '#eab308',
-  previstoConcluido: '#2563eb',
-  real: '#059669',
+  previstoConcluido: 'rgb(var(--g-azul))',
+  real: 'rgb(var(--g-verde))',
   tendencia: '#94a3b8',
   base: '#a855f7',
-  marcoPrevisto: '#2563eb',
-  marcoTendencia: '#475569',
+  marcoPrevisto: 'rgb(var(--g-azul))',
+  marcoTendencia: 'rgb(var(--g-neutro))',
 };
 
 const CHAVE_ATE = '__previsto_ate_100';
@@ -119,7 +120,7 @@ export function marcosCurvaS(marcos) {
         y={marcos.previsto.y}
         r={6}
         fill={CORES_CURVA_S.marcoPrevisto}
-        stroke="#ffffff"
+        stroke={CG.superficie}
         strokeWidth={2}
         ifOverflow="extendDomain"
         label={{
@@ -140,7 +141,7 @@ export function marcosCurvaS(marcos) {
         y={marcos.tendencia.y}
         r={6}
         fill={CORES_CURVA_S.marcoTendencia}
-        stroke="#ffffff"
+        stroke={CG.superficie}
         strokeWidth={2}
         ifOverflow="extendDomain"
         label={{

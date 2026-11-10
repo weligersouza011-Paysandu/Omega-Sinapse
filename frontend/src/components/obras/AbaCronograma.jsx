@@ -48,8 +48,9 @@ import {
   formatarPercentual,
   semanaISO,
 } from '../../utils/formatters.js';
+import { CG, GS } from '../../utils/coresGrafico.js';
 
-const CORES = { previsto: '#64748b', real: '#0f766e', tendencia: '#f59e0b', base: '#a855f7', barra: '#94a3b8' };
+const CORES = { previsto: '#64748b', real: GS.teal, tendencia: '#f59e0b', base: '#a855f7', barra: '#94a3b8' };
 
 const STATUS_PRAZO = {
   NO_PRAZO: { rotulo: 'No prazo', classe: 'bg-emerald-100 text-emerald-700 border-emerald-300' },
@@ -348,10 +349,10 @@ export function CurvaS({ curva }) {
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={dados} margin={{ top: 22, right: 18, left: 4, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} />
+            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
             <YAxis
-              tick={{ fontSize: 11, fill: '#64748b' }}
+              tick={{ fontSize: 11, fill: CG.eixo }}
               tickLine={false}
               axisLine={false}
               width={financeiro ? 72 : 44}
@@ -588,9 +589,9 @@ function CargaTrabalho({ carga }) {
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={dados} margin={{ top: 8, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-            <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={36} />
+            <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} />
+            <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
+            <YAxis tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} axisLine={false} width={36} />
             <Tooltip formatter={(valor, nome) => [numero(valor, 0), nome]} labelFormatter={(rotulo, itens) => `${rotulo} · ${formatarData(itens?.[0]?.payload?.data)}`} />
             <Legend wrapperStyle={{ fontSize: 12 }} />
             <Bar dataKey="realizado" name="Efetivo realizado" fill={CORES.real} radius={[3, 3, 0, 0]} />

@@ -71,7 +71,7 @@ export default function Sidebar({ recolhido = false, onToggle }) {
   return (
     <aside
       className={[
-        'flex h-screen shrink-0 flex-col overflow-hidden bg-slate-900 text-slate-200',
+        'tema-claro flex h-screen shrink-0 flex-col overflow-hidden border-r border-white/5 bg-slate-900 text-slate-200',
         'transition-all duration-300 ease-in-out',
         recolhido ? 'w-20' : 'w-64',
       ].join(' ')}

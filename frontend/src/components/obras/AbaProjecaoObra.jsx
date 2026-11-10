@@ -23,6 +23,7 @@ import {
 } from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '../../utils/formatters.js';
 import { CORES_CURVA_S, linhasPrevisto, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
+import { CG, GS } from '../../utils/coresGrafico.js';
 
 const COR_FISICO_REAL = '#0ea5e9';
 const CORES_CATEGORIA = { hh: '#6366f1', equipamento: '#f97316', insumo: '#14b8a6', outros: '#94a3b8' };
@@ -239,9 +240,9 @@ export default function AbaProjecaoObra({ obra, podeEditar = false }) {
             <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={dadosComparativo} margin={{ top: 16, right: 12, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} />
+                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
+                  <YAxis tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
                   <Tooltip content={<TooltipMoeda />} />
                   {linhasPrevisto({ nome: 'Previsto (físico planejado)' })}
                   <Line type="monotone" dataKey="tendencia_acumulada" name="Tendência" stroke={CORES_CURVA_S.tendencia} strokeWidth={2} strokeDasharray="6 4" dot={false} connectNulls isAnimationActive={false} />
@@ -320,17 +321,17 @@ export default function AbaProjecaoObra({ obra, podeEditar = false }) {
             <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={meses} margin={{ top: 16, right: 8, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
-                  <YAxis yAxisId={EIXO_MENSAL} orientation="left" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
-                  <YAxis orientation="right" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} />
+                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
+                  <YAxis yAxisId={EIXO_MENSAL} orientation="left" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
+                  <YAxis orientation="right" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} axisLine={false} width={68} tickFormatter={(v) => formatarMoedaCompacta(v)} />
                   <Tooltip content={<TooltipMoeda />} cursor={{ fill: 'rgba(148,163,184,0.12)' }} />
                   <Bar yAxisId={EIXO_MENSAL} stackId="custo" dataKey="custo_hh" name="HH" fill={CORES_CATEGORIA.hh} maxBarSize={34} isAnimationActive={false} />
                   <Bar yAxisId={EIXO_MENSAL} stackId="custo" dataKey="custo_equipamento" name="Equipamentos" fill={CORES_CATEGORIA.equipamento} maxBarSize={34} isAnimationActive={false} />
                   <Bar yAxisId={EIXO_MENSAL} stackId="custo" dataKey="custo_insumo" name="Insumos" fill={CORES_CATEGORIA.insumo} maxBarSize={34} isAnimationActive={false} />
                   <Bar yAxisId={EIXO_MENSAL} stackId="custo" dataKey="custo_outros" name="Outros" fill={CORES_CATEGORIA.outros} radius={[3, 3, 0, 0]} maxBarSize={34} isAnimationActive={false} />
                   <Line type="monotone" dataKey="receita" name="Receita do ciclo" stroke={CORES_CURVA_S.real} strokeWidth={2.5} dot={{ r: 3, fill: CORES_CURVA_S.real, strokeWidth: 0 }} isAnimationActive={false} />
-                  <Line type="monotone" dataKey="fluxo_acumulado" name="Fluxo acumulado" stroke="#1e293b" strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
+                  <Line type="monotone" dataKey="fluxo_acumulado" name="Fluxo acumulado" stroke={GS.linha} strokeWidth={2} strokeDasharray="6 4" dot={false} isAnimationActive={false} />
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
@@ -346,7 +347,7 @@ export default function AbaProjecaoObra({ obra, podeEditar = false }) {
                 Receita do ciclo (eixo direito)
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-0 w-5" style={{ borderTop: '2px dashed #1e293b' }} aria-hidden="true" />
+                <span className="inline-block h-0 w-5" style={{ borderTop: '2px dashed rgb(var(--g-linha))' }} aria-hidden="true" />
                 Fluxo acumulado (eixo direito)
               </span>
             </div>

@@ -11,7 +11,7 @@ export default function DashboardHero({
   carregando = false,
 }) {
   return (
-    <header className="relative overflow-hidden rounded-xl bg-gradient-to-br from-omega-900 via-omega-800 to-slate-900 px-5 py-6 text-white shadow-sm sm:px-7 sm:py-7">
+    <header className="tema-claro relative overflow-hidden rounded-xl bg-gradient-to-br from-omega-900 via-omega-800 to-slate-900 px-5 py-6 text-white shadow-sm sm:px-7 sm:py-7">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute -right-24 -top-28 h-72 w-72 rounded-full border border-white/10"

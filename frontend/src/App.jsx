@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RotaPorPerfil from './components/RotaPorPerfil.jsx';
+import BotaoTema from './components/BotaoTema.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Spinner from './components/Spinner.jsx';
 import { CabecalhoProvider, useConteudoCabecalho } from './context/CabecalhoContext.jsx';
@@ -115,6 +116,7 @@ function AppLayoutConteudo() {
             >
               {AMBIENTE.texto}
             </span>
+            <BotaoTema />
           </div>
         </header>
 

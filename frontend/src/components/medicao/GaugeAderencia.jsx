@@ -1,5 +1,6 @@
 import { Gauge } from 'lucide-react';
 import { formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
+import { CG } from '../../utils/coresGrafico.js';
 
 /** Escala do medidor: 0% a 150% (a marca de 100% é o "no previsto"). */
 const ESCALA_MAXIMA = 150;
@@ -72,7 +73,7 @@ export default function GaugeAderencia({ aderencia }) {
         <path
           d={`M ${CENTRO_X - RAIO} ${CENTRO_Y} A ${RAIO} ${RAIO} 0 0 1 ${CENTRO_X + RAIO} ${CENTRO_Y}`}
           fill="none"
-          stroke="#e2e8f0"
+          stroke={CG.grade}
           strokeWidth="16"
           strokeLinecap="round"
           pathLength="100"
@@ -90,21 +91,21 @@ export default function GaugeAderencia({ aderencia }) {
           />
         ) : null}
         {/* Marca dos 100% */}
-        <line x1={marcaX1} y1={marcaY1} x2={marcaX2} y2={marcaY2} stroke="#334155" strokeWidth="2.5" />
-        <text x={rotuloX} y={rotuloY} fontSize="8" fontWeight="700" fill="#334155" textAnchor="middle">
+        <line x1={marcaX1} y1={marcaY1} x2={marcaX2} y2={marcaY2} stroke={CG.rotulo} strokeWidth="2.5" />
+        <text x={rotuloX} y={rotuloY} fontSize="8" fontWeight="700" fill={CG.rotulo} textAnchor="middle">
           100%
         </text>
 
-        <text x={CENTRO_X} y={CENTRO_Y - 14} textAnchor="middle" fontSize="30" fontWeight="900" fill="#0f172a">
+        <text x={CENTRO_X} y={CENTRO_Y - 14} textAnchor="middle" fontSize="30" fontWeight="900" fill={CG.titulo}>
           {temValor ? formatarPercentual(aderencia.percentual, 0) : '—'}
         </text>
-        <text x={CENTRO_X} y={CENTRO_Y + 4} textAnchor="middle" fontSize="9" fill="#64748b">
+        <text x={CENTRO_X} y={CENTRO_Y + 4} textAnchor="middle" fontSize="9" fill={CG.eixo}>
           {situacao.rotulo}
         </text>
-        <text x={CENTRO_X - RAIO} y={CENTRO_Y + 16} textAnchor="middle" fontSize="8" fill="#94a3b8">
+        <text x={CENTRO_X - RAIO} y={CENTRO_Y + 16} textAnchor="middle" fontSize="8" fill={CG.suave}>
           0%
         </text>
-        <text x={CENTRO_X + RAIO} y={CENTRO_Y + 16} textAnchor="middle" fontSize="8" fill="#94a3b8">
+        <text x={CENTRO_X + RAIO} y={CENTRO_Y + 16} textAnchor="middle" fontSize="8" fill={CG.suave}>
           {ESCALA_MAXIMA}%
         </text>
       </svg>

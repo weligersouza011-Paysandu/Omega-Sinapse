@@ -26,6 +26,7 @@ import StatusBadge from '../components/StatusBadge.jsx';
 import { useEstatisticas } from '../hooks/useOrcamentos.js';
 import { obterStatus } from '../utils/status.js';
 import { formatarData, formatarMoeda, formatarMoedaCompacta } from '../utils/formatters.js';
+import { CG } from '../utils/coresGrafico.js';
 
 /** Cartão de indicador (KPI) do topo do dashboard. */
 function Kpi({ Icone, rotulo, valor, detalhe, destaque = 'text-slate-800' }) {
@@ -260,7 +261,7 @@ export default function DashboardOrcamentosBI() {
                           innerRadius={52}
                           outerRadius={82}
                           paddingAngle={2}
-                          stroke="#ffffff"
+                          stroke={CG.superficie}
                           strokeWidth={2}
                         >
                           {comDados.map((item) => (
@@ -300,22 +301,22 @@ export default function DashboardOrcamentosBI() {
                 <div className="h-72">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={series} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CG.grade} />
                       <XAxis
                         dataKey="nome"
-                        tick={{ fontSize: 11, fill: '#64748b' }}
+                        tick={{ fontSize: 11, fill: CG.eixo }}
                         interval={0}
                         tickLine={false}
-                        axisLine={{ stroke: '#e2e8f0' }}
+                        axisLine={{ stroke: CG.grade }}
                       />
                       <YAxis
                         tickFormatter={(valor) => formatarMoedaCompacta(valor)}
-                        tick={{ fontSize: 11, fill: '#64748b' }}
+                        tick={{ fontSize: 11, fill: CG.eixo }}
                         tickLine={false}
                         axisLine={false}
                         width={72}
                       />
-                      <Tooltip content={<TooltipCustom />} cursor={{ fill: '#f1f5f9' }} />
+                      <Tooltip content={<TooltipCustom />} cursor={{ fill: 'rgb(var(--c-slate-500) / 0.12)' }} />
                       <Bar dataKey="valor" radius={[6, 6, 0, 0]} maxBarSize={72}>
                         {series.map((item) => (
                           <Cell key={item.nome} fill={item.hex} />

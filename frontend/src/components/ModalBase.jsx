@@ -28,7 +28,7 @@ export default function ModalBase({ aberto, titulo, subtitulo, onFechar, tamanho
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/60 p-4 backdrop-blur-sm sm:p-6"
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-950/60 p-4 backdrop-blur-sm sm:p-6"
       onMouseDown={(evento) => {
         if (evento.target === evento.currentTarget) onFechar();
       }}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Maximize2, Minus, Plus, X, Zap } from 'lucide-react';
 import { formatarData, formatarPercentual } from '../../utils/formatters.js';
+import { CG, GS } from '../../utils/coresGrafico.js';
 
 /**
  * Diagrama de rede do caminho crítico ("mapa mental" da lógica do cronograma).
@@ -332,7 +333,7 @@ export default function RedeCaminhoCritico({ rede }) {
               <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8" />
             </marker>
             <pattern id="grade-rede" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="1" cy="1" r="1" fill="#e2e8f0" />
+              <circle cx="1" cy="1" r="1" fill={CG.grade} />
             </pattern>
             <style>{`
               @keyframes fluxo-critico { to { stroke-dashoffset: -20; } }
@@ -358,7 +359,7 @@ export default function RedeCaminhoCritico({ rede }) {
                     markerEnd={`url(#${critica ? 'seta-critica' : 'seta-normal'})`}
                   />
                   {rotulo ? (
-                    <text x={lx + 8} y={ly + 4} textAnchor="start" fontSize="11" fontWeight="700" fill={critica ? '#dc2626' : '#64748b'}>
+                    <text x={lx + 8} y={ly + 4} textAnchor="start" fontSize="11" fontWeight="700" fill={critica ? GS.critico : CG.eixo}>
                       {rotulo}
                     </text>
                   ) : null}
@@ -390,34 +391,34 @@ export default function RedeCaminhoCritico({ rede }) {
                     width={NO_LARGURA}
                     height={NO_ALTURA}
                     rx="10"
-                    fill={concluida ? '#f8fafc' : '#ffffff'}
-                    stroke={ativo ? '#1e3a8a' : critica ? '#ef4444' : '#cbd5e1'}
+                    fill={concluida ? CG.superficieAlta : CG.superficie}
+                    stroke={ativo ? GS.marca : critica ? '#ef4444' : CG.borda}
                     strokeWidth={ativo ? 3 : critica ? 2.2 : 1}
                     filter={critica ? 'drop-shadow(0 2px 4px rgba(239,68,68,0.25))' : undefined}
                   />
                   <rect width="7" height={NO_ALTURA} rx="3.5" fill={cor} />
-                  <text x="16" y="18" fontSize="11" fontWeight="700" fill="#64748b" fontFamily="ui-monospace, monospace">
+                  <text x="16" y="18" fontSize="11" fontWeight="700" fill={CG.eixo} fontFamily="ui-monospace, monospace">
                     {n.codigo}
                   </text>
-                  <text x={NO_LARGURA - 12} y="18" fontSize="11" fontWeight="700" textAnchor="end" fill={critica ? '#dc2626' : '#64748b'}>
+                  <text x={NO_LARGURA - 12} y="18" fontSize="11" fontWeight="700" textAnchor="end" fill={critica ? GS.critico : CG.eixo}>
                     {critica ? '⚡ ' : ''}Folga {n.folga_total_dias ?? '—'}d
                   </text>
                   {linhas.map((linha, i) => (
-                    <text key={i} x="16" y={37 + i * 15} fontSize="13" fontWeight="600" fill={concluida ? '#94a3b8' : '#1e293b'}>
+                    <text key={i} x="16" y={37 + i * 15} fontSize="13" fontWeight="600" fill={concluida ? CG.suave : CG.texto}>
                       {linha}
                     </text>
                   ))}
-                  <text x="16" y={NO_ALTURA - 10} fontSize="11" fill="#64748b">
+                  <text x="16" y={NO_ALTURA - 10} fontSize="11" fill={CG.eixo}>
                     {dataCurta(n.inicio)} → {dataCurta(n.termino)} · {Math.round(avanco)}%
                   </text>
-                  <rect x="140" y={NO_ALTURA - 17} width={NO_LARGURA - 154} height="6" rx="3" fill="#e2e8f0" />
+                  <rect x="140" y={NO_ALTURA - 17} width={NO_LARGURA - 154} height="6" rx="3" fill={CG.grade} />
                   <rect
                     x="140"
                     y={NO_ALTURA - 17}
                     width={((NO_LARGURA - 154) * avanco) / 100}
                     height="6"
                     rx="3"
-                    fill={concluida ? '#10b981' : avanco > 0 ? '#f59e0b' : '#e2e8f0'}
+                    fill={concluida ? '#10b981' : avanco > 0 ? '#f59e0b' : CG.grade}
                   />
                 </g>
               );

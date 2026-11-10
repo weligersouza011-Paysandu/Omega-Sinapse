@@ -15,6 +15,7 @@ import Spinner from '../Spinner.jsx';
 import { obterMedicaoObra, useCarregamento } from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '../../utils/formatters.js';
 import { CORES_CURVA_S } from '../graficos/curvaSEstilo.jsx';
+import { CG } from '../../utils/coresGrafico.js';
 
 const STATUS = {
   APROVADO: { rotulo: 'Aprovado', classe: 'border-emerald-300 bg-emerald-50 text-emerald-700', cor: CORES_CURVA_S.real },
@@ -166,10 +167,10 @@ export default function AbaMedicaoObra({ obra }) {
             <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={boletins} margin={{ top: 14, right: 12, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis dataKey="numero_bmm" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} />
+                  <XAxis dataKey="numero_bmm" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
                   <YAxis
-                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    tick={{ fontSize: 11, fill: CG.eixo }}
                     tickLine={false}
                     axisLine={false}
                     width={68}

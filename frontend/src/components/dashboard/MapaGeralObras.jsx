@@ -153,10 +153,10 @@ export default function MapaGeralObras({ mapa = {}, obras = [], foco = null, onS
                   <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('y')} subdomains={SUBDOMINIOS} maxZoom={20} />
                 </LayersControl.BaseLayer>
                 <LayersControl.BaseLayer name="Mapa">
-                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                  <TileLayer className="tiles-rua" attribution="&copy; Google" url={GOOGLE_TILES('m')} subdomains={SUBDOMINIOS} maxZoom={20} />
                 </LayersControl.BaseLayer>
                 <LayersControl.BaseLayer name="Terreno">
-                  <TileLayer attribution="&copy; Google" url={GOOGLE_TILES('p')} subdomains={SUBDOMINIOS} maxZoom={20} />
+                  <TileLayer className="tiles-rua" attribution="&copy; Google" url={GOOGLE_TILES('p')} subdomains={SUBDOMINIOS} maxZoom={20} />
                 </LayersControl.BaseLayer>
               </LayersControl>
               <Enquadrar pontos={pontos} foco={selecionado} listaAberta={listaAberta} />

@@ -24,6 +24,50 @@
   body {
     @apply bg-slate-100 text-slate-800 antialiased;
   }
+
+  /* Seleção de texto legível nos dois temas. */
+  ::selection {
+    background: rgb(var(--c-omega-500) / 0.28);
+  }
+
+  /* Contorno de foco por teclado visível em qualquer fundo. */
+  :focus-visible {
+    outline-color: rgb(var(--c-omega-500));
+  }
+
+  /* Tema escuro: preenchimento automático do navegador sem o fundo amarelo/branco. */
+  .dark input:-webkit-autofill,
+  .dark select:-webkit-autofill {
+    -webkit-text-fill-color: rgb(var(--c-slate-800));
+    box-shadow: 0 0 0 1000px rgb(var(--c-surface)) inset;
+  }
+
+  /* Tema escuro: os tiles de mapa de rua escurecem (a imagem de satélite não é afetada). */
+  .dark .mapa-leaflet .leaflet-tile-pane.tiles-rua,
+  .dark .mapa-leaflet .tiles-rua {
+    filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.8);
+  }
+
+  /* Tema escuro: popups, tooltips e controles do Leaflet seguem a superfície do app. */
+  .dark .leaflet-popup-content-wrapper,
+  .dark .leaflet-popup-tip,
+  .dark .leaflet-tooltip,
+  .dark .leaflet-control-layers,
+  .dark .leaflet-bar a {
+    background: rgb(var(--c-surface));
+    color: rgb(var(--c-slate-800));
+    border-color: rgb(var(--c-slate-300));
+    box-shadow: 0 6px 20px rgb(0 0 0 / 0.45);
+  }
+  .dark .leaflet-tooltip-top:before { border-top-color: rgb(var(--c-surface)); }
+  .dark .leaflet-tooltip-bottom:before { border-bottom-color: rgb(var(--c-surface)); }
+  .dark .leaflet-bar a:hover { background: rgb(var(--c-slate-50)); }
+  .dark .leaflet-container a.leaflet-popup-close-button { color: rgb(var(--c-slate-500)); }
+  .dark .leaflet-control-attribution {
+    background: rgb(var(--c-surface) / 0.8);
+    color: rgb(var(--c-slate-500));
+  }
+  .dark .leaflet-control-attribution a { color: rgb(var(--c-omega-600)); }
 }
 
 @layer components {
@@ -37,7 +81,7 @@
 
   .mapa-leaflet.leaflet-container {
     font-family: inherit;
-    background: #e2e8f0;
+    background: rgb(var(--c-slate-200));
   }
 
   .campo {

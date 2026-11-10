@@ -7,8 +7,9 @@ import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { excluirTac } from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda, formatarMoedaCompacta } from '../../utils/formatters.js';
+import { CG, GS } from '../../utils/coresGrafico.js';
 
-const COR_TETO = '#164b7d';
+const COR_TETO = GS.marca;
 const COR_TAC = '#d97706';
 
 function TooltipTac({ active, payload }) {
@@ -144,12 +145,12 @@ export default function TacsDoContrato({ contratos, contratoId, onContratoChange
             <div className="h-72 w-full min-w-0">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={pontos} margin={{ top: 14, right: 8, left: 4, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
-                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: '#64748b' }} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} vertical={false} />
+                  <XAxis dataKey="rotulo" tick={{ fontSize: 11, fill: CG.eixo }} tickLine={false} />
                   <YAxis
                     yAxisId="aditivo"
                     orientation="left"
-                    tick={{ fontSize: 11, fill: '#b45309' }}
+                    tick={{ fontSize: 11, fill: GS.previstoAcum }}
                     tickLine={false}
                     axisLine={false}
                     width={64}

@@ -2,15 +2,16 @@ import { useMemo, useState } from 'react';
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { BarChart3, TrendingUp } from 'lucide-react';
 import { formatarMoeda, formatarMoedaCompacta } from '../../utils/formatters.js';
+import { CG, GS } from '../../utils/coresGrafico.js';
 
 /** Cores no padrão do dashboard de acompanhamento do contrato. */
 const SERIES = [
-  { chave: 'previsto', nome: 'Previsto', tipo: 'coluna', cor: '#4b5563' },
-  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: '#9f1239' },
-  { chave: 'previsto_replanejado', nome: 'Previsto mensal', tipo: 'coluna', cor: '#4a8f5f' },
-  { chave: 'previsto_acumulado', nome: 'Prev. acum.', tipo: 'linha', cor: '#b08900' },
+  { chave: 'previsto', nome: 'Previsto', tipo: 'coluna', cor: GS.previsto },
+  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: GS.real },
+  { chave: 'previsto_replanejado', nome: 'Previsto mensal', tipo: 'coluna', cor: GS.mensal },
+  { chave: 'previsto_acumulado', nome: 'Prev. acum.', tipo: 'linha', cor: GS.previstoAcum },
   { chave: 'real_acumulado', nome: 'Real acum.', tipo: 'linha', cor: '#7dc3f0' },
-  { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: '#3f8f5f' },
+  { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: GS.tendencia },
 ];
 
 /** Eixo das colunas (valor do mês); as linhas acumuladas usam o eixo da direita. */
@@ -23,11 +24,11 @@ function TickMes({ x, y, payload, dados }) {
   const mostraAno = indice === 0 || ponto?.referencia?.endsWith('-01');
   return (
     <g transform={`translate(${x},${y})`}>
-      <text dy={12} textAnchor="middle" fontSize={11} fill="#64748b">
+      <text dy={12} textAnchor="middle" fontSize={11} fill={CG.eixo}>
         {payload.value.split('/')[0]}
       </text>
       {mostraAno ? (
-        <text dy={26} textAnchor="middle" fontSize={11} fontWeight={700} fill="#334155">
+        <text dy={26} textAnchor="middle" fontSize={11} fontWeight={700} fill={CG.rotulo}>
           {ponto?.referencia?.slice(0, 4)}
         </text>
       ) : null}
@@ -140,12 +141,12 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
           <div className="h-[420px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={dados} margin={{ top: 10, right: 6, left: 2, bottom: 12 }} barGap={1} barCategoryGap="18%">
-                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={CG.grade} vertical={false} />
                 <XAxis dataKey="rotulo" interval={0} tickLine={false} height={42} tick={<TickMes dados={dados} />} />
                 <YAxis
                   yAxisId={EIXO_MENSAL}
                   orientation="left"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: CG.eixo }}
                   tickLine={false}
                   axisLine={false}
                   width={62}
@@ -153,7 +154,7 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
                 />
                 <YAxis
                   orientation="right"
-                  tick={{ fontSize: 11, fill: '#64748b' }}
+                  tick={{ fontSize: 11, fill: CG.eixo }}
                   tickLine={false}
                   axisLine={false}
                   width={66}

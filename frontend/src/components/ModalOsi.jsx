@@ -31,7 +31,7 @@ export default function ModalOsi({ aberto, obra, onFechar }) {
       role="dialog"
       aria-modal="true"
       aria-label="Pré-visualização da Ordem de Serviço Interna"
-      className="fixed inset-0 z-[80] flex flex-col bg-slate-900/70 backdrop-blur-sm"
+      className="tema-claro fixed inset-0 z-[80] flex flex-col bg-slate-900/70 backdrop-blur-sm"
     >
       <div className="nao-imprimir flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-white/10 bg-slate-900 px-4 py-3">
         <div className="min-w-0">

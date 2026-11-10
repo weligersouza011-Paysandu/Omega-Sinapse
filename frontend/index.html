@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0a2138" />
+    <meta name="color-scheme" content="light dark" />
+    <script>
+      // Aplica o tema salvo (ou o do sistema) antes da primeira pintura, sem piscar branco no escuro.
+      (function () {
+        try {
+          var salvo = localStorage.getItem('synapse-tema');
+          var escuro = salvo ? salvo === 'escuro' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (escuro) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
     <title>Synapse | Omega Service</title>
   </head>
   <body>

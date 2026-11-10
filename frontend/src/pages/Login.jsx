@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
+import BotaoTema from '../components/BotaoTema.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 /** Tela de autenticação. */
@@ -44,7 +45,8 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-omega-900 via-omega-800 to-omega-700 px-4 py-10">
+    <div className="relative flex min-h-screen items-center justify-center bg-gradient-to-br from-omega-900 via-omega-800 to-omega-700 px-4 py-10">
+      <BotaoTema sobreEscuro className="absolute right-4 top-4" />
       <div className="w-full max-w-md">
         <div className="mb-6 flex items-center gap-3 text-white">
           <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/20">
