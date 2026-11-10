@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, ChevronRight, FolderTree, RotateCcw, Trash2, X } from 'lucide-react';
+import { Check, ChevronRight, FolderTree, Pencil, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import { formatarData, formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
 
 const STATUS = {
@@ -20,7 +20,7 @@ function SeloStatus({ status }) {
   );
 }
 
-function LinhaSs({ item }) {
+function LinhaSs({ item, podeGerir, onEditar, onRemover }) {
   return (
     <li className="flex items-center gap-3 py-2 pl-11 pr-4 text-xs">
       <div className="min-w-0 flex-1">
@@ -48,6 +48,28 @@ function LinhaSs({ item }) {
       <p className="hidden w-14 shrink-0 text-right text-[11px] tabular-nums text-slate-400 sm:block">
         {formatarPercentual(item.percentual_do_boletim, 0)}
       </p>
+      {podeGerir ? (
+        <div className="flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={() => onEditar(item)}
+            aria-label={`Corrigir valor de ${item.ss || 'SS'}`}
+            title="Corrigir o valor"
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 transition hover:border-omega-300 hover:text-omega-700"
+          >
+            <Pencil className="h-3 w-3" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onRemover(item)}
+            aria-label={`Tirar ${item.ss || 'SS'} do boletim`}
+            title="Tirar esta SS do boletim"
+            className="flex h-6 w-6 items-center justify-center rounded border border-slate-200 bg-white text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
     </li>
   );
 }
@@ -104,8 +126,9 @@ function AcoesBoletim({ boletim, ocupado, onAlterarStatus, onExcluir }) {
   );
 }
 
-function LinhaBoletim({ boletim, aberto, onAlternar, podeGerir, ocupado, onAlterarStatus, onExcluir }) {
-  const temDetalhe = boletim.itens.length > 0 || Math.abs(boletim.valor_sem_detalhamento) >= 0.01;
+function LinhaBoletim({ boletim, aberto, onAlternar, podeGerir, ocupado, onAlterarStatus, onExcluir, onEditarItem, onRemoverItem, onAdicionarItem }) {
+  // Quem gerencia sempre pode abrir o boletim (para adicionar SS, mesmo sem detalhamento).
+  const temDetalhe = podeGerir || boletim.itens.length > 0 || Math.abs(boletim.valor_sem_detalhamento) >= 0.01;
   const rejeitado = boletim.status === 'REJEITADO';
 
   return (
@@ -148,12 +171,30 @@ function LinhaBoletim({ boletim, aberto, onAlternar, podeGerir, ocupado, onAlter
       {aberto && temDetalhe ? (
         <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 pb-1">
           {boletim.itens.map((item, indice) => (
-            <LinhaSs key={item.obra_id ?? `ss-${item.ss}-${indice}`} item={item} />
+            <LinhaSs
+              key={item.id ?? item.obra_id ?? `ss-${item.ss}-${indice}`}
+              item={item}
+              podeGerir={podeGerir}
+              onEditar={(alvo) => onEditarItem(boletim, alvo)}
+              onRemover={(alvo) => onRemoverItem(boletim, alvo)}
+            />
           ))}
           {Math.abs(boletim.valor_sem_detalhamento) >= 0.01 ? (
             <li className="flex items-center justify-between gap-3 py-2 pl-11 pr-4 text-xs italic text-slate-500">
               <span>Valor do boletim sem detalhamento por SS</span>
               <span className="font-semibold tabular-nums">{formatarMoeda(boletim.valor_sem_detalhamento)}</span>
+            </li>
+          ) : null}
+          {podeGerir ? (
+            <li className="py-2 pl-11 pr-4">
+              <button
+                type="button"
+                onClick={() => onAdicionarItem(boletim)}
+                className="inline-flex items-center gap-1 rounded-md border border-dashed border-omega-400 bg-omega-50/60 px-2.5 py-1 text-[11px] font-semibold text-omega-700 transition hover:bg-omega-100"
+              >
+                <Plus className="h-3 w-3" aria-hidden="true" />
+                Adicionar SS
+              </button>
             </li>
           ) : null}
         </ul>
@@ -174,6 +215,9 @@ export default function ArvoreMedicao({
   onAlterarStatus = () => {},
   onExcluir = () => {},
   onLancar = null,
+  onEditarItem = () => {},
+  onRemoverItem = () => {},
+  onAdicionarItem = () => {},
 }) {
   const [abertos, setAbertos] = useState(() => new Set(boletins.length ? [boletins[0].id] : []));
 
@@ -239,6 +283,9 @@ export default function ArvoreMedicao({
               ocupado={boletimOcupadoId === boletim.id}
               onAlterarStatus={onAlterarStatus}
               onExcluir={onExcluir}
+              onEditarItem={onEditarItem}
+              onRemoverItem={onRemoverItem}
+              onAdicionarItem={onAdicionarItem}
             />
           ))}
         </ul>

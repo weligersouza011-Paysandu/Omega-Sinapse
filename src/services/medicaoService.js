@@ -172,6 +172,7 @@ function percentualEm(serie, data, campo) {
 function formatarBoletim(boletim) {
   const valorCent = emCentavos(boletim.valor_medido);
   const itens = (boletim.itens || []).map((item) => ({
+    id: item.id ?? null,
     // Itens do histórico podem ser de uma SS que ainda não é obra do sistema (obra_id nulo).
     obra_id: item.obra_id ?? null,
     ss: item.obra?.orcamento?.ss ?? item.ss_codigo ?? null,
@@ -622,6 +623,106 @@ async function atualizarBoletim(idParam, boletimIdParam, payload = {}, usuario) 
   return formatarBoletim(await boletimRepository.atualizar(id, boletimId, dados));
 }
 
+/* ---------------------- Itens (SS) de um boletim já lançado ---------------------- */
+
+async function carregarBoletim(idParam, boletimIdParam) {
+  const { id } = await carregarContrato(idParam);
+  const boletimId = validarId(boletimIdParam, 'boletimId');
+  const boletim = await boletimRepository.buscar(id, boletimId);
+  if (!boletim) {
+    throw new AppError(404, `Boletim ${boletimId} não encontrado neste contrato.`);
+  }
+  return { contratoId: id, boletimId, boletim };
+}
+
+/** Devolve o boletim atualizado no formato da API. */
+async function boletimAtualizado(contratoId, boletimId) {
+  return formatarBoletim(await boletimRepository.buscar(contratoId, boletimId));
+}
+
+/**
+ * POST /api/contratos/:id/boletins/:boletimId/itens
+ * Corpo: { obra_id, valor } (obra vinculada ao contrato) ou { ss_codigo, descricao?, valor }.
+ * O valor medido do boletim aumenta pelo valor do item.
+ */
+async function incluirItemBoletim(idParam, boletimIdParam, payload = {}, usuario) {
+  exigirGestor(usuario);
+  const { contratoId, boletimId } = await carregarBoletim(idParam, boletimIdParam);
+  const valor = valorNaoNegativo(payload.valor, 'valor');
+
+  let obraId = null;
+  let ssCodigo = null;
+  let descricao = null;
+  if (!estaVazio(payload.obra_id)) {
+    obraId = validarId(payload.obra_id, 'obra_id');
+    const doContrato = await boletimRepository.obrasDoContrato(contratoId, [obraId]);
+    if (!doContrato.includes(obraId)) {
+      throw new AppError(400, `A obra ${obraId} não está vinculada a este contrato. Vincule-a antes de lançar a medição.`);
+    }
+  } else if (!estaVazio(payload.ss_codigo)) {
+    ssCodigo = String(payload.ss_codigo).trim().toUpperCase();
+    if (ssCodigo.length > 60) {
+      throw new AppError(400, 'O campo "ss_codigo" aceita no máximo 60 caracteres.');
+    }
+    descricao = estaVazio(payload.descricao) ? null : String(payload.descricao).trim();
+  } else {
+    throw new AppError(400, 'Informe a obra ("obra_id") ou o código da SS ("ss_codigo").');
+  }
+
+  if (await boletimRepository.existeItemDuplicado(boletimId, { obraId, ssCodigo })) {
+    throw new AppError(409, 'Esta SS já está neste boletim: edite o valor da linha existente.');
+  }
+
+  await boletimRepository.incluirItem(boletimId, { obra_id: obraId, ss_codigo: ssCodigo, descricao, valor });
+  return boletimAtualizado(contratoId, boletimId);
+}
+
+/** PUT /api/contratos/:id/boletins/:boletimId/itens/:itemId — corrige o valor (e o código/descrição de SS sem obra). */
+async function atualizarItemBoletim(idParam, boletimIdParam, itemIdParam, payload = {}, usuario) {
+  exigirGestor(usuario);
+  const { contratoId, boletimId } = await carregarBoletim(idParam, boletimIdParam);
+  const itemId = validarId(itemIdParam, 'itemId');
+  const item = await boletimRepository.buscarItem(contratoId, boletimId, itemId);
+  if (!item) {
+    throw new AppError(404, `Item ${itemId} não encontrado neste boletim.`);
+  }
+
+  const dados = {};
+  if (!estaVazio(payload.valor)) dados.valor = valorNaoNegativo(payload.valor, 'valor');
+  if (item.obra_id === null) {
+    if (!estaVazio(payload.ss_codigo)) {
+      dados.ss_codigo = String(payload.ss_codigo).trim().toUpperCase();
+      if (dados.ss_codigo !== item.ss_codigo && (await boletimRepository.existeItemDuplicado(boletimId, { ssCodigo: dados.ss_codigo }, itemId))) {
+        throw new AppError(409, 'Esta SS já está neste boletim: edite o valor da linha existente.');
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, 'descricao')) {
+      dados.descricao = estaVazio(payload.descricao) ? null : String(payload.descricao).trim();
+    }
+  }
+  if (Object.keys(dados).length === 0) {
+    throw new AppError(400, 'Informe o novo valor da SS.');
+  }
+
+  const diferenca = dados.valor === undefined ? 0 : (emCentavos(dados.valor) - emCentavos(item.valor)) / 100;
+  await boletimRepository.alterarItem(boletimId, itemId, dados, diferenca);
+  return boletimAtualizado(contratoId, boletimId);
+}
+
+/** DELETE /api/contratos/:id/boletins/:boletimId/itens/:itemId — tira a SS e o valor dela do boletim. */
+async function removerItemBoletim(idParam, boletimIdParam, itemIdParam, usuario) {
+  exigirGestor(usuario);
+  const { contratoId, boletimId } = await carregarBoletim(idParam, boletimIdParam);
+  const itemId = validarId(itemIdParam, 'itemId');
+  const item = await boletimRepository.buscarItem(contratoId, boletimId, itemId);
+  if (!item) {
+    throw new AppError(404, `Item ${itemId} não encontrado neste boletim.`);
+  }
+
+  await boletimRepository.removerItem(boletimId, itemId, Number(item.valor));
+  return boletimAtualizado(contratoId, boletimId);
+}
+
 /** DELETE /api/contratos/:id/boletins/:boletimId */
 async function excluirBoletim(idParam, boletimIdParam, usuario) {
   exigirGestor(usuario);
@@ -635,6 +736,9 @@ async function excluirBoletim(idParam, boletimIdParam, usuario) {
 }
 
 module.exports = {
+  incluirItemBoletim,
+  atualizarItemBoletim,
+  removerItemBoletim,
   emCentavos,
   emReais,
   percentualEm,

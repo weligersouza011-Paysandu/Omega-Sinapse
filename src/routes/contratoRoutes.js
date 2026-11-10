@@ -65,6 +65,10 @@ router.delete('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedica
 router.post('/:id/boletins', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.criarBoletim);
 // PATCH  /api/contratos/:id/boletins/:boletimId -> aprova/rejeita ({ status }) ou ajusta a observação
 router.patch('/:id/boletins/:boletimId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.atualizarBoletim);
+// Itens (SS) do boletim: incluir, corrigir o valor e remover; o valor medido do boletim acompanha.
+router.post('/:id/boletins/:boletimId/itens', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.incluirItemBoletim);
+router.put('/:id/boletins/:boletimId/itens/:itemId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.atualizarItemBoletim);
+router.delete('/:id/boletins/:boletimId/itens/:itemId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.removerItemBoletim);
 // DELETE /api/contratos/:id/boletins/:boletimId
 router.delete('/:id/boletins/:boletimId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.excluirBoletim);
 

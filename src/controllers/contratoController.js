@@ -53,6 +53,19 @@ const atualizarBoletim = acao((req) =>
   medicaoService.atualizarBoletim(req.params.id, req.params.boletimId, req.body || {}, req.user)
 );
 
+/** POST /api/contratos/:id/boletins/:boletimId/itens */
+const incluirItemBoletim = acao((req) => medicaoService.incluirItemBoletim(req.params.id, req.params.boletimId, req.body || {}, req.user), 201);
+
+/** PUT /api/contratos/:id/boletins/:boletimId/itens/:itemId */
+const atualizarItemBoletim = acao((req) =>
+  medicaoService.atualizarItemBoletim(req.params.id, req.params.boletimId, req.params.itemId, req.body || {}, req.user)
+);
+
+/** DELETE /api/contratos/:id/boletins/:boletimId/itens/:itemId */
+const removerItemBoletim = acao((req) =>
+  medicaoService.removerItemBoletim(req.params.id, req.params.boletimId, req.params.itemId, req.user)
+);
+
 /** DELETE /api/contratos/:id/boletins/:boletimId */
 const excluirBoletim = acao((req) => medicaoService.excluirBoletim(req.params.id, req.params.boletimId, req.user));
 
@@ -62,6 +75,9 @@ const importarMedicao = acao((req) =>
 );
 
 module.exports = {
+  incluirItemBoletim,
+  atualizarItemBoletim,
+  removerItemBoletim,
   atualizarTac,
   excluirTac,
   atualizarContrato,

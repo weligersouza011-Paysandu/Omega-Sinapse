@@ -72,6 +72,24 @@ export async function atualizarBoletim(contratoId, boletimId, dados) {
   return data;
 }
 
+/** Inclui uma SS no boletim; o total do boletim aumenta pelo valor dela. */
+export async function incluirItemBoletim(contratoId, boletimId, dados) {
+  const { data } = await api.post(`/contratos/${contratoId}/boletins/${boletimId}/itens`, dados);
+  return data;
+}
+
+/** Corrige o valor (e, em SS sem obra, o código/descrição) de uma SS do boletim. */
+export async function atualizarItemBoletim(contratoId, boletimId, itemId, dados) {
+  const { data } = await api.put(`/contratos/${contratoId}/boletins/${boletimId}/itens/${itemId}`, dados);
+  return data;
+}
+
+/** Tira uma SS do boletim; o total diminui pelo valor dela. */
+export async function removerItemBoletim(contratoId, boletimId, itemId) {
+  const { data } = await api.delete(`/contratos/${contratoId}/boletins/${boletimId}/itens/${itemId}`);
+  return data;
+}
+
 /** Aprova, rejeita ou reabre (em análise) um boletim. */
 export async function atualizarStatusBoletim(contratoId, boletimId, status) {
   const { data } = await api.patch(`/contratos/${contratoId}/boletins/${boletimId}`, { status });

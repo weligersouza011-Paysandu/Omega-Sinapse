@@ -10,6 +10,7 @@ import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
 import HistoricoBoletins from '../components/medicao/HistoricoBoletins.jsx';
 import HistoricoContratos from '../components/medicao/HistoricoContratos.jsx';
 import ModalContrato from '../components/medicao/ModalContrato.jsx';
+import ModalItemBoletim from '../components/medicao/ModalItemBoletim.jsx';
 import ModalImportarPlanilhas from '../components/medicao/ModalImportarPlanilhas.jsx';
 import ModalQqp from '../components/medicao/ModalQqp.jsx';
 import ModalTac from '../components/medicao/ModalTac.jsx';
@@ -20,6 +21,7 @@ import {
   PERFIS_QUE_GEREM_MEDICAO,
   atualizarStatusBoletim,
   excluirBoletim,
+  removerItemBoletim,
   useDashboardMedicao,
 } from '../hooks/useMedicao.js';
 import { formatarData, formatarMoeda } from '../utils/formatters.js';
@@ -45,6 +47,10 @@ export default function Medicao() {
   const [contratoEmEdicao, setContratoEmEdicao] = useState(null);
   const [boletimOcupadoId, setBoletimOcupadoId] = useState(null);
   const [excluir, setExcluir] = useState(null);
+  // SS de um boletim: { boletim, item } para incluir (item nulo) ou corrigir; e a remoção pedida.
+  const [itemEmEdicao, setItemEmEdicao] = useState(null);
+  const [itemParaRemover, setItemParaRemover] = useState(null);
+  const [removendoItem, setRemovendoItem] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
 
   useEffect(() => {
@@ -67,6 +73,20 @@ export default function Medicao() {
       toast.erro(err.message || 'Não foi possível alterar o boletim.');
     } finally {
       setBoletimOcupadoId(null);
+    }
+  }
+
+  async function confirmarRemocaoItem() {
+    setRemovendoItem(true);
+    try {
+      const atualizado = await removerItemBoletim(contratoId, itemParaRemover.boletim.id, itemParaRemover.item.id);
+      toast.sucesso(`${itemParaRemover.item.ss || 'SS'} tirada de ${atualizado.numero_bmm}. Total: ${formatarMoeda(atualizado.valor_medido)}.`);
+      setItemParaRemover(null);
+      recarregar();
+    } catch (err) {
+      toast.erro(err.message || 'Não foi possível tirar a SS do boletim.');
+    } finally {
+      setRemovendoItem(false);
     }
   }
 
@@ -270,6 +290,9 @@ export default function Medicao() {
                 onAlterarStatus={alterarStatus}
                 onExcluir={setExcluir}
                 onLancar={() => setDialogo('boletim')}
+                onAdicionarItem={(boletim) => setItemEmEdicao({ boletim, item: null })}
+                onEditarItem={(boletim, item) => setItemEmEdicao({ boletim, item })}
+                onRemoverItem={(boletim, item) => setItemParaRemover({ boletim, item })}
               />
             </div>
 
@@ -312,6 +335,41 @@ export default function Medicao() {
         onFechar={() => setDialogo(null)}
         onSalvo={recarregar}
       />
+
+      <ModalItemBoletim
+        aberto={Boolean(itemEmEdicao)}
+        contratoId={contratoId}
+        boletim={itemEmEdicao?.boletim || null}
+        item={itemEmEdicao?.item || null}
+        obrasDoContrato={contrato?.obras || []}
+        onFechar={() => setItemEmEdicao(null)}
+        onSalvo={recarregar}
+      />
+
+      <ModalBase
+        aberto={Boolean(itemParaRemover)}
+        titulo="Tirar SS do boletim?"
+        subtitulo={itemParaRemover ? `${itemParaRemover.boletim.numero_bmm} · ${itemParaRemover.item.ss || 'SS'} · ${formatarMoeda(itemParaRemover.item.valor)}` : ''}
+        onFechar={() => (removendoItem ? null : setItemParaRemover(null))}
+        tamanho="md"
+      >
+        {itemParaRemover ? (
+          <div className="space-y-3 p-5">
+            <p className="text-sm text-slate-700">
+              O valor de {formatarMoeda(itemParaRemover.item.valor)} sai do total do boletim
+              {itemParaRemover.boletim.status === 'APROVADO' ? ' e dos acumulados do dashboard' : ''}. Você pode adicionar a
+              SS de novo depois.
+            </p>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-neutro" onClick={() => setItemParaRemover(null)} disabled={removendoItem}>Cancelar</button>
+              <button type="button" className="btn-perigo" onClick={confirmarRemocaoItem} disabled={removendoItem}>
+                {removendoItem ? <Spinner tamanho="sm" /> : <Trash2 className="h-4 w-4" aria-hidden="true" />}
+                Tirar do boletim
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </ModalBase>
 
       <ModalBase
         aberto={Boolean(excluir)}

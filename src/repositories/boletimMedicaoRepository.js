@@ -90,6 +90,64 @@ async function criar(contratoId, dados, itens, usuarioId = null) {
   return buscar(contratoId, boletim.id);
 }
 
+/** Item de um boletim (com o boletim, para conferir o contrato). */
+async function buscarItem(contratoId, boletimId, itemId) {
+  return prisma.boletimMedicaoItem.findFirst({
+    where: { id: itemId, boletim_id: boletimId, boletim: { contrato_id: contratoId } },
+  });
+}
+
+/** Já existe item da mesma obra ou do mesmo código de SS no boletim? */
+async function existeItemDuplicado(boletimId, { obraId = null, ssCodigo = null }, ignorarId = null) {
+  const encontrado = await prisma.boletimMedicaoItem.findFirst({
+    where: {
+      boletim_id: boletimId,
+      ...(ignorarId ? { id: { not: ignorarId } } : {}),
+      ...(obraId ? { obra_id: obraId } : { obra_id: null, ss_codigo: ssCodigo }),
+    },
+    select: { id: true },
+  });
+  return Boolean(encontrado);
+}
+
+/**
+ * Inclui, altera ou remove um item e ajusta o valor medido do boletim pela diferença,
+ * na mesma transação (o que não está detalhado por SS é preservado).
+ */
+async function incluirItem(boletimId, dados) {
+  return prisma.$transaction(
+    async (tx) => {
+      const item = await tx.boletimMedicaoItem.create({ data: { boletim_id: boletimId, ...dados } });
+      await tx.boletimMedicao.update({ where: { id: boletimId }, data: { valor_medido: { increment: dados.valor } } });
+      return item;
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
+async function alterarItem(boletimId, itemId, dados, diferenca) {
+  return prisma.$transaction(
+    async (tx) => {
+      const item = await tx.boletimMedicaoItem.update({ where: { id: itemId }, data: dados });
+      if (diferenca !== 0) {
+        await tx.boletimMedicao.update({ where: { id: boletimId }, data: { valor_medido: { increment: diferenca } } });
+      }
+      return item;
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
+async function removerItem(boletimId, itemId, valor) {
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.boletimMedicaoItem.delete({ where: { id: itemId } });
+      await tx.boletimMedicao.update({ where: { id: boletimId }, data: { valor_medido: { decrement: valor } } });
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
 async function atualizar(contratoId, boletimId, dados) {
   await prisma.boletimMedicao.updateMany({ where: { id: boletimId, contrato_id: contratoId }, data: dados });
   return buscar(contratoId, boletimId);
@@ -175,6 +233,11 @@ module.exports = {
   atualizar,
   excluir,
   obrasComAvanco,
+  buscarItem,
+  existeItemDuplicado,
+  incluirItem,
+  alterarItem,
+  removerItem,
   curvaDoContrato,
   obraParaProjecao,
   itensDaObra,
