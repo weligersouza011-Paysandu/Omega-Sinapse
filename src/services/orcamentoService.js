@@ -21,15 +21,14 @@ const PERFIS_QUE_ATRIBUEM_PLANEJADOR = [PERFIS.SUPERVISOR, PERFIS.ADMIN];
 
 /**
  * Fluxo operacional do orçamento (espelha o enum StatusOrcamento do schema).
- * A ordem reflete o ciclo: levantamento → envio → aprovação → OSI.
+ * A ordem reflete o ciclo: levantamento → envio → aprovação (depois disso o orçamento segue para Obras).
+ * ENCAMINHADO_OSI e OSI_EMITIDA continuam no enum por legado, mas não são mais aceitos.
  */
 const STATUS_VALIDOS = [
   'VISITA_TECNICA',
   'AGUARDANDO_APROVACAO',
   'APROVADO',
   'DESATIVADO',
-  'ENCAMINHADO_OSI',
-  'OSI_EMITIDA',
 ];
 
 /** Estado inicial de todo orçamento recém-aberto. */

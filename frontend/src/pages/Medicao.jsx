@@ -341,7 +341,6 @@ export default function Medicao() {
         contratoId={contratoId}
         boletim={itemEmEdicao?.boletim || null}
         item={itemEmEdicao?.item || null}
-        obrasDoContrato={contrato?.obras || []}
         onFechar={() => setItemEmEdicao(null)}
         onSalvo={recarregar}
       />

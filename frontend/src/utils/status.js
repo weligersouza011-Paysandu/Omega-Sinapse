@@ -7,8 +7,6 @@
  *   AGUARDANDO_APROVACAO amarelo/laranja   — em análise/atenção
  *   APROVADO             verde             — aprovado/pronto
  *   DESATIVADO           vermelho          — desaprovado/cancelado
- *   ENCAMINHADO_OSI      roxo              — transição para planejamento
- *   OSI_EMITIDA          azul sólido/cyan  — obra em andamento
  *
  * - `descricao`: nomenclatura oficial exibida nos dropdowns (cadastro e filtro).
  * - `label`: versão curta usada nas badges da listagem e do Kanban.
@@ -44,20 +42,6 @@ export const STATUS_OPCOES = [
     cor: 'bg-red-100 text-red-700 border-red-300',
     hex: '#ef4444',
   },
-  {
-    value: 'ENCAMINHADO_OSI',
-    descricao: 'Encaminhado para Abertura de OSI',
-    label: 'Encaminhado OSI',
-    cor: 'bg-violet-100 text-violet-700 border-violet-300',
-    hex: '#8b5cf6',
-  },
-  {
-    value: 'OSI_EMITIDA',
-    descricao: 'OSI - Emitida',
-    label: 'OSI Emitida',
-    cor: 'bg-cyan-100 text-cyan-700 border-cyan-300',
-    hex: '#06b6d4',
-  },
 ];
 
 /** Estado inicial de todo orçamento recém-aberto. */
@@ -83,7 +67,7 @@ export const OPCOES_COMERCIAL = STATUS_OPCOES.filter((opcao) => STATUS_COMERCIAL
  * ser um projeto em execução, conduzido pelo Supervisor/Coordenador de
  * Planejamento e pelos Planejadores (emissão da OSI e RDO).
  */
-export const STATUS_OBRAS = ['APROVADO', 'ENCAMINHADO_OSI', 'OSI_EMITIDA'];
+export const STATUS_OBRAS = ['APROVADO'];
 
 /**
  * Ciclo de vida OPERACIONAL da obra (espelha o enum StatusObra do back-end).
@@ -170,8 +154,10 @@ const DESCONHECIDO = {
  * quanto os status operacionais da obra.
  */
 export function obterStatus(valor) {
+  // Etapas antigas de OSI não existem mais no orçamento: valem como aprovado.
+  const chave = valor === 'ENCAMINHADO_OSI' || valor === 'OSI_EMITIDA' ? 'APROVADO' : valor;
   return (
-    STATUS_OPCOES.find((opcao) => opcao.value === valor) ||
+    STATUS_OPCOES.find((opcao) => opcao.value === chave) ||
     STATUS_OBRA_OPCOES.find((opcao) => opcao.value === valor) || {
       ...DESCONHECIDO,
       descricao: valor || '—',

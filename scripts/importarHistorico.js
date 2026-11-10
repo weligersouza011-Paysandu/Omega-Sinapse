@@ -89,16 +89,16 @@ const STATUS_PLANILHA = {
   'visita tecnica': 'VISITA_TECNICA',
   'aguardando aprovacao (orcamento enviado)': 'AGUARDANDO_APROVACAO',
   'orcamento aprovado': 'APROVADO',
-  'encaminhado para abertura de osi': 'ENCAMINHADO_OSI',
-  'osi - emitida': 'OSI_EMITIDA',
+  'encaminhado para abertura de osi': 'APROVADO',
+  'osi - emitida': 'APROVADO',
   'desativado': 'DESATIVADO',
 };
 
 /** Heurística aplicada apenas a status fora do mapa acima. */
 const REGRAS_STATUS = [
   [/visita|levantamento/, 'VISITA_TECNICA'],
-  [/osi/, 'OSI_EMITIDA'],
-  [/encaminh/, 'ENCAMINHADO_OSI'],
+  [/osi/, 'APROVADO'],
+  [/encaminh/, 'APROVADO'],
   [/cancel|desativ|reprov/, 'DESATIVADO'],
   [/aprov/, 'APROVADO'],
   [/analise|enviad|aguardando/, 'AGUARDANDO_APROVACAO'],

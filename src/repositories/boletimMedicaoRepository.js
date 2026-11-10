@@ -68,6 +68,20 @@ async function obrasDoContrato(contratoId, obraIds) {
   return obras.map((obra) => obra.id);
 }
 
+/** Obras informadas com o contrato a que pertencem (null = sem contrato). */
+async function obrasComContrato(obraIds) {
+  return prisma.obra.findMany({
+    where: { id: { in: obraIds } },
+    select: { id: true, contrato_id: true, contrato: { select: { id_vale: true } } },
+  });
+}
+
+/** Vincula obras (sem contrato) ao contrato. */
+async function vincularObras(contratoId, obraIds) {
+  const resultado = await prisma.obra.updateMany({ where: { id: { in: obraIds }, contrato_id: null }, data: { contrato_id: contratoId } });
+  return resultado.count;
+}
+
 /** Cria o boletim com seus itens na mesma transação. */
 async function criar(contratoId, dados, itens, usuarioId = null) {
   const boletim = await prisma.$transaction(
@@ -229,6 +243,8 @@ module.exports = {
   existeCicloSobreposto,
   existeNumero,
   obrasDoContrato,
+  obrasComContrato,
+  vincularObras,
   criar,
   atualizar,
   excluir,

@@ -7,6 +7,7 @@ const prisma = require('../config/prisma');
  * A obra de um orçamento desaprovado ou desativado depois de criada sai das
  * listagens, mas seus dados são preservados caso ele volte a ser aprovado.
  */
+// Os dois últimos são legado (migrados para APROVADO); ficam aqui por segurança até a migração rodar.
 const STATUS_ORCAMENTO_DE_OBRA = ['APROVADO', 'ENCAMINHADO_OSI', 'OSI_EMITIDA'];
 
 /** Relações carregadas na listagem e no detalhe da obra. */

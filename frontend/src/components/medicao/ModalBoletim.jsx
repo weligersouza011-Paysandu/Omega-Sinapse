@@ -5,6 +5,7 @@ import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { criarBoletim } from '../../hooks/useMedicao.js';
 import { formatarMoeda } from '../../utils/formatters.js';
+import SeletorSs, { useSsDisponiveis } from './SeletorSs.jsx';
 
 const STATUS_INICIAL = [
   { value: 'EM_ANALISE', label: 'Em análise' },
@@ -45,8 +46,9 @@ function proximoNumero(boletins = []) {
 /** Lançamento de um Boletim de Medição (BMM) com o valor medido por obra/SS. */
 export default function ModalBoletim({ aberto, contrato, boletins = [], onFechar, onSalvo }) {
   const toast = useToast();
-  const obrasDoContrato = contrato?.obras || [];
-  const temObras = obrasDoContrato.length > 0;
+  // Todas as obras aprovadas sem contrato (ou deste contrato): a SS escolhida é vinculada ao salvar.
+  const { disponiveis: obrasDoContrato } = useSsDisponiveis(aberto, contrato?.id);
+  const temObras = true;
 
   const [form, setForm] = useState({ numero_bmm: '', mes_referencia: '', status: 'EM_ANALISE', observacao: '' });
   const [modo, setModo] = useState('itens');
@@ -64,7 +66,7 @@ export default function ModalBoletim({ aberto, contrato, boletins = [], onFechar
       status: 'EM_ANALISE',
       observacao: '',
     });
-    setModo(contrato.obras.length > 0 ? 'itens' : 'total');
+    setModo('itens');
     setItens([linhaVazia()]);
     setValorTotal('');
     setErro('');
@@ -224,24 +226,15 @@ export default function ModalBoletim({ aberto, contrato, boletins = [], onFechar
                 <div className="space-y-2">
                   {itens.map((item, indice) => (
                     <div key={indice} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_11rem_auto]">
-                      <select
-                        className="campo"
-                        value={item.obra_id}
-                        onChange={(e) => alterarItem(indice, 'obra_id', e.target.value)}
+                      <SeletorSs
+                        obras={obrasDoContrato}
+                        contratoId={contrato?.id}
+                        valor={item.obra_id}
+                        onChange={(obraId) => alterarItem(indice, 'obra_id', obraId)}
+                        ignorar={escolhidas}
                         disabled={enviando}
-                        aria-label={`SS da linha ${indice + 1}`}
-                      >
-                        <option value="">Selecione a SS...</option>
-                        {obrasDoContrato.map((obra) => (
-                          <option
-                            key={obra.id}
-                            value={obra.id}
-                            disabled={escolhidas.has(obra.id) && Number(item.obra_id) !== obra.id}
-                          >
-                            {(obra.ss || obra.osi || `Obra #${obra.id}`) + (obra.descricao ? ` — ${obra.descricao}` : '')}
-                          </option>
-                        ))}
-                      </select>
+                        rotulo={`SS da linha ${indice + 1}`}
+                      />
                       <input
                         type="number"
                         min="0"

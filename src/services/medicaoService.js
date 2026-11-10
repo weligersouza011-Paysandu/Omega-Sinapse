@@ -507,14 +507,7 @@ async function criarBoletim(idParam, payload = {}, usuario) {
     }
     valorMedido = emReais(somaCent);
 
-    const doContrato = await boletimRepository.obrasDoContrato(id, itens.map((item) => item.obra_id));
-    const foraDoContrato = itens.map((item) => item.obra_id).filter((obraId) => !doContrato.includes(obraId));
-    if (foraDoContrato.length > 0) {
-      throw new AppError(
-        400,
-        `A(s) obra(s) ${foraDoContrato.join(', ')} não estão vinculadas a este contrato. Vincule-as antes de lançar a medição.`
-      );
-    }
+    await garantirObrasNoContrato(id, itens.map((item) => item.obra_id));
   } else {
     valorMedido = valorNaoNegativo(payload.valor_medido, 'valor_medido');
   }
@@ -623,6 +616,29 @@ async function atualizarBoletim(idParam, boletimIdParam, payload = {}, usuario) 
   return formatarBoletim(await boletimRepository.atualizar(id, boletimId, dados));
 }
 
+/**
+ * Toda obra lançada em um boletim precisa ser do contrato. A que ainda não tem contrato é
+ * vinculada aqui mesmo (basta escolher a SS); a que já é de outro contrato é recusada,
+ * para não mover obra de contrato sem querer.
+ */
+async function garantirObrasNoContrato(contratoId, obraIds) {
+  const unicas = [...new Set(obraIds)];
+  const obras = await boletimRepository.obrasComContrato(unicas);
+  const inexistentes = unicas.filter((obraId) => !obras.some((obra) => obra.id === obraId));
+  if (inexistentes.length > 0) {
+    throw new AppError(400, `Obra(s) ${inexistentes.join(', ')} não encontrada(s).`);
+  }
+  const deOutro = obras.filter((obra) => obra.contrato_id && obra.contrato_id !== contratoId);
+  if (deOutro.length > 0) {
+    const nomes = deOutro.map((obra) => `${obra.id} (${obra.contrato?.id_vale || `contrato ${obra.contrato_id}`})`).join(', ');
+    throw new AppError(400, `A(s) obra(s) ${nomes} já estão em outro contrato. Mova-as pelo botão "Vincular obras" do contrato.`);
+  }
+  const livres = obras.filter((obra) => !obra.contrato_id).map((obra) => obra.id);
+  if (livres.length > 0) {
+    await boletimRepository.vincularObras(contratoId, livres);
+  }
+}
+
 /* ---------------------- Itens (SS) de um boletim já lançado ---------------------- */
 
 async function carregarBoletim(idParam, boletimIdParam) {
@@ -655,10 +671,7 @@ async function incluirItemBoletim(idParam, boletimIdParam, payload = {}, usuario
   let descricao = null;
   if (!estaVazio(payload.obra_id)) {
     obraId = validarId(payload.obra_id, 'obra_id');
-    const doContrato = await boletimRepository.obrasDoContrato(contratoId, [obraId]);
-    if (!doContrato.includes(obraId)) {
-      throw new AppError(400, `A obra ${obraId} não está vinculada a este contrato. Vincule-a antes de lançar a medição.`);
-    }
+    await garantirObrasNoContrato(contratoId, [obraId]);
   } else if (!estaVazio(payload.ss_codigo)) {
     ssCodigo = String(payload.ss_codigo).trim().toUpperCase();
     if (ssCodigo.length > 60) {

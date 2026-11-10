@@ -4,13 +4,16 @@ import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import { atualizarItemBoletim, incluirItemBoletim } from '../../hooks/useMedicao.js';
 import { formatarMoeda } from '../../utils/formatters.js';
+import SeletorSs, { useSsDisponiveis } from './SeletorSs.jsx';
 
 /**
  * Inclui uma SS no boletim ou corrige o valor de uma SS já lançada. O total do
  * boletim acompanha a diferença.
  */
-export default function ModalItemBoletim({ aberto, contratoId, boletim, item = null, obrasDoContrato = [], onFechar, onSalvo }) {
+export default function ModalItemBoletim({ aberto, contratoId, boletim, item = null, onFechar, onSalvo }) {
   const toast = useToast();
+  // Todas as obras aprovadas sem contrato (ou deste contrato); a escolhida é vinculada ao salvar.
+  const { disponiveis: obrasDoContrato } = useSsDisponiveis(aberto && !item, contratoId);
   const [modo, setModo] = useState('obra');
   const [obraId, setObraId] = useState('');
   const [codigo, setCodigo] = useState('');
@@ -27,8 +30,8 @@ export default function ModalItemBoletim({ aberto, contratoId, boletim, item = n
     setCodigo(item && !item.obra_id ? item.ss || '' : '');
     setDescricao(item && !item.obra_id ? item.descricao || '' : '');
     setValor(item ? String(item.valor) : '');
-    setModo(obrasDoContrato.length > 0 ? 'obra' : 'codigo');
-  }, [aberto, item, obrasDoContrato.length]);
+    setModo('obra');
+  }, [aberto, item]);
 
   if (!boletim) return null;
 
@@ -94,8 +97,8 @@ export default function ModalItemBoletim({ aberto, contratoId, boletim, item = n
             </p>
           ) : (
             <div role="radiogroup" aria-label="Como identificar a SS" className="inline-flex gap-1 rounded-lg bg-slate-100 p-1 text-xs font-bold">
-              <button type="button" role="radio" aria-checked={modo === 'obra'} disabled={obrasDoContrato.length === 0} onClick={() => setModo('obra')} className={`rounded-md px-3 py-1 transition disabled:opacity-50 ${modo === 'obra' ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500'}`}>
-                Obra do contrato
+              <button type="button" role="radio" aria-checked={modo === 'obra'} onClick={() => setModo('obra')} className={`rounded-md px-3 py-1 transition disabled:opacity-50 ${modo === 'obra' ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500'}`}>
+                Obra aprovada
               </button>
               <button type="button" role="radio" aria-checked={modo === 'codigo'} onClick={() => setModo('codigo')} className={`rounded-md px-3 py-1 transition ${modo === 'codigo' ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500'}`}>
                 Só o código da SS
@@ -105,16 +108,16 @@ export default function ModalItemBoletim({ aberto, contratoId, boletim, item = n
 
           {!editando && modo === 'obra' ? (
             <div>
-              <label className="rotulo" htmlFor="ib-obra">SS (obra vinculada ao contrato) *</label>
-              <select id="ib-obra" className="campo" value={obraId} onChange={(e) => setObraId(e.target.value)} disabled={salvando}>
-                <option value="">Selecione a SS...</option>
-                {disponiveis.map((obra) => (
-                  <option key={obra.id} value={obra.id}>
-                    {(obra.ss || obra.osi || `Obra #${obra.id}`) + (obra.descricao ? ` — ${obra.descricao}` : '')}
-                  </option>
-                ))}
-              </select>
-              {disponiveis.length === 0 ? <p className="mt-1 text-[11px] text-amber-700">Todas as obras do contrato já estão neste boletim.</p> : null}
+              <label className="rotulo" htmlFor="ib-obra">SS (obra aprovada: digite para buscar) *</label>
+              <SeletorSs
+                id="ib-obra"
+                obras={disponiveis}
+                contratoId={contratoId}
+                valor={obraId}
+                onChange={setObraId}
+                disabled={salvando}
+                rotulo="SS (obra aprovada)"
+              />
             </div>
           ) : null}
 
