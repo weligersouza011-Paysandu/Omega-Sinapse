@@ -43,6 +43,17 @@ export async function registrarTac(contratoId, dados) {
   return data;
 }
 
+/** Corrige um TAC (número, valor, assinatura, motivo); o teto é recalculado. */
+export async function atualizarTac(contratoId, tacId, dados) {
+  const { data } = await api.put(`/contratos/${contratoId}/tac/${tacId}`, dados);
+  return data;
+}
+
+export async function excluirTac(contratoId, tacId) {
+  const { data } = await api.delete(`/contratos/${contratoId}/tac/${tacId}`);
+  return data;
+}
+
 /** Vincula obras ao contrato (cada obra tem um único contrato-mãe). */
 export async function vincularObrasAoContrato(contratoId, obraIds) {
   const { data } = await api.post(`/contratos/${contratoId}/obras`, { obra_ids: obraIds });

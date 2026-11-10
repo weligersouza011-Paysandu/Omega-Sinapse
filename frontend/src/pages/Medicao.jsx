@@ -224,6 +224,7 @@ export default function Medicao() {
             setDialogo('editar');
           }}
           onExcluido={recarregar}
+          onRecarregar={recarregar}
         />
       ) : carregandoContratos && !contratos.length ? (
         <div className="card flex min-h-[260px] items-center justify-center gap-2 text-sm text-slate-500">

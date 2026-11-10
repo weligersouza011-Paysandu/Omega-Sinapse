@@ -44,6 +44,10 @@ router.post('/', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.cr
 // { numero_tac, valor_aditivo, data_assinatura, motivo }
 router.post('/:id/tac', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.registrarTac);
 
+// PUT/DELETE /api/contratos/:id/tac/:tacId -> corrige ou remove um TAC (o teto é recalculado)
+router.put('/:id/tac/:tacId', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.atualizarTac);
+router.delete('/:id/tac/:tacId', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.excluirTac);
+
 // POST /api/contratos/:id/obras  -> vincula obras ao contrato { obra_ids: [..] }
 router.post('/:id/obras', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.vincularObras);
 

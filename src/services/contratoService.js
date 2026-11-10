@@ -315,6 +315,56 @@ async function registrarTac(idParam, payload = {}, usuario) {
   return montarContrato(await contratoRepository.findById(id));
 }
 
+/** PUT /api/contratos/:id/tac/:tacId — corrige o TAC (número, valor, assinatura, motivo). */
+async function atualizarTac(idParam, tacIdParam, payload = {}, usuario) {
+  exigirGestor(usuario);
+  const id = validarId(idParam);
+  const tacId = validarId(tacIdParam, 'tacId');
+
+  if (!(await contratoRepository.existsById(id))) {
+    throw new AppError(404, `Contrato ${id} não encontrado.`);
+  }
+  const existente = await contratoRepository.buscarAditivo(id, tacId);
+  if (!existente) {
+    throw new AppError(404, `TAC ${tacId} não encontrado neste contrato.`);
+  }
+
+  const tem = (campo) => Object.prototype.hasOwnProperty.call(payload, campo);
+  const dados = {};
+  if (tem('numero_tac')) {
+    dados.numero_tac = textoObrigatorio(payload.numero_tac, 'numero_tac', 30).toUpperCase();
+    if (dados.numero_tac !== existente.numero_tac && (await contratoRepository.existeNumeroTac(id, dados.numero_tac, tacId))) {
+      throw new AppError(409, `O ${dados.numero_tac} já está registrado neste contrato.`);
+    }
+  }
+  if (tem('valor_aditivo')) dados.valor_aditivo = valorPositivo(payload.valor_aditivo, 'valor_aditivo');
+  if (tem('data_assinatura')) dados.data_assinatura = dataObrigatoria(payload.data_assinatura, 'data_assinatura');
+  if (tem('motivo')) dados.motivo = textoObrigatorio(payload.motivo, 'motivo');
+  if (Object.keys(dados).length === 0) {
+    throw new AppError(400, 'Informe ao menos um campo do TAC para alterar.');
+  }
+
+  await contratoRepository.atualizarAditivo(id, tacId, dados);
+  return montarContrato(await contratoRepository.findById(id));
+}
+
+/** DELETE /api/contratos/:id/tac/:tacId — remove o TAC e recalcula o teto. */
+async function excluirTac(idParam, tacIdParam, usuario) {
+  exigirGestor(usuario);
+  const id = validarId(idParam);
+  const tacId = validarId(tacIdParam, 'tacId');
+
+  if (!(await contratoRepository.existsById(id))) {
+    throw new AppError(404, `Contrato ${id} não encontrado.`);
+  }
+  if (!(await contratoRepository.buscarAditivo(id, tacId))) {
+    throw new AppError(404, `TAC ${tacId} não encontrado neste contrato.`);
+  }
+
+  await contratoRepository.excluirAditivo(id, tacId);
+  return montarContrato(await contratoRepository.findById(id));
+}
+
 /**
  * POST /api/contratos/:id/obras — vincula obras ao contrato.
  * Corpo: { obra_ids: [1, 2, 3] }. Uma obra já ligada a outro contrato passa
@@ -345,6 +395,8 @@ async function vincularObras(idParam, payload = {}, usuario) {
 }
 
 module.exports = {
+  atualizarTac,
+  excluirTac,
   atualizarContrato,
   excluirContrato,
   PERFIS_QUE_GEREM_CONTRATOS,

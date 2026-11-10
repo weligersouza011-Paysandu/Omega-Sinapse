@@ -3,6 +3,7 @@ import { ExternalLink, FileSignature, Pencil, Trash2 } from 'lucide-react';
 import ModalBase from '../ModalBase.jsx';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
+import TacsDoContrato from './TacsDoContrato.jsx';
 import { excluirContrato } from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda } from '../../utils/formatters.js';
 
@@ -16,11 +17,12 @@ const Th = ({ children }) => (
  * Histórico de contratos: todos os contratos cadastrados, com o que cada um tem
  * (TACs, boletins, obras) e as ações de abrir no dashboard, corrigir e excluir.
  */
-export default function HistoricoContratos({ contratos, contratoAbertoId, podeGerir, ehAdmin, onAbrir, onEditar, onExcluido }) {
+export default function HistoricoContratos({ contratos, contratoAbertoId, podeGerir, ehAdmin, onAbrir, onEditar, onExcluido, onRecarregar }) {
   const toast = useToast();
   const [excluir, setExcluir] = useState(null);
   const [confirmacao, setConfirmacao] = useState('');
   const [excluindo, setExcluindo] = useState(false);
+  const [contratoTacId, setContratoTacId] = useState(null);
 
   const temDados = (contrato) =>
     contrato.quantidade_boletins + contrato.aditivos.length + contrato.quantidade_itens_qqp > 0 || contrato.possui_curva;
@@ -47,7 +49,15 @@ export default function HistoricoContratos({ contratos, contratoAbertoId, podeGe
   const exigeDigitar = excluir ? temDados(excluir) : false;
   const podeConfirmar = excluir && (!exigeDigitar || confirmacao.trim().toUpperCase() === excluir.id_vale.toUpperCase());
 
+  // TACs: o contrato escolhido, senão o aberto no dashboard, senão o primeiro que tem aditivos.
+  const contratoDosTacs =
+    contratos.find((c) => c.id === contratoTacId)?.id ??
+    contratos.find((c) => c.id === contratoAbertoId && c.aditivos.length > 0)?.id ??
+    contratos.find((c) => c.aditivos.length > 0)?.id ??
+    contratoAbertoId;
+
   return (
+    <div className="space-y-4 sm:space-y-5">
     <section className="card overflow-hidden" aria-label="Histórico de contratos">
       <header className="px-5 py-4">
         <h3 className="text-sm font-bold text-slate-800">Histórico de contratos</h3>
@@ -198,5 +208,14 @@ export default function HistoricoContratos({ contratos, contratoAbertoId, podeGe
         ) : null}
       </ModalBase>
     </section>
+
+    <TacsDoContrato
+      contratos={contratos}
+      contratoId={contratoDosTacs}
+      onContratoChange={setContratoTacId}
+      podeGerir={podeGerir}
+      onAlterado={onRecarregar}
+    />
+    </div>
   );
 }

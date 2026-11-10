@@ -56,6 +56,58 @@ async function create(dados) {
 }
 
 /**
+ * Recalcula o "novo valor total" de cada TAC em ordem de assinatura (valor inicial +
+ * aditivos até ele). Chamado depois de criar, editar ou excluir um aditivo.
+ */
+async function recalcularTetos(tx, contratoId) {
+  const contrato = await tx.contrato.findUnique({ where: { id: contratoId }, select: { valor_inicial: true } });
+  const aditivos = await tx.termoAditivo.findMany({
+    where: { contrato_id: contratoId },
+    orderBy: [{ data_assinatura: 'asc' }, { id: 'asc' }],
+  });
+  let teto = new Prisma.Decimal(contrato.valor_inicial);
+  for (const tac of aditivos) {
+    teto = teto.plus(tac.valor_aditivo);
+    // eslint-disable-next-line no-await-in-loop
+    await tx.termoAditivo.update({ where: { id: tac.id }, data: { novo_valor_total: teto } });
+  }
+}
+
+async function buscarAditivo(contratoId, aditivoId) {
+  return prisma.termoAditivo.findFirst({ where: { id: aditivoId, contrato_id: contratoId } });
+}
+
+async function existeNumeroTac(contratoId, numeroTac, ignorarId = null) {
+  const encontrado = await prisma.termoAditivo.findFirst({
+    where: { contrato_id: contratoId, numero_tac: numeroTac, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
+    select: { id: true },
+  });
+  return Boolean(encontrado);
+}
+
+/** Edita um TAC e recalcula os tetos do contrato. */
+async function atualizarAditivo(contratoId, aditivoId, dados) {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.termoAditivo.update({ where: { id: aditivoId }, data: dados });
+      await recalcularTetos(tx, contratoId);
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
+/** Exclui um TAC e recalcula os tetos dos demais. */
+async function excluirAditivo(contratoId, aditivoId) {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.termoAditivo.delete({ where: { id: aditivoId } });
+      await recalcularTetos(tx, contratoId);
+    },
+    { timeout: TRANSACAO_TIMEOUT_MS }
+  );
+}
+
+/**
  * Atualiza os dados do contrato. Como cada TAC guarda o teto que passou a valer na
  * sua assinatura, os "novos valores totais" são recalculados em ordem quando o
  * valor inicial muda.
@@ -130,7 +182,7 @@ async function registrarAditivo(contratoId, dados, usuarioId = null) {
       const tetoAnterior = new Prisma.Decimal(contrato.valor_inicial).plus(soma._sum.valor_aditivo || 0);
       const novoValorTotal = tetoAnterior.plus(dados.valor_aditivo);
 
-      return tx.termoAditivo.create({
+      const criado = await tx.termoAditivo.create({
         data: {
           contrato_id: contratoId,
           numero_tac: dados.numero_tac,
@@ -141,6 +193,9 @@ async function registrarAditivo(contratoId, dados, usuarioId = null) {
           usuario_id: usuarioId,
         },
       });
+      // Um TAC lançado com data anterior a outro muda os tetos seguintes.
+      await recalcularTetos(tx, contratoId);
+      return criado;
     },
     { timeout: TRANSACAO_TIMEOUT_MS }
   );
@@ -162,6 +217,10 @@ async function vincularObras(contratoId, obraIds) {
 }
 
 module.exports = {
+  atualizarAditivo,
+  excluirAditivo,
+  buscarAditivo,
+  existeNumeroTac,
   atualizar,
   resumirDependencias,
   excluir,
