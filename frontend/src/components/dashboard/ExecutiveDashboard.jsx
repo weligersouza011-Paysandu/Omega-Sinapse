@@ -1,16 +1,11 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { useDashboard } from '../../hooks/useDashboard.js';
-import CurvaSConsolidada from './CurvaSConsolidada.jsx';
+import AnaliseDashboard from './AnaliseDashboard.jsx';
 import DashboardHero from './DashboardHero.jsx';
 import FiltrosDashboard from './FiltrosDashboard.jsx';
-import IndicadoresPlanejamento from './IndicadoresPlanejamento.jsx';
-import KpisDashboard from './KpisDashboard.jsx';
-import PainelAnaliseObra from './PainelAnaliseObra.jsx';
-import Metodologia6WLA from './Metodologia6WLA.jsx';
 import TabelaObrasDashboard from './TabelaObrasDashboard.jsx';
-import TabelaRestricoes6WLA from './TabelaRestricoes6WLA.jsx';
 import { totalDeOpcoes } from './dashboardUtils.js';
 
 // O mapa carrega o Leaflet sob demanda, mantendo o bundle inicial enxuto.
@@ -51,6 +46,29 @@ export default function ExecutiveDashboard() {
   const [categoria, setCategoria] = useState('');
 
   const { dados, carregando, erro, recarregar } = useDashboard({ status, categoria });
+
+  // Obra em foco, compartilhada por mapa, tabela e análise. `n` muda a cada clique
+  // (assim clicar de novo na mesma linha recentraliza o mapa); `origem` diz quem pediu.
+  const [foco, setFoco] = useState({ id: null, origem: null, n: 0 });
+  const mapaRef = useRef(null);
+
+  const selecionarObra = useCallback((id, origem) => {
+    setFoco((atual) => ({ id: id ?? null, origem, n: atual.n + 1 }));
+  }, []);
+
+  // Filtros globais podem tirar a obra em foco do recorte: volta à carteira.
+  useEffect(() => {
+    if (foco.id && dados && !dados.obras.some((obra) => obra.id === foco.id)) {
+      setFoco((atual) => ({ ...atual, id: null }));
+    }
+  }, [dados, foco.id]);
+
+  // Clique na tabela: leva a tela até o mapa, onde a obra é destacada.
+  useEffect(() => {
+    if (foco.origem === 'tabela' && foco.id) {
+      mapaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [foco.n, foco.origem, foco.id]);
 
   const totalGeral = totalDeOpcoes(dados?.opcoes?.status || []);
   const totalFiltrado = dados?.obras?.length || 0;
@@ -107,24 +125,20 @@ export default function ExecutiveDashboard() {
         <EstadoInicial />
       ) : dados ? (
         <>
-          <Suspense fallback={<MapaCarregando />}>
-            <MapaGeralObras mapa={dados.mapa} obras={dados.obras} />
-          </Suspense>
+          <div ref={mapaRef} className="scroll-mt-4">
+            <Suspense fallback={<MapaCarregando />}>
+              <MapaGeralObras
+                mapa={dados.mapa}
+                obras={dados.obras}
+                foco={foco}
+                onSelecionarObra={selecionarObra}
+              />
+            </Suspense>
+          </div>
 
-          <TabelaObrasDashboard obras={dados.obras} />
+          <TabelaObrasDashboard obras={dados.obras} foco={foco} onSelecionarObra={selecionarObra} />
 
-          <PainelAnaliseObra obras={dados.obras} />
-
-          <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-            <Metodologia6WLA />
-            <KpisDashboard resumo={dados.resumo} />
-          </section>
-
-          <IndicadoresPlanejamento resumo={dados.resumo} />
-
-          <CurvaSConsolidada curva={dados.curva_s} />
-
-          <TabelaRestricoes6WLA restricoes={dados.restricoes} />
+          <AnaliseDashboard dados={dados} obraFocoId={foco.id} onSelecionarObra={selecionarObra} />
         </>
       ) : null}
     </div>

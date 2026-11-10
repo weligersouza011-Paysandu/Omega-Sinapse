@@ -13,6 +13,7 @@ import {
 } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import { coordenadasDe, paraNumero } from '../../utils/coordenadas.js';
+import ZoomComCtrl from '../mapa/ZoomComCtrl.jsx';
 
 /**
  * Mapa interativo da obra no estilo Google Maps (camadas Satélite, Mapa e
@@ -225,6 +226,7 @@ export default function MapaLocalizacoes({
       </LayersControl>
 
       <IrPara foco={focoReferencia} />
+      <ZoomComCtrl />
 
       <AjustarLimites pontos={pontos} ativo={!posicaoSelecionada} />
       <FocarSelecionada posicao={posicaoSelecionada} chave={chaveFoco} />

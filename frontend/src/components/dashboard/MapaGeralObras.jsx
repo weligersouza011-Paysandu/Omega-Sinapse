@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import L from 'leaflet';
 import { CircleMarker, LayersControl, MapContainer, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css';
 import { ExternalLink, Globe2, ListTree, Map as MapIcon, MapPin, PanelRightClose } from 'lucide-react';
 import { estiloCategoria } from './dashboardUtils.js';
 import { urlAbrirGoogle } from '../../utils/googleMaps.js';
+import ZoomComCtrl from '../mapa/ZoomComCtrl.jsx';
 
 /** Região padrão (Carajás/PA) usada quando o filtro não retorna coordenadas. */
 const CENTRO_PADRAO = [-6.05, -50.13];
@@ -39,11 +40,42 @@ function Enquadrar({ pontos, foco, listaAberta }) {
 }
 
 /**
+ * Leva o mapa até a obra escolhida na tabela (ou em outro painel) e abre o
+ * balão do marcador. `foco.n` muda a cada clique, então clicar de novo na mesma
+ * linha volta a centralizar o mapa.
+ */
+function AcompanharObra({ pontos, foco, marcadores }) {
+  const mapa = useMap();
+
+  useEffect(() => {
+    if (!foco?.id || foco.origem !== 'tabela') return undefined;
+    const daObra = pontos.filter((p) => p.obra_id === foco.id);
+    if (daObra.length === 0) return undefined;
+
+    if (daObra.length === 1) {
+      mapa.flyTo([Number(daObra[0].latitude), Number(daObra[0].longitude)], 17, { duration: 0.8 });
+    } else {
+      mapa.flyToBounds(
+        L.latLngBounds(daObra.map((p) => [Number(p.latitude), Number(p.longitude)])),
+        { padding: [60, 60], maxZoom: 17, duration: 0.8 }
+      );
+    }
+
+    const alvo = marcadores.current.get(`${daObra[0].obra_id}-${daObra[0].id}`);
+    const id = setTimeout(() => alvo?.openPopup(), 950);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mapa, foco?.n]);
+
+  return null;
+}
+
+/**
  * Mapa geral do dashboard: imagem de satélite com TODAS as localizações das
  * obras do recorte ao mesmo tempo (um marcador por ponto, na cor da carteira).
  * A lista lateral aproxima o mapa no ponto escolhido.
  */
-export default function MapaGeralObras({ mapa = {}, obras = [] }) {
+export default function MapaGeralObras({ mapa = {}, obras = [], foco = null, onSelecionarObra = null }) {
   const pontos = useMemo(
     () =>
       (mapa.pontos || []).filter((p) => Number.isFinite(Number(p.latitude)) && Number.isFinite(Number(p.longitude))),
@@ -51,6 +83,7 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
   );
   const [selecionadoId, setSelecionadoId] = useState(null);
   const [listaAberta, setListaAberta] = useState(true);
+  const marcadores = useRef(new Map());
   const chave = (p) => `${p.obra_id}-${p.id}`;
   const selecionado = pontos.find((p) => chave(p) === selecionadoId) || null;
 
@@ -59,6 +92,10 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
     [obras]
   );
   const totalObras = (obras || []).length;
+
+  const obraFocoId = foco?.id ?? null;
+  const obraFoco = obraFocoId ? (obras || []).find((obra) => obra.id === obraFocoId) : null;
+  const obraFocoSemPontos = Boolean(obraFoco) && !pontos.some((p) => p.obra_id === obraFocoId);
 
   return (
     <section className="card overflow-hidden">
@@ -123,17 +160,34 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
                 </LayersControl.BaseLayer>
               </LayersControl>
               <Enquadrar pontos={pontos} foco={selecionado} listaAberta={listaAberta} />
+              <ZoomComCtrl />
+              <AcompanharObra pontos={pontos} foco={foco} marcadores={marcadores} />
               {pontos.map((ponto) => {
                 const categoria = estiloCategoria(ponto.categoria);
                 const referencia = ponto.osi || ponto.ss || `Obra #${ponto.obra_id}`;
                 const ativo = chave(ponto) === selecionadoId;
+                const daObraEmFoco = obraFocoId !== null && ponto.obra_id === obraFocoId;
                 return (
                   <CircleMarker
                     key={chave(ponto)}
+                    ref={(marcador) => {
+                      if (marcador) marcadores.current.set(chave(ponto), marcador);
+                      else marcadores.current.delete(chave(ponto));
+                    }}
                     center={[Number(ponto.latitude), Number(ponto.longitude)]}
-                    radius={ativo ? 11 : 8}
-                    pathOptions={{ color: '#ffffff', weight: 2, fillColor: categoria.hex, fillOpacity: 0.95 }}
-                    eventHandlers={{ click: () => setSelecionadoId(chave(ponto)) }}
+                    radius={ativo || daObraEmFoco ? 11 : 8}
+                    pathOptions={{
+                      color: daObraEmFoco ? '#fde047' : '#ffffff',
+                      weight: daObraEmFoco ? 3 : 2,
+                      fillColor: categoria.hex,
+                      fillOpacity: 0.95,
+                    }}
+                    eventHandlers={{
+                      click: () => {
+                        setSelecionadoId(chave(ponto));
+                        onSelecionarObra?.(ponto.obra_id, 'mapa');
+                      },
+                    }}
                   >
                     <Tooltip direction="top" offset={[0, -6]}>
                       {referencia} · {ponto.descricao || 'Ponto'}
@@ -165,6 +219,14 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
                 );
               })}
             </MapContainer>
+            {obraFocoSemPontos ? (
+              <div
+                role="status"
+                className="absolute bottom-6 right-3 z-[500] max-w-xs rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm"
+              >
+                {obraFoco.osi || obraFoco.ss || `Obra #${obraFoco.id}`} ainda não tem localização cadastrada.
+              </div>
+            ) : null}
             {selecionado ? (
               <button
                 type="button"
@@ -194,12 +256,16 @@ export default function MapaGeralObras({ mapa = {}, obras = [] }) {
               {pontos.map((ponto) => {
                 const categoria = estiloCategoria(ponto.categoria);
                 const ativo = chave(ponto) === selecionadoId;
+                const daObraEmFoco = obraFocoId !== null && ponto.obra_id === obraFocoId;
                 const referencia = ponto.osi || ponto.ss || `Obra #${ponto.obra_id}`;
                 return (
-                  <li key={chave(ponto)} className={ativo ? 'bg-omega-50' : ''}>
+                  <li key={chave(ponto)} className={ativo ? 'bg-omega-50' : daObraEmFoco ? 'bg-amber-50/70' : ''}>
                     <button
                       type="button"
-                      onClick={() => setSelecionadoId(ativo ? null : chave(ponto))}
+                      onClick={() => {
+                        setSelecionadoId(ativo ? null : chave(ponto));
+                        if (!ativo) onSelecionarObra?.(ponto.obra_id, 'mapa');
+                      }}
                       className="flex w-full items-start gap-2 px-4 py-2 text-left hover:bg-slate-50"
                     >
                       <span

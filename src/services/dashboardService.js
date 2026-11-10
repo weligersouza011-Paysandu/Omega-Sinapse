@@ -787,11 +787,23 @@ async function obterDashboard(query = {}) {
   resumo.restricoes_total = restricoes.itens.length;
   resumo.restricoes_derivadas = restricoes.derivadas;
 
+  // Indicadores de cada obra isoladamente (alimentam o painel "obra em foco").
+  const resumosPorObra = {};
+  obras.forEach((obra) => {
+    const resumoObra = montarResumo([obra]);
+    const abertas = restricoes.itens.filter(
+      (item) => item.obra_id === obra.id && ['PENDENTE', 'EM_ANDAMENTO'].includes(item.status)
+    ).length;
+    resumoObra.restricoes_abertas = abertas;
+    resumosPorObra[obra.id] = resumoObra;
+  });
+
   return {
     gerado_em: new Date().toISOString(),
     filtros,
     opcoes: montarOpcoes(todas),
     resumo,
+    resumos_por_obra: resumosPorObra,
     obras,
     mapa,
     curva_s: curva,

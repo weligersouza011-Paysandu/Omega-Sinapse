@@ -1,8 +1,17 @@
+import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Building2, ExternalLink, UserRound } from 'lucide-react';
+import { Building2, ExternalLink, MapPinOff, UserRound } from 'lucide-react';
 import { formatarPercentual } from '../../utils/formatters.js';
 import { CategoriaBadge, StatusObraBadge } from './DashboardBadges.jsx';
 import { corAderencia, corDesvio, formatarPp, iniciaisDe, resumirFiscais } from './dashboardUtils.js';
+
+/** Ordem de exibição: o que está em execução primeiro e o que já terminou por último. */
+const ORDEM_STATUS = ['EM_ANDAMENTO', 'PARALISADA', 'PARA_INICIAR', 'CONCLUIDA'];
+
+function posicaoDoStatus(status) {
+  const indice = ORDEM_STATUS.indexOf(status);
+  return indice === -1 ? ORDEM_STATUS.length : indice;
+}
 
 function CelulaPercentual({ valor, classe = 'text-slate-700' }) {
   const numero = Number(valor);
@@ -12,9 +21,33 @@ function CelulaPercentual({ valor, classe = 'text-slate-700' }) {
   return <span className={`tabular-nums ${classe}`}>{formatarPercentual(numero, 1)}</span>;
 }
 
-/** Grid/tabela executiva das obras do recorte, com aderência e desvio. */
-export default function TabelaObrasDashboard({ obras = [] }) {
+/**
+ * Grid/tabela executiva das obras do recorte, com aderência e desvio, ordenada
+ * por status (Em Andamento > Paralisada > Para Iniciar > Concluída).
+ *
+ * Clicar numa linha seleciona a obra: o mapa se centraliza nela e a análise
+ * abaixo passa a mostrar só aquela obra.
+ */
+export default function TabelaObrasDashboard({ obras = [], foco = null, onSelecionarObra = null }) {
   const comMedicao = obras.filter((obra) => obra.tem_medicao).length;
+  const obraFocoId = foco?.id ?? null;
+  const linhas = useRef(new Map());
+
+  // Ordenação estável: dentro do mesmo status mantém a ordem recebida.
+  const ordenadas = useMemo(
+    () =>
+      obras
+        .map((obra, indice) => ({ obra, indice }))
+        .sort((a, b) => posicaoDoStatus(a.obra.status) - posicaoDoStatus(b.obra.status) || a.indice - b.indice)
+        .map(({ obra }) => obra),
+    [obras]
+  );
+
+  // Seleção feita no mapa: leva a linha para a área visível da tabela.
+  useEffect(() => {
+    if (foco?.origem !== 'mapa' || !foco.id) return;
+    linhas.current.get(foco.id)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [foco?.n, foco?.origem, foco?.id]);
 
   return (
     <section className="card overflow-hidden">
@@ -80,7 +113,7 @@ export default function TabelaObrasDashboard({ obras = [] }) {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {obras.map((obra) => {
+              {ordenadas.map((obra) => {
                 const aderencia = Number(obra.aderencia);
                 const temAderencia =
                   obra.aderencia !== null &&
@@ -90,15 +123,37 @@ export default function TabelaObrasDashboard({ obras = [] }) {
                 const paletaDesvio = corDesvio(obra.desvio);
                 const fiscais = resumirFiscais(obra.fiscais);
                 const referencia = obra.osi || obra.ss || `Obra #${obra.id}`;
+                const selecionada = obra.id === obraFocoId;
 
                 return (
-                  <tr key={obra.id} className="align-top transition-colors hover:bg-slate-50/80">
+                  <tr
+                    key={obra.id}
+                    ref={(linha) => {
+                      if (linha) linhas.current.set(obra.id, linha);
+                      else linhas.current.delete(obra.id);
+                    }}
+                    onClick={() => onSelecionarObra?.(obra.id, 'tabela')}
+                    onKeyDown={(evento) => {
+                      if (evento.target !== evento.currentTarget) return;
+                      if (evento.key === 'Enter' || evento.key === ' ') {
+                        evento.preventDefault();
+                        onSelecionarObra?.(obra.id, 'tabela');
+                      }
+                    }}
+                    tabIndex={onSelecionarObra ? 0 : undefined}
+                    aria-selected={selecionada}
+                    title="Clique para localizar a obra no mapa e analisá-la abaixo"
+                    className={`align-top transition-colors ${
+                      onSelecionarObra ? 'cursor-pointer' : ''
+                    } ${selecionada ? 'bg-omega-50 ring-1 ring-inset ring-omega-200' : 'hover:bg-slate-50/80'}`}
+                  >
                     <td className="whitespace-nowrap px-3 py-3 font-bold">
                       {obra.osi ? (
                         <Link
                           to={`/obras/${obra.id}`}
                           className="inline-flex items-center gap-1 text-omega-700 hover:underline"
                           title={`Abrir ${referencia}`}
+                          onClick={(evento) => evento.stopPropagation()}
                         >
                           {obra.osi}
                           <ExternalLink className="h-3 w-3 opacity-60" aria-hidden="true" />
@@ -112,6 +167,7 @@ export default function TabelaObrasDashboard({ obras = [] }) {
                       <Link
                         to={`/obras/${obra.id}`}
                         className="font-bold text-slate-800 hover:text-omega-700 hover:underline"
+                        onClick={(evento) => evento.stopPropagation()}
                       >
                         {obra.ss || referencia}
                       </Link>
@@ -121,8 +177,14 @@ export default function TabelaObrasDashboard({ obras = [] }) {
                       >
                         {obra.descricao || 'Sem descrição informada.'}
                       </p>
-                      <p className="mt-0.5 text-[10px] text-slate-400">
+                      <p className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400">
                         {obra.semanas_medidas || 0} medição(ões)
+                        {Number(obra.quantidade_localizacoes) === 0 ? (
+                          <span className="inline-flex items-center gap-0.5 text-amber-600" title="Sem localização cadastrada">
+                            <MapPinOff className="h-3 w-3" aria-hidden="true" />
+                            sem localização
+                          </span>
+                        ) : null}
                       </p>
                     </td>
 
@@ -215,7 +277,7 @@ export default function TabelaObrasDashboard({ obras = [] }) {
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-[10px] text-slate-500">
         <span>Aderência = real ÷ previsto (limitada a 100%) · Desvio = real − previsto.</span>
-        <span>Clique na OSI ou no SS para abrir o detalhamento da obra.</span>
+        <span>Clique numa linha para ver a obra no mapa e na análise abaixo; na OSI ou no SS para abrir o detalhe.</span>
       </footer>
     </section>
   );
