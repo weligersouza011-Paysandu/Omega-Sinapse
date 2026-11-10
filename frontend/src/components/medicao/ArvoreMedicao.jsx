@@ -25,9 +25,14 @@ function LinhaSs({ item }) {
     <li className="flex items-center gap-3 py-2 pl-11 pr-4 text-xs">
       <div className="min-w-0 flex-1">
         <p className="truncate font-semibold text-slate-700">
-          <Link to={`/obras/${item.obra_id}`} className="hover:text-omega-700 hover:underline">
-            {item.ss || item.osi || `Obra #${item.obra_id}`}
-          </Link>
+          {item.obra_id ? (
+            <Link to={`/obras/${item.obra_id}`} className="hover:text-omega-700 hover:underline">
+              {item.ss || item.osi || `Obra #${item.obra_id}`}
+            </Link>
+          ) : (
+            // SS do histórico que ainda não é uma obra do Synapse: só identifica, sem link.
+            <span title="SS sem obra cadastrada no Synapse">{item.ss || 'SS sem código'}</span>
+          )}
           {item.osi && item.ss ? <span className="font-normal text-slate-400"> · {item.osi}</span> : null}
         </p>
         <p className="truncate text-[11px] text-slate-500" title={item.descricao || ''}>
@@ -142,8 +147,8 @@ function LinhaBoletim({ boletim, aberto, onAlternar, podeGerir, ocupado, onAlter
 
       {aberto && temDetalhe ? (
         <ul className="divide-y divide-slate-100 border-t border-slate-100 bg-slate-50/60 pb-1">
-          {boletim.itens.map((item) => (
-            <LinhaSs key={item.obra_id} item={item} />
+          {boletim.itens.map((item, indice) => (
+            <LinhaSs key={item.obra_id ?? `ss-${item.ss}-${indice}`} item={item} />
           ))}
           {Math.abs(boletim.valor_sem_detalhamento) >= 0.01 ? (
             <li className="flex items-center justify-between gap-3 py-2 pl-11 pr-4 text-xs italic text-slate-500">

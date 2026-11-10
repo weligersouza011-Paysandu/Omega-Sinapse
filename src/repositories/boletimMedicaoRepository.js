@@ -121,6 +121,14 @@ async function obrasComAvanco(contratoId) {
   });
 }
 
+/** Previsto e tendência financeiros do contrato por ciclo (planilha importada), em ordem. */
+async function curvaDoContrato(contratoId) {
+  return prisma.curvaFinanceiraContrato.findMany({
+    where: { contrato_id: contratoId },
+    orderBy: { ciclo_fim: 'asc' },
+  });
+}
+
 /** Obra com orçamento, contrato e avanço físico (base da medição e da projeção). */
 async function obraParaProjecao(obraId) {
   return prisma.obra.findUnique({
@@ -167,6 +175,7 @@ module.exports = {
   atualizar,
   excluir,
   obrasComAvanco,
+  curvaDoContrato,
   obraParaProjecao,
   itensDaObra,
   contarItensDaObra,

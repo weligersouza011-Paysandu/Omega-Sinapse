@@ -846,10 +846,12 @@ model Contrato {
   created_at    DateTime @default(now()) @db.Timestamptz(6)
   updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  aditivos  TermoAditivo[]
-  obras     Obra[]
-  boletins  BoletimMedicao[]
-  itens_qqp ItemQqp[]
+  aditivos         TermoAditivo[]
+  obras            Obra[]
+  boletins         BoletimMedicao[]
+  itens_qqp        ItemQqp[]
+  /// Previsto e tendência financeiros do contrato por ciclo (planilha de acompanhamento).
+  curva_financeira CurvaFinanceiraContrato[]
 
   @@map("contratos")
 }
@@ -910,14 +912,19 @@ model BoletimMedicao {
 model BoletimMedicaoItem {
   id         Int      @id @default(autoincrement())
   boletim_id Int
-  obra_id    Int
+  /// Obra do Synapse a que o valor pertence; vazio quando a SS medida ainda não é uma obra do sistema
+  /// (histórico importado): nesse caso `ss_codigo` identifica a SS.
+  obra_id    Int?
+  /// Código da SS/PEP informado na medição (ex.: "SS113/24") quando não há obra vinculada.
+  ss_codigo  String?  @db.VarChar(60)
+  descricao  String?
   /// Valor medido desta obra/SS no ciclo do boletim.
   valor      Decimal  @db.Decimal(14, 2)
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   boletim BoletimMedicao @relation(fields: [boletim_id], references: [id], onDelete: Cascade)
   /// Restrict: uma obra com valor medido em boletim não pode ser apagada sem antes tratar a medição.
-  obra    Obra           @relation(fields: [obra_id], references: [id], onDelete: Restrict)
+  obra    Obra?          @relation(fields: [obra_id], references: [id], onDelete: Restrict)
 
   @@unique([boletim_id, obra_id], name: "uq_item_por_boletim_obra")
   @@index([obra_id])
@@ -977,4 +984,33 @@ model RecursoObraQqp {
   @@index([obra_id])
   @@index([item_id])
   @@map("recursos_obra_qqp")
+}
+
+// -----------------------------------------------------------------------------
+// Curva financeira do contrato (previsto e tendência por ciclo de medição)
+//
+// Vem da planilha de acompanhamento do contrato (importada). Quando existe, o
+// dashboard de medição usa esta série como Previsto e Tendência da Curva S, em
+// vez de derivá-los do avanço físico das obras vinculadas.
+// -----------------------------------------------------------------------------
+model CurvaFinanceiraContrato {
+  id                   Int      @id @default(autoincrement())
+  contrato_id          Int
+  /// Boletim (BMM) a que o ciclo corresponde, ex.: "BMM19".
+  numero_bmm           String   @db.VarChar(30)
+  ciclo_inicio         DateTime @db.Date
+  ciclo_fim            DateTime @db.Date
+  /// Previsto (linha de base) do ciclo e acumulado.
+  previsto_mensal      Decimal  @db.Decimal(16, 4)
+  previsto_acumulado   Decimal  @db.Decimal(16, 4)
+  /// Previsto replanejado do ciclo (coluna "Previsto mensal" da planilha).
+  previsto_replanejado Decimal? @db.Decimal(16, 4)
+  /// Tendência acumulada (só existe a partir do último ciclo medido).
+  tendencia_acumulada  Decimal? @db.Decimal(16, 4)
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  contrato Contrato @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+
+  @@unique([contrato_id, ciclo_fim], name: "uq_curva_por_contrato_ciclo")
+  @@map("curva_financeira_contrato")
 }

@@ -172,11 +172,12 @@ function percentualEm(serie, data, campo) {
 function formatarBoletim(boletim) {
   const valorCent = emCentavos(boletim.valor_medido);
   const itens = (boletim.itens || []).map((item) => ({
-    obra_id: item.obra_id,
-    ss: item.obra?.orcamento?.ss ?? null,
+    // Itens do histórico podem ser de uma SS que ainda não é obra do sistema (obra_id nulo).
+    obra_id: item.obra_id ?? null,
+    ss: item.obra?.orcamento?.ss ?? item.ss_codigo ?? null,
     osi: item.obra?.osi_numero ?? null,
     pep: item.obra?.orcamento?.pep ?? null,
-    descricao: item.obra?.orcamento?.descricao ?? null,
+    descricao: item.obra?.orcamento?.descricao ?? item.descricao ?? null,
     valor: emReais(emCentavos(item.valor)),
     percentual_do_boletim: valorCent > 0 ? Math.round((emCentavos(item.valor) / valorCent) * 10000) / 100 : 0,
   }));
@@ -206,8 +207,10 @@ function formatarBoletim(boletim) {
  * @param {object} contrato resultado de `montarContrato` (teto atual e TACs)
  * @param {object[]} boletins boletins com `itens` (obra + valor)
  * @param {object[]} obras obras vinculadas ao contrato com `avanco_fisico`
+ * @param {object[]} curvaContrato previsto/tendência financeiros do contrato por ciclo (planilha);
+ *   quando existe, substitui o previsto derivado do avanço físico das obras
  */
-function montarDashboardMedicao(contrato, boletins = [], obras = []) {
+function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContrato = []) {
   const aprovados = boletins.filter((boletim) => boletim.status === 'APROVADO');
   const emAnalise = boletins.filter((boletim) => boletim.status === 'EM_ANALISE');
 
@@ -256,12 +259,16 @@ function montarDashboardMedicao(contrato, boletins = [], obras = []) {
 
   /* ----------------------------- Curva S financeira ---------------------------- */
   const obrasComSerie = obras.filter((obra) => (obra.avanco_fisico || []).length > 0);
+  const usarCurvaContrato = curvaContrato.length > 0;
+  const curvaPorMes = new Map(curvaContrato.map((linha) => [referenciaDaData(linha.ciclo_fim), linha]));
   const referenciasEnvolvidas = [
     ...boletins.map((boletim) => referenciaDaData(boletim.ciclo_fim)),
-    ...obrasComSerie.flatMap((obra) => {
-      const serie = obra.avanco_fisico;
-      return [referenciaDaData(serie[0].data), referenciaDaData(serie[serie.length - 1].data)];
-    }),
+    ...(usarCurvaContrato
+      ? [...curvaPorMes.keys()]
+      : obrasComSerie.flatMap((obra) => {
+          const serie = obra.avanco_fisico;
+          return [referenciaDaData(serie[0].data), referenciaDaData(serie[serie.length - 1].data)];
+        })),
   ].sort();
 
   const curva = [];
@@ -274,14 +281,23 @@ function montarDashboardMedicao(contrato, boletins = [], obras = []) {
 
     for (let i = 0; i < MAX_MESES_CURVA; i += 1) {
       const fim = fimDoCiclo(referencia);
-      const previstoAcumCent = obrasComSerie.reduce(
-        (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_prev_acum')) / 100),
-        0
-      );
-      const tendenciaAcumCent = obrasComSerie.reduce(
-        (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_tend_acum')) / 100),
-        0
-      );
+      const linhaCurva = curvaPorMes.get(referencia);
+      const previstoAcumCent = usarCurvaContrato
+        ? linhaCurva
+          ? emCentavos(linhaCurva.previsto_acumulado)
+          : previstoAnteriorCent
+        : obrasComSerie.reduce(
+            (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_prev_acum')) / 100),
+            0
+          );
+      const tendenciaAcumCent = usarCurvaContrato
+        ? linhaCurva && linhaCurva.tendencia_acumulada !== null && linhaCurva.tendencia_acumulada !== undefined
+          ? emCentavos(linhaCurva.tendencia_acumulada)
+          : 0
+        : obrasComSerie.reduce(
+            (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_tend_acum')) / 100),
+            0
+          );
       const realMesCent = realPorMes.get(referencia) || 0;
       realAcumuladoCent += realMesCent;
       const medido = ultimaReferencia !== null && referencia <= ultimaReferencia;
@@ -291,7 +307,7 @@ function montarDashboardMedicao(contrato, boletins = [], obras = []) {
         rotulo: rotuloDoMes(referencia),
         ciclo_inicio: dataISO(cicloDoMes(referencia).inicio),
         ciclo_fim: dataISO(cicloDoMes(referencia).fim),
-        previsto: emReais(previstoAcumCent - previstoAnteriorCent),
+        previsto: usarCurvaContrato && linhaCurva ? emReais(emCentavos(linhaCurva.previsto_mensal)) : emReais(previstoAcumCent - previstoAnteriorCent),
         previsto_acumulado: emReais(previstoAcumCent),
         real: medido ? emReais(realMesCent) : null,
         real_acumulado: medido ? emReais(realAcumuladoCent) : null,
@@ -344,17 +360,18 @@ function montarDashboardMedicao(contrato, boletins = [], obras = []) {
   const porObra = new Map();
   aprovados.forEach((boletim) => {
     (boletim.itens || []).forEach((item) => {
-      const atual = porObra.get(item.obra_id) || {
-        obra_id: item.obra_id,
-        ss: item.obra?.orcamento?.ss ?? null,
+      const chave = item.obra_id ?? `ss:${item.ss_codigo}`;
+      const atual = porObra.get(chave) || {
+        obra_id: item.obra_id ?? null,
+        ss: item.obra?.orcamento?.ss ?? item.ss_codigo ?? null,
         osi: item.obra?.osi_numero ?? null,
-        descricao: item.obra?.orcamento?.descricao ?? null,
+        descricao: item.obra?.orcamento?.descricao ?? item.descricao ?? null,
         medido_cent: 0,
         boletins: [],
       };
       atual.medido_cent += emCentavos(item.valor);
       atual.boletins.push(boletim.numero_bmm);
-      porObra.set(item.obra_id, atual);
+      porObra.set(chave, atual);
     });
   });
   const valoresObras = new Map(obras.map((obra) => [obra.id, emCentavos(obra.orcamento?.valor)]));
@@ -384,6 +401,7 @@ function montarDashboardMedicao(contrato, boletins = [], obras = []) {
     boletins: arvore,
     por_ss: porSs,
     curva_s: curva,
+    curva_s_fonte: usarCurvaContrato ? 'CONTRATO' : 'OBRAS',
     totais: {
       boletins: boletins.length,
       aprovados: aprovados.length,
@@ -413,11 +431,12 @@ async function carregarContrato(idParam) {
 async function obterDashboardMedicao(idParam, usuario) {
   validarUsuario(usuario);
   const { id, contrato } = await carregarContrato(idParam);
-  const [boletins, obras] = await Promise.all([
+  const [boletins, obras, curvaContrato] = await Promise.all([
     boletimRepository.listarPorContrato(id),
     boletimRepository.obrasComAvanco(id),
+    boletimRepository.curvaDoContrato(id),
   ]);
-  return montarDashboardMedicao(contrato, boletins, obras);
+  return montarDashboardMedicao(contrato, boletins, obras, curvaContrato);
 }
 
 /**

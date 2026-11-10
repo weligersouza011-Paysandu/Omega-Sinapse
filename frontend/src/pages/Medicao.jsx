@@ -208,7 +208,7 @@ export default function Medicao() {
               />
             </div>
 
-            <CurvaSFinanceira curva={dados.curva_s} />
+            <CurvaSFinanceira curva={dados.curva_s} fonte={dados.curva_s_fonte} />
           </div>
         </div>
       ) : null}

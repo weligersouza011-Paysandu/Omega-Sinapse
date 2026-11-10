@@ -51,7 +51,7 @@ function Amostra({ cor, tipo = 'linha' }) {
  * (eixo da esquerda) e linhas com Previsto acumulado, Real acumulado e
  * Tendência (eixo da direita), no padrão visual das demais Curvas S.
  */
-export default function CurvaSFinanceira({ curva = [] }) {
+export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
   const { dados } = useMemo(
     () =>
       prepararCurvaS(
@@ -77,7 +77,11 @@ export default function CurvaSFinanceira({ curva = [] }) {
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
             Colunas: valor previsto e medido em cada ciclo mensal. Linhas: acumulado previsto, acumulado medido
             (boletins aprovados) e tendência.
-            {temPrevisto ? '' : ' O previsto depende do avanço físico lançado nas obras do contrato.'}
+            {fonte === 'CONTRATO'
+              ? ' Previsto e tendência vêm da planilha de acompanhamento do contrato.'
+              : temPrevisto
+                ? ' Previsto e tendência vêm do avanço físico das obras do contrato.'
+                : ' O previsto depende do avanço físico lançado nas obras do contrato.'}
           </p>
         </div>
       </header>
