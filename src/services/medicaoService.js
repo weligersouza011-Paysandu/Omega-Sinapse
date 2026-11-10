@@ -246,9 +246,16 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
     total_acumulado: emReais(acumuladoCent),
     saldo_contratual: emReais(tetoCent - acumuladoCent),
     percentual_medido: tetoCent > 0 ? Math.round((acumuladoCent / tetoCent) * 10000) / 100 : 0,
+    percentual_saldo: tetoCent > 0 ? Math.round(((tetoCent - acumuladoCent) / tetoCent) * 10000) / 100 : 0,
     valor_em_analise: emReais(emAnaliseCent),
     ultimo_ciclo: ultimaReferencia
-      ? { referencia: ultimaReferencia, rotulo: rotuloDoMes(ultimaReferencia), bmm: numeroDe(ultimaReferencia), valor: emReais(ultimoCicloCent) }
+      ? {
+          referencia: ultimaReferencia,
+          rotulo: rotuloDoMes(ultimaReferencia),
+          bmm: numeroDe(ultimaReferencia),
+          valor: emReais(ultimoCicloCent),
+          percentual_do_contrato: tetoCent > 0 ? Math.round((ultimoCicloCent / tetoCent) * 10000) / 100 : 0,
+        }
       : null,
     mes_anterior: referenciaAnterior && realPorMes.has(referenciaAnterior)
       ? { referencia: referenciaAnterior, rotulo: rotuloDoMes(referenciaAnterior), bmm: numeroDe(referenciaAnterior), valor: emReais(anteriorCent) }
@@ -309,6 +316,10 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
         ciclo_fim: dataISO(cicloDoMes(referencia).fim),
         previsto: usarCurvaContrato && linhaCurva ? emReais(emCentavos(linhaCurva.previsto_mensal)) : emReais(previstoAcumCent - previstoAnteriorCent),
         previsto_acumulado: emReais(previstoAcumCent),
+        previsto_replanejado:
+          usarCurvaContrato && linhaCurva && linhaCurva.previsto_replanejado !== null && linhaCurva.previsto_replanejado !== undefined
+            ? emReais(emCentavos(linhaCurva.previsto_replanejado))
+            : null,
         real: medido ? emReais(realMesCent) : null,
         real_acumulado: medido ? emReais(realAcumuladoCent) : null,
         tendencia_acumulada: emReais(tendenciaAcumCent),

@@ -2,6 +2,7 @@
 
 const contratoService = require('../services/contratoService');
 const medicaoService = require('../services/medicaoService');
+const importacaoMedicaoDb = require('../services/importacaoMedicaoDb');
 
 /** Envolve um caso de uso assíncrono no contrato de resposta do Express. */
 function acao(metodo, status = 200) {
@@ -43,7 +44,13 @@ const atualizarBoletim = acao((req) =>
 /** DELETE /api/contratos/:id/boletins/:boletimId */
 const excluirBoletim = acao((req) => medicaoService.excluirBoletim(req.params.id, req.params.boletimId, req.user));
 
+/** POST /api/contratos/importar-medicao (multipart: medicao, curva; aplicar?) — somente ADMIN */
+const importarMedicao = acao((req) =>
+  importacaoMedicaoDb.importarPlanilhas({ arquivos: req.files, campos: req.body || {}, usuario: req.user })
+);
+
 module.exports = {
+  importarMedicao,
   listarContratos,
   obterContrato,
   criarContrato,

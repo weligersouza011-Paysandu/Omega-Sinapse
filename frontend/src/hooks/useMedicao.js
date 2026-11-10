@@ -54,6 +54,25 @@ export async function excluirBoletim(contratoId, boletimId) {
   return data;
 }
 
+/**
+ * Importa as planilhas do histórico de medição (ADMIN). Sem `aplicar` só simula e
+ * devolve o resumo do que seria gravado; com `aplicar` grava no banco.
+ */
+export async function importarPlanilhasMedicao({ medicao, curva, aplicar = false, campos = {} }) {
+  const formulario = new FormData();
+  formulario.append('medicao', medicao);
+  formulario.append('curva', curva);
+  formulario.append('aplicar', aplicar ? 'true' : 'false');
+  Object.entries(campos).forEach(([chave, valor]) => {
+    if (valor !== undefined && valor !== null && String(valor).trim() !== '') formulario.append(chave, valor);
+  });
+  const { data } = await api.post('/contratos/importar-medicao', formulario, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return data;
+}
+
 /* ----------------------------- Medição e projeção por obra ----------------------------- */
 
 /** BMMs em que a obra (SS) pontuou, com o valor por ciclo e o acumulado aprovado. */

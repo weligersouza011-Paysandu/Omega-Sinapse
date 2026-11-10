@@ -76,7 +76,7 @@ export default function KpisMedicao({ kpis }) {
             />
           </div>
           <p className="mt-1 text-[11px] text-slate-500">
-            {formatarPercentual(kpis.percentual_medido, 1)} do contrato
+            {formatarPercentual(kpis.percentual_medido, 2)} do contrato
             {kpis.valor_em_analise > 0 ? ` · ${formatarMoeda(kpis.valor_em_analise)} em análise` : ''}
           </p>
         </div>
@@ -91,7 +91,8 @@ export default function KpisMedicao({ kpis }) {
           {formatarMoeda(kpis.saldo_contratual)}
         </p>
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
-          {saldoNegativo ? 'Medição acima do teto do contrato' : 'Teto vigente menos o total acumulado'}
+          <strong className={saldoNegativo ? 'text-red-700' : 'text-slate-700'}>{formatarPercentual(kpis.percentual_saldo, 2)}</strong>{' '}
+          {saldoNegativo ? 'medição acima do teto do contrato' : 'do contrato (teto menos o acumulado)'}
         </p>
       </Cartao>
 
@@ -107,6 +108,8 @@ export default function KpisMedicao({ kpis }) {
           <SeloVariacao variacao={kpis.variacao_percentual} />
         </div>
         <p className="mt-1 text-[11px] leading-snug text-slate-500">
+          {ultimo ? <strong className="text-slate-700">{formatarPercentual(ultimo.percentual_do_contrato, 2)}</strong> : null}
+          {ultimo ? ' do contrato · ' : ''}
           {anterior
             ? `${anterior.rotulo}${anterior.bmm ? ` (${anterior.bmm})` : ''}: ${formatarMoeda(anterior.valor)}`
             : ultimo

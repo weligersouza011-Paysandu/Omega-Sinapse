@@ -12,10 +12,9 @@
  * com os arquivos reais. A gravação fica em `scripts/importarMedicaoPasta13.js`.
  *
  * Regras:
- *  - O total do boletim é o REAL da curva (tem centavos); as SS vêm da planilha de
- *    medição (valores em reais inteiros). Diferenças de arredondamento (até R$ 5)
- *    são absorvidas na maior SS do boletim; diferenças maiores ficam como "valor
- *    sem detalhamento por SS", avisadas no relatório;
+ *  - O total do boletim é a soma das SS da planilha de medição (é a fonte dos cartões
+ *    do dashboard de acompanhamento: total acumulado, mês anterior, saldo). O realizado
+ *    da curva só é comparado, e uma diferença acima de R$ 5 vira aviso;
  *  - Cada código de SS/PEP da planilha vira o item de uma obra do Synapse quando
  *    casa com ela (pela SS e, se houver mais de uma obra com a SS, pelo PEP);
  *    os demais ficam só com o código (obra_id vazio).
@@ -26,8 +25,11 @@ const MESES = {
   julho: 7, agosto: 8, setembro: 9, outubro: 10, novembro: 11, dezembro: 12,
 };
 
-/** Diferença máxima (R$) entre a soma das SS e o total do boletim tratada como arredondamento. */
+/** Diferença (R$) entre a soma das SS e o realizado da curva a partir da qual o relatório avisa. */
 const TOLERANCIA_ARREDONDAMENTO = 5;
+
+/** Valor vigente do CT-251 (com os aditivos), conforme o dashboard de acompanhamento. */
+const VALOR_CONTRATO_PADRAO = 157087293.7;
 
 /* -------------------------------------------------------------------------- */
 /* Leitura de CSV                                                             */
@@ -348,21 +350,12 @@ function planejarImportacao({ medicao, curva, obras, contrato = {} }) {
       const somaItensCent = itens.reduce((soma, item) => soma + item.cent, 0);
       const daCurva = cicloDoBmm.get(numero);
       const realCent = daCurva && daCurva.real !== null ? centavos(daCurva.real) : null;
-      const totalCent = realCent !== null ? realCent : somaItensCent;
-      const diferencaCent = totalCent - somaItensCent;
-
-      let ajusteCent = 0;
-      let semDetalheCent = 0;
-      if (realCent !== null && diferencaCent !== 0) {
-        if (Math.abs(diferencaCent) <= TOLERANCIA_ARREDONDAMENTO * 100) {
-          ajusteCent = diferencaCent; // arredondamento: entra na maior SS
-          itens[0].cent += diferencaCent;
-        } else {
-          semDetalheCent = diferencaCent;
-          avisos.push(
-            `${numero}: a soma das SS (R$ ${reais(somaItensCent).toFixed(2)}) difere do realizado da curva (R$ ${reais(realCent).toFixed(2)}) em R$ ${reais(diferencaCent).toFixed(2)}; a diferença fica como "sem detalhamento por SS".`
-          );
-        }
+      const totalCent = somaItensCent;
+      const diferencaCent = realCent !== null ? realCent - somaItensCent : 0;
+      if (Math.abs(diferencaCent) > TOLERANCIA_ARREDONDAMENTO * 100) {
+        avisos.push(
+          `${numero}: a soma das SS (R$ ${reais(somaItensCent).toFixed(2)}) difere do realizado da curva (R$ ${reais(realCent).toFixed(2)}) em R$ ${reais(diferencaCent).toFixed(2)}; foi usada a soma das SS.`
+        );
       }
 
       const ciclo = ciclosMedicao.get(numero);
@@ -372,10 +365,7 @@ function planejarImportacao({ medicao, curva, obras, contrato = {} }) {
         ciclo_fim: ciclo.fim,
         valor_medido: reais(totalCent),
         status: 'APROVADO',
-        observacao:
-          semDetalheCent !== 0
-            ? `Histórico importado da pasta 13. Planilha de medição incompleta: R$ ${reais(semDetalheCent).toFixed(2)} do total não têm SS detalhada.`
-            : 'Histórico importado da pasta 13.',
+        observacao: 'Histórico importado da pasta 13.',
         itens: itens.map((item) => ({
           obra_id: item.obra_id,
           ss_codigo: item.ss_codigo,
@@ -384,8 +374,8 @@ function planejarImportacao({ medicao, curva, obras, contrato = {} }) {
           valor: reais(item.cent),
         })),
         soma_planilha: reais(somaItensCent),
-        ajuste_arredondamento: reais(ajusteCent),
-        sem_detalhamento: reais(semDetalheCent),
+        real_curva: realCent !== null ? reais(realCent) : null,
+        diferenca_curva: reais(diferencaCent),
       };
     });
 
@@ -407,7 +397,7 @@ function planejarImportacao({ medicao, curva, obras, contrato = {} }) {
   const contratoPlano = {
     id_vale: contrato.id_vale || 'CT-251',
     descricao: contrato.descricao || 'Eletromecânica',
-    valor_inicial: contrato.valor_inicial ?? (ultima ? reais(centavos(ultima.previsto_acumulado)) : null),
+    valor_inicial: contrato.valor_inicial ?? VALOR_CONTRATO_PADRAO,
     data_inicio: contrato.data_inicio || (primeira ? primeira.inicio : null),
     data_fim: contrato.data_fim || (ultima ? ultima.fim : null),
     derivado: {
@@ -484,6 +474,7 @@ function planejarImportacao({ medicao, curva, obras, contrato = {} }) {
 
 module.exports = {
   TOLERANCIA_ARREDONDAMENTO,
+  VALOR_CONTRATO_PADRAO,
   lerCsv,
   lerMoeda,
   lerData,

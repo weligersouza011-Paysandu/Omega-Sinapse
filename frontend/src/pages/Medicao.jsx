@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, FilePlus2, FileSignature, Link2, ReceiptText, RefreshCw, Table2, Trash2 } from 'lucide-react';
+import { AlertTriangle, FilePlus2, FileSignature, FileSpreadsheet, Link2, ReceiptText, RefreshCw, Table2, Trash2 } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
@@ -8,6 +8,7 @@ import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
 import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
 import ModalContrato from '../components/medicao/ModalContrato.jsx';
+import ModalImportarPlanilhas from '../components/medicao/ModalImportarPlanilhas.jsx';
 import ModalQqp from '../components/medicao/ModalQqp.jsx';
 import ModalTac from '../components/medicao/ModalTac.jsx';
 import ModalVincularObras from '../components/medicao/ModalVincularObras.jsx';
@@ -36,7 +37,7 @@ export default function Medicao() {
   const { contratos, contratoId, selecionarContrato, dados, carregando, carregandoContratos, erro, recarregar } =
     useDashboardMedicao();
 
-  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | null.
+  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | 'importar' | null.
   const [dialogo, setDialogo] = useState(null);
   const [boletimOcupadoId, setBoletimOcupadoId] = useState(null);
   const [excluir, setExcluir] = useState(null);
@@ -113,6 +114,13 @@ export default function Medicao() {
             </label>
           ) : null}
 
+          {usuario?.perfil === 'ADMIN' ? (
+            <button type="button" className="btn-neutro" onClick={() => setDialogo('importar')}>
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              Importar planilhas
+            </button>
+          ) : null}
+
           {podeGerir ? (
             <>
               <button type="button" className="btn-neutro" onClick={() => setDialogo('contrato')}>
@@ -181,12 +189,19 @@ export default function Medicao() {
             Cadastre o contrato com a Vale (ex.: CT-251), seus termos aditivos e os boletins de medição para acompanhar
             o saldo contratual e a Curva S financeira aqui.
           </p>
+          {usuario?.perfil === 'ADMIN' ? (
+            <button type="button" className="btn-primario mt-2" onClick={() => setDialogo('importar')}>
+              <FileSpreadsheet className="h-4 w-4" aria-hidden="true" />
+              Importar planilhas de medição
+            </button>
+          ) : null}
           {podeGerir ? (
-            <button type="button" className="btn-primario mt-2" onClick={() => setDialogo('contrato')}>
+            <button type="button" className="btn-neutro mt-1" onClick={() => setDialogo('contrato')}>
               <FilePlus2 className="h-4 w-4" aria-hidden="true" />
               Cadastrar contrato
             </button>
           ) : (
+
             <p className="mt-1 text-xs text-slate-400">O cadastro é feito por um supervisor ou administrador.</p>
           )}
         </div>
@@ -227,6 +242,11 @@ export default function Medicao() {
         contrato={contrato}
         onFechar={() => setDialogo(null)}
         onSalvo={recarregar}
+      />
+      <ModalImportarPlanilhas
+        aberto={dialogo === 'importar'}
+        onFechar={() => setDialogo(null)}
+        onImportado={recarregar}
       />
       <ModalQqp aberto={dialogo === 'qqp'} contrato={contrato} podeGerir={podeGerir} onFechar={() => setDialogo(null)} />
       <ModalBoletim

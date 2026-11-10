@@ -4,6 +4,7 @@ const { Router } = require('express');
 const contratoController = require('../controllers/contratoController');
 const obraMedicaoController = require('../controllers/obraMedicaoController');
 const { autorizar } = require('../middlewares/auth');
+const { uploadPlanilhasMedicao } = require('../config/multer');
 const { PERFIS_QUE_GEREM_CONTRATOS } = require('../services/contratoService');
 const { PERFIS_QUE_GEREM_MEDICAO } = require('../services/medicaoService');
 const { PERFIS_QUE_GEREM_QQP } = require('../services/qqpService');
@@ -15,6 +16,10 @@ const router = Router();
  * Projeção Financeira. Leitura para qualquer perfil autenticado; cadastro,
  * aditivos e vínculo de obras só para SUPERVISOR/ADMIN.
  */
+
+// POST /api/contratos/importar-medicao -> importa as planilhas do histórico de medição (pasta 13).
+// multipart: medicao (medição bmm.csv), curva (Curva tendencia.csv); aplicar=true grava, senão só simula.
+router.post('/importar-medicao', autorizar('ADMIN'), uploadPlanilhasMedicao, contratoController.importarMedicao);
 
 // GET  /api/contratos            -> contratos com aditivos, obras e saldo consolidado
 router.get('/', contratoController.listarContratos);

@@ -109,7 +109,25 @@ const uploadCronograma = multer({
   },
 });
 
+/**
+ * Upload das planilhas CSV do histórico de medição (medição bmm.csv e Curva
+ * tendencia.csv): dois arquivos em memória, até 5 MB cada.
+ */
+const uploadPlanilhasMedicao = multer({
+  storage,
+  fileFilter(req, file, cb) {
+    const extensao = path.extname(file.originalname || '').toLowerCase();
+    if (extensao === '.csv' || /csv|excel|text\/plain/.test(file.mimetype || '')) return cb(null, true);
+    return cb(new AppError(400, `Envie planilhas em formato CSV (recebido: ${file.originalname}).`));
+  },
+  limits: { fileSize: 5 * 1024 * 1024, files: 2 },
+}).fields([
+  { name: 'medicao', maxCount: 1 },
+  { name: 'curva', maxCount: 1 },
+]);
+
 module.exports = upload;
+module.exports.uploadPlanilhasMedicao = uploadPlanilhasMedicao;
 module.exports.upload = upload;
 module.exports.uploadCronograma = uploadCronograma;
 module.exports.MIME_CRONOGRAMAS = MIME_CRONOGRAMAS;
