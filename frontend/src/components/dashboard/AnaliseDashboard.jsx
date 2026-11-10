@@ -3,10 +3,7 @@ import { Link } from 'react-router-dom';
 import { CalendarRange, ExternalLink, LineChart, MapPin, Route } from 'lucide-react';
 import AbaCronograma from '../obras/AbaCronograma.jsx';
 import AbaProgramacao6Semanas from '../obras/AbaProgramacao6Semanas.jsx';
-import CurvaSConsolidada from './CurvaSConsolidada.jsx';
 import { CategoriaBadge, StatusObraBadge } from './DashboardBadges.jsx';
-import IndicadoresPlanejamento from './IndicadoresPlanejamento.jsx';
-import KpisDashboard from './KpisDashboard.jsx';
 
 function rotuloObra(obra) {
   const referencia = obra.ss || obra.osi || `Obra #${obra.id}`;
@@ -33,7 +30,7 @@ function TituloSecao({ icone: Icone, titulo, texto }) {
  *
  * Para a obra escolhida mostra, uma abaixo da outra, as mesmas informações do
  * detalhe da obra: Curva S, caminho crítico, carga e alocação por função e a
- * programação de 6 semanas. Depois vêm os indicadores gerais da carteira.
+ * programação de 6 semanas.
  */
 export default function AnaliseDashboard({ dados, obraFocoId = null, onSelecionarObra }) {
   const [apenasAndamento, setApenasAndamento] = useState(true);
@@ -159,17 +156,6 @@ export default function AnaliseDashboard({ dados, obraFocoId = null, onSeleciona
           </section>
         </>
       )}
-
-      <section className="space-y-3">
-        <TituloSecao
-          icone={LineChart}
-          titulo="Carteira"
-          texto="Indicadores gerais e Curva S consolidada de todas as obras do recorte."
-        />
-        <KpisDashboard resumo={dados.resumo} />
-        <IndicadoresPlanejamento resumo={dados.resumo} />
-        <CurvaSConsolidada curva={dados.curva_s} />
-      </section>
     </div>
   );
 }
