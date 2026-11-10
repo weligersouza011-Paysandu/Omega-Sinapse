@@ -345,7 +345,8 @@ function montarProjecaoObra(obra, itensMedicao = [], recursos = [], { hoje = new
   const valorEm = (campo, fim) => Math.round((valorObraCent * percentualEm(serie, fim, campo)) / 100);
 
   let medidoAcumCent = 0;
-  let tendenciaAnteriorCent = 0;
+  // Receita acumulada já reconhecida: o medido até o último ciclo medido e, depois, a tendência.
+  let baseCent = 0;
   let custoAcumCent = 0;
   let fluxoAcumCent = 0;
   const hojeIso = iso(dataDeCalendario(hoje));
@@ -360,9 +361,11 @@ function montarProjecaoObra(obra, itensMedicao = [], recursos = [], { hoje = new
     medidoAcumCent += medidoMesCent;
     const medido = ultimaMedida !== null && referencia <= ultimaMedida;
 
-    // Receita: o que foi medido até o último ciclo medido; depois, o ritmo da tendência.
-    const receitaCent = medido ? medidoMesCent : Math.max(0, tendenciaCent - tendenciaAnteriorCent);
-    tendenciaAnteriorCent = Math.max(tendenciaAnteriorCent, tendenciaCent);
+    // Receita: o que foi medido até o último ciclo medido; depois, o que a tendência do cronograma
+    // ainda acrescenta ao acumulado (o executado e ainda não medido entra no primeiro ciclo projetado).
+    const alvoCent = medido ? medidoAcumCent : Math.max(tendenciaCent, baseCent);
+    const receitaCent = medido ? medidoMesCent : alvoCent - baseCent;
+    baseCent = alvoCent;
 
     const custo = custoPorCiclo.get(referencia);
     const custoCent = custo ? emCentavos(custo.total) : 0;

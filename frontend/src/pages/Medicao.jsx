@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, FilePlus2, FileSignature, Link2, ReceiptText, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, FilePlus2, FileSignature, Link2, ReceiptText, RefreshCw, Table2, Trash2 } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
@@ -8,6 +8,7 @@ import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
 import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
 import ModalContrato from '../components/medicao/ModalContrato.jsx';
+import ModalQqp from '../components/medicao/ModalQqp.jsx';
 import ModalTac from '../components/medicao/ModalTac.jsx';
 import ModalVincularObras from '../components/medicao/ModalVincularObras.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
@@ -35,7 +36,7 @@ export default function Medicao() {
   const { contratos, contratoId, selecionarContrato, dados, carregando, carregandoContratos, erro, recarregar } =
     useDashboardMedicao();
 
-  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | null.
+  // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | null.
   const [dialogo, setDialogo] = useState(null);
   const [boletimOcupadoId, setBoletimOcupadoId] = useState(null);
   const [excluir, setExcluir] = useState(null);
@@ -137,6 +138,13 @@ export default function Medicao() {
             </>
           ) : null}
 
+          {contrato ? (
+            <button type="button" className="btn-neutro" onClick={() => setDialogo('qqp')}>
+              <Table2 className="h-4 w-4" aria-hidden="true" />
+              Matriz QQP
+            </button>
+          ) : null}
+
           <button type="button" className="btn-neutro" onClick={recarregar} disabled={carregando}>
             {carregando ? <Spinner tamanho="sm" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
             Atualizar
@@ -220,6 +228,7 @@ export default function Medicao() {
         onFechar={() => setDialogo(null)}
         onSalvo={recarregar}
       />
+      <ModalQqp aberto={dialogo === 'qqp'} contrato={contrato} podeGerir={podeGerir} onFechar={() => setDialogo(null)} />
       <ModalBoletim
         aberto={dialogo === 'boletim'}
         contrato={contrato}

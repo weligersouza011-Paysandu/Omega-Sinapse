@@ -9,6 +9,7 @@ import {
   ListChecks,
   RefreshCw,
   Search,
+  ReceiptText,
   Settings,
   Wallet,
 } from 'lucide-react';
@@ -17,7 +18,8 @@ import Spinner from '../components/Spinner.jsx';
 import StatusBadge from '../components/StatusBadge.jsx';
 import AbaCronograma from '../components/obras/AbaCronograma.jsx';
 import AbaProgramacao6Semanas from '../components/obras/AbaProgramacao6Semanas.jsx';
-import AbaProjecaoFinanceira from '../components/obras/AbaProjecaoFinanceira.jsx';
+import AbaMedicaoObra from '../components/obras/AbaMedicaoObra.jsx';
+import AbaProjecaoObra from '../components/obras/AbaProjecaoObra.jsx';
 import AbaVisaoGeral from '../components/obras/AbaVisaoGeral.jsx';
 import ConfiguracaoObra from '../components/obras/ConfiguracaoObra.jsx';
 import FiltroBuscaObra from '../components/obras/FiltroBuscaObra.jsx';
@@ -35,7 +37,8 @@ const ABAS_PRINCIPAIS = [
   { id: 'visao-geral', label: 'Visão Geral', Icone: LayoutDashboard },
   { id: 'cronograma', label: 'Cronograma', Icone: FileSpreadsheet },
   { id: '6wla', label: 'Programação de 6 Semanas (6WLA)', Icone: CalendarRange },
-  { id: 'financeiro', label: 'Projeção Financeira & Medição', Icone: Wallet },
+  { id: 'medicao', label: 'Medição', Icone: ReceiptText },
+  { id: 'projecao', label: 'Projeção Financeira', Icone: Wallet },
 ];
 
 /** Abas operacionais (registros do dia a dia e edição). */
@@ -121,7 +124,7 @@ function CabecalhoObra({ obra, carregando, onAtualizar }) {
  * Página dedicada de detalhamento da obra.
  *
  * A identificação da obra fica na barra superior do layout; o conteúdo é
- * dividido nas abas principais (Visão Geral, Projeção Financeira & Medição e
+ * dividido nas abas principais (Visão Geral, Medição, Projeção Financeira e
  * Programação de 6 Semanas) e nas operacionais (tarefas, relatórios, busca e
  * configuração). Todas as mutações devolvem a obra consolidada e atualizam a
  * página sem refetch.
@@ -232,7 +235,9 @@ export default function DetalheObra() {
 
         {aba === 'cronograma' ? <AbaCronograma obra={obra} podeEditar={podeEditar} /> : null}
 
-        {aba === 'financeiro' ? <AbaProjecaoFinanceira obra={obra} /> : null}
+        {aba === 'medicao' ? <AbaMedicaoObra obra={obra} /> : null}
+
+        {aba === 'projecao' ? <AbaProjecaoObra obra={obra} podeEditar={podeEditar} /> : null}
 
         {aba === '6wla' ? (
           <AbaProgramacao6Semanas obra={obra} podeEditar={podeEditar} onIrParaAba={selecionarAba} />

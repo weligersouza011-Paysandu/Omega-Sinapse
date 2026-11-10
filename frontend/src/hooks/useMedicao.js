@@ -54,6 +54,97 @@ export async function excluirBoletim(contratoId, boletimId) {
   return data;
 }
 
+/* ----------------------------- Medição e projeção por obra ----------------------------- */
+
+/** BMMs em que a obra (SS) pontuou, com o valor por ciclo e o acumulado aprovado. */
+export async function obterMedicaoObra(obraId) {
+  const { data } = await api.get(`/obras/${obraId}/medicao`);
+  return data;
+}
+
+/** Previsto x físico real x medido e o custo projetado do QQP (dias úteis) por ciclo. */
+export async function obterProjecaoObra(obraId) {
+  const { data } = await api.get(`/obras/${obraId}/projecao-financeira`);
+  return data;
+}
+
+/* ----------------------------- QQP do contrato e recursos da obra ----------------------------- */
+
+export async function listarItensQqp(contratoId) {
+  const { data } = await api.get(`/contratos/${contratoId}/qqp`);
+  return data.data || [];
+}
+
+export async function criarItemQqp(contratoId, dados) {
+  const { data } = await api.post(`/contratos/${contratoId}/qqp`, dados);
+  return data;
+}
+
+export async function atualizarItemQqp(contratoId, itemId, dados) {
+  const { data } = await api.put(`/contratos/${contratoId}/qqp/${itemId}`, dados);
+  return data;
+}
+
+export async function excluirItemQqp(contratoId, itemId) {
+  const { data } = await api.delete(`/contratos/${contratoId}/qqp/${itemId}`);
+  return data;
+}
+
+export async function listarRecursosObra(obraId) {
+  const { data } = await api.get(`/obras/${obraId}/recursos-qqp`);
+  return data;
+}
+
+export async function criarRecursoObra(obraId, dados) {
+  const { data } = await api.post(`/obras/${obraId}/recursos-qqp`, dados);
+  return data;
+}
+
+export async function atualizarRecursoObra(obraId, recursoId, dados) {
+  const { data } = await api.put(`/obras/${obraId}/recursos-qqp/${recursoId}`, dados);
+  return data;
+}
+
+export async function excluirRecursoObra(obraId, recursoId) {
+  const { data } = await api.delete(`/obras/${obraId}/recursos-qqp/${recursoId}`);
+  return data;
+}
+
+/**
+ * Carrega dados assíncronos com estado de carregamento/erro e `recarregar`.
+ * Respostas antigas (de uma obra anterior, por exemplo) são descartadas.
+ */
+export function useCarregamento(carregar, dependencias) {
+  const [dados, setDados] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [versao, setVersao] = useState(0);
+
+  const recarregar = useCallback(() => setVersao((atual) => atual + 1), []);
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    setErro('');
+    carregar()
+      .then((resultado) => {
+        if (ativo) setDados(resultado);
+      })
+      .catch((falha) => {
+        if (ativo) setErro(falha.message || 'Não foi possível carregar os dados.');
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false);
+      });
+    return () => {
+      ativo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [...dependencias, versao]);
+
+  return { dados, carregando, erro, recarregar };
+}
+
 /** Perfis que podem cadastrar contratos, TACs e boletins (espelha o back-end). */
 export const PERFIS_QUE_GEREM_MEDICAO = ['SUPERVISOR', 'ADMIN'];
 
