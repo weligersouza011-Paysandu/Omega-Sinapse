@@ -13,6 +13,7 @@ const obraRoutes = require('./routes/obraRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const tarefaRoutes = require('./routes/tarefaRoutes');
 const cronogramaRoutes = require('./routes/cronogramaRoutes');
+const contratoRoutes = require('./routes/contratoRoutes');
 const { autenticar } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
@@ -77,6 +78,8 @@ app.use('/api/dashboard', autenticar, dashboardRoutes);
 app.use('/api/tarefas', autenticar, tarefaRoutes);
 // Ingestão e versionamento de cronogramas (base da Curva S, CPM e 6WLA).
 app.use('/api/cronogramas', autenticar, cronogramaRoutes);
+// Contratos com a Vale e Termos Aditivos (base da medição e projeção financeira).
+app.use('/api/contratos', autenticar, contratoRoutes);
 app.use('/api/uploads', autenticar, uploadRoutes);
 
 // ---------------------------------------------------------------------------

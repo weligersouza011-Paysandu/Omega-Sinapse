@@ -24,6 +24,7 @@ const INCLUDE_OBRA = {
     include: { usuario: { select: { id: true, nome: true, matricula: true } } },
   },
   osi_emitida_usuario: { select: { nome: true } },
+  contrato: { select: { id: true, id_vale: true, descricao: true } },
 };
 
 /**

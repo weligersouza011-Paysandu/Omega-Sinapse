@@ -202,6 +202,7 @@ model Usuario {
   cronogramas_enviados    VersaoCronograma[]              @relation("CronogramaAutor")
   restricoes_atividades   RestricaoAtividade[]            @relation("RestricaoAtividadeAutor")
   historico_cronogramas   HistoricoImportacaoCronograma[] @relation("HistoricoCronogramaUsuario")
+  aditivos_registrados    TermoAditivo[]                  @relation("AditivoAutor")
 
   @@map("usuarios")
 }
@@ -355,10 +356,13 @@ model Obra {
   ata_partida_url String?
   /// Observações gerais do planejamento.
   observacoes     String?
+  /// Contrato-mãe com a Vale ao qual a obra (SS) está vinculada.
+  contrato_id     Int?
   created_at      DateTime       @default(now()) @db.Timestamptz(6)
   updated_at      DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
 
   orcamento           Orcamento @relation(fields: [orcamento_id], references: [id], onDelete: Cascade)
+  contrato            Contrato? @relation(fields: [contrato_id], references: [id], onDelete: SetNull)
   planejador          Usuario?  @relation("ObraPlanejador", fields: [planejador_id], references: [id], onDelete: SetNull)
   osi_emitida_usuario Usuario?  @relation("ObraOsiEmissor", fields: [osi_emitida_por], references: [id], onDelete: SetNull)
 
@@ -379,6 +383,7 @@ model Obra {
 
   @@index([status])
   @@index([planejador_id])
+  @@index([contrato_id])
   @@map("obras")
 }
 
@@ -788,4 +793,50 @@ model HistoricoImportacaoCronograma {
 
   @@index([obra_id, created_at])
   @@map("historico_importacao_cronogramas")
+}
+
+// -----------------------------------------------------------------------------
+// Contratos com a Vale (ex.: CT-251 Eletromecânica) e Termos Aditivos (TAC)
+//
+// O teto financeiro vigente do contrato é o valor inicial somado aos aditivos;
+// cada TAC guarda o novo valor total que passou a valer na sua assinatura.
+// As obras (SS) se vinculam ao contrato-mãe por `obras.contrato_id`.
+// -----------------------------------------------------------------------------
+model Contrato {
+  id            Int      @id @default(autoincrement())
+  /// Identificação do contrato na Vale (ex.: "CT-251").
+  id_vale       String   @unique @db.VarChar(60)
+  descricao     String
+  valor_inicial Decimal  @db.Decimal(14, 2)
+  data_inicio   DateTime @db.Date
+  data_fim      DateTime @db.Date
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  aditivos TermoAditivo[]
+  obras    Obra[]
+
+  @@map("contratos")
+}
+
+model TermoAditivo {
+  id               Int      @id @default(autoincrement())
+  contrato_id      Int
+  /// Identificação do termo (ex.: "TAC 01"), única dentro do contrato.
+  numero_tac       String   @db.VarChar(30)
+  valor_aditivo    Decimal  @db.Decimal(14, 2)
+  /// Teto do contrato depois deste aditivo (valor inicial + aditivos até ele).
+  novo_valor_total Decimal  @db.Decimal(14, 2)
+  data_assinatura  DateTime @db.Date
+  motivo           String
+  /// Quem registrou o aditivo no sistema.
+  usuario_id       Int?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  contrato Contrato @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  usuario  Usuario? @relation("AditivoAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@unique([contrato_id, numero_tac], name: "uq_tac_por_contrato")
+  @@index([contrato_id])
+  @@map("termos_aditivos")
 }

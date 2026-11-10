@@ -2,6 +2,7 @@
 
 const AppError = require('../errors/AppError');
 const obraRepository = require('../repositories/obraRepository');
+const contratoRepository = require('../repositories/contratoRepository');
 const usuarioRepository = require('../repositories/usuarioRepository');
 
 /** Perfis reconhecidos pelo RBAC do módulo. */
@@ -222,6 +223,27 @@ async function atualizarObra(idParam, payload, usuario) {
         );
       }
       dados.categoria = categoria;
+    }
+  }
+
+  // ------------------------------------------------------------- Contrato
+  // Contrato-mãe com a Vale (ex.: CT-251); vazio desfaz o vínculo.
+  if (temCampo(payload, 'contrato_id')) {
+    if (!PERFIS_QUE_ATRIBUEM_PLANEJADOR.includes(usuario.perfil)) {
+      throw new AppError(403, 'Apenas perfis SUPERVISOR ou ADMIN podem vincular a obra a um contrato.');
+    }
+
+    if (estaVazio(payload.contrato_id)) {
+      dados.contrato_id = null;
+    } else {
+      const contratoId = Number(payload.contrato_id);
+      if (!Number.isInteger(contratoId) || contratoId <= 0) {
+        throw new AppError(400, 'O campo "contrato_id" deve ser um número inteiro positivo.');
+      }
+      if (!(await contratoRepository.existsById(contratoId))) {
+        throw new AppError(404, `Contrato ${contratoId} não encontrado.`);
+      }
+      dados.contrato_id = contratoId;
     }
   }
 
