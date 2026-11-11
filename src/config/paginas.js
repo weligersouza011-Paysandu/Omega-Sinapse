@@ -10,8 +10,8 @@ const PAGINAS_CLIENTE = [
   { id: 'orcamentos', label: 'Orçamentos' },
   { id: 'obras', label: 'Obras' },
   { id: 'planejamento', label: 'Dashboard de Planejamento' },
-  { id: 'demandas', label: 'Gestão de Demandas' },
   { id: 'medicao', label: 'Medição' },
+  { id: 'demandas', label: 'Gestão de Demandas' },
 ];
 
 const IDS_PAGINAS = PAGINAS_CLIENTE.map((pagina) => pagina.id);

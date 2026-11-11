@@ -41,6 +41,9 @@ const TIPOS_ALTERACAO = ['REVISAO_SUBSTITUTIVA', 'ADITIVO_FINANCEIRO'];
 /** Situação de aprovação da revisão (enum StatusAprovacaoRevisao). */
 const STATUS_APROVACAO = ['PENDENTE', 'APROVADO', 'REJEITADO'];
 
+/** Cliente padrão das obras: todo orçamento sem cliente informado é da Vale. */
+const CLIENTE_PADRAO = 'Vale';
+
 /** Status que representam decisão tomada pelo cliente (base da taxa de aprovação). */
 const STATUS_DECIDIDOS = ['APROVADO', 'DESATIVADO'];
 
@@ -335,7 +338,7 @@ async function criarOrcamento(payload, usuario) {
 
   const dados = {
     pep: String(payload.pep).trim(),
-    cliente: estaVazio(payload.cliente) ? null : String(payload.cliente).trim(),
+    cliente: estaVazio(payload.cliente) ? CLIENTE_PADRAO : String(payload.cliente).trim(),
     ss: estaVazio(payload.ss) ? null : String(payload.ss).trim(),
     descricao: estaVazio(payload.descricao) ? null : String(payload.descricao).trim(),
     endereco: estaVazio(payload.endereco) ? null : String(payload.endereco).trim(),
@@ -500,7 +503,7 @@ async function atualizarOrcamento(idParam, payload, usuario) {
     dados.peps = peps;
     dados.pep = peps.find((item) => item.ativo).pep;
   }
-  if (temCampo(payload, 'cliente')) dados.cliente = estaVazio(payload.cliente) ? null : String(payload.cliente).trim();
+  if (temCampo(payload, 'cliente')) dados.cliente = estaVazio(payload.cliente) ? CLIENTE_PADRAO : String(payload.cliente).trim();
   if (temCampo(payload, 'ss')) dados.ss = estaVazio(payload.ss) ? null : String(payload.ss).trim();
   if (temCampo(payload, 'descricao')) dados.descricao = estaVazio(payload.descricao) ? null : String(payload.descricao).trim();
   if (temCampo(payload, 'endereco')) dados.endereco = estaVazio(payload.endereco) ? null : String(payload.endereco).trim();

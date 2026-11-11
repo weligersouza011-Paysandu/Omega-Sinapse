@@ -24,6 +24,39 @@ export async function listarObras(filtros = {}) {
   return data;
 }
 
+/**
+ * Quantidade de obras em cada status (pílulas de filtro do topo da tela de Obras).
+ * Faz uma consulta leve por status (limit 1) e lê o total.
+ */
+export function useContagemStatusObras({ busca = '', statuses = [] } = {}) {
+  const [contagem, setContagem] = useState({});
+  const [carregando, setCarregando] = useState(true);
+  const requisicaoAtual = useRef(0);
+  const chaveStatuses = statuses.join(',');
+
+  const recarregar = useCallback(async () => {
+    const idRequisicao = requisicaoAtual.current + 1;
+    requisicaoAtual.current = idRequisicao;
+    setCarregando(true);
+    try {
+      const lista = chaveStatuses ? chaveStatuses.split(',') : [];
+      const respostas = await Promise.all(lista.map((status) => listarObras({ busca, status, page: 1, limit: 1 })));
+      if (requisicaoAtual.current !== idRequisicao) return;
+      setContagem(Object.fromEntries(lista.map((status, indice) => [status, respostas[indice]?.total || 0])));
+    } catch {
+      // A legenda é auxiliar: em caso de falha mantém os últimos números.
+    } finally {
+      if (requisicaoAtual.current === idRequisicao) setCarregando(false);
+    }
+  }, [busca, chaveStatuses]);
+
+  useEffect(() => {
+    recarregar();
+  }, [recarregar]);
+
+  return { contagem, carregando, recarregar };
+}
+
 /** Busca uma obra por ID (com projeto, fiscais, revisões e detalhamento). */
 export async function obterObra(id) {
   const { data } = await api.get(`/obras/${id}`);

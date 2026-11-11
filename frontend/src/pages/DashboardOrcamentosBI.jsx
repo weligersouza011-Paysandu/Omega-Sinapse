@@ -102,7 +102,7 @@ export default function DashboardOrcamentosBI() {
   const taxaAprovacao = resumo ? `${(resumo.taxaAprovacao * 100).toFixed(1)}%` : '—';
 
   return (
-    <div className="mx-auto w-full max-w-7xl">
+    <div className="w-full">
       <AbasOrcamentos />
 
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">

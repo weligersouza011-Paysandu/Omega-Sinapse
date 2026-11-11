@@ -5,19 +5,29 @@ import CardObra from '../components/CardObra.jsx';
 import CategoriaObraBadge from '../components/CategoriaObraBadge.jsx';
 import Dropdown from '../components/Dropdown.jsx';
 import EtiquetasPendencia from '../components/EtiquetasPendencia.jsx';
+import LegendaStatus from '../components/LegendaStatus.jsx';
 import ListaTabela from '../components/ListaTabela.jsx';
 import QuadroKanban from '../components/QuadroKanban.jsx';
 import SeletorPlanejador from '../components/SeletorPlanejador.jsx';
-import Spinner from '../components/Spinner.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import {
+  useContagemStatusObras,
   atualizarObra,
   useObras,
   usePlanejadores,
   useQuadroObras,
 } from '../hooks/useObras.js';
 import { STATUS_OBRA_OPCOES } from '../utils/status.js';
+
+/** Ordem das pílulas de status no topo (mesma hierarquia dos cards). */
+const STATUS_OBRA_TOPO = ['PARA_INICIAR', 'EM_ANDAMENTO', 'PARALISADA', 'CONCLUIDA'];
+const ROTULOS_STATUS_OBRA = {
+  PARA_INICIAR: 'Para Iniciar',
+  EM_ANDAMENTO: 'Em Andamento',
+  PARALISADA: 'Paralisado',
+  CONCLUIDA: 'Concluído',
+};
 
 const LIMITE = 12;
 
@@ -74,6 +84,8 @@ export default function Obras() {
     ativo: visao === 'cards' || visao === 'list',
   });
 
+  const contagem = useContagemStatusObras({ busca: buscaAplicada, statuses: STATUS_OBRA_TOPO });
+
   const quadro = useQuadroObras({
     busca: buscaAplicada,
     status,
@@ -93,6 +105,7 @@ export default function Obras() {
   function recarregarTudo() {
     cards.recarregar();
     quadro.recarregar();
+    contagem.recarregar();
   }
 
   /**
@@ -176,7 +189,19 @@ export default function Obras() {
           </div>
         </div>
 
-        <section className="card mb-6 grid grid-cols-1 gap-3 p-4 lg:grid-cols-[1fr_240px_auto] lg:items-center">
+        <LegendaStatus
+          statuses={STATUS_OBRA_TOPO}
+          rotulos={ROTULOS_STATUS_OBRA}
+          contagem={contagem.contagem}
+          carregando={contagem.carregando}
+          selecionado={status}
+          onSelecionar={(valor) => {
+            setStatus(valor);
+            setPagina(1);
+          }}
+        />
+
+        <section className="card mb-6 grid grid-cols-1 gap-3 p-4 lg:grid-cols-[1fr_240px] lg:items-center">
           <div className="relative">
             <svg
               viewBox="0 0 24 24"
@@ -206,16 +231,6 @@ export default function Obras() {
             placeholder="Todas as etapas"
             opcoes={[{ value: '', label: 'Todas as etapas', descricao: 'Todas as etapas' }, ...STATUS_OBRA_OPCOES]}
           />
-
-          <button
-            type="button"
-            className="btn-neutro"
-            onClick={recarregarTudo}
-            disabled={carregando}
-          >
-            {carregando ? <Spinner tamanho="sm" /> : null}
-            Atualizar
-          </button>
         </section>
 
         {/* O Kanban trata o erro dentro do próprio quadro (com retry). */}

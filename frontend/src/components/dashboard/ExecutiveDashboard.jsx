@@ -75,7 +75,7 @@ export default function ExecutiveDashboard() {
   const carregandoInicial = carregando && !dados;
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-4 pb-4 sm:space-y-5">
+    <div className="w-full space-y-4 pb-4 sm:space-y-5">
       <DashboardHero
         geradoEm={dados?.gerado_em}
         ultimaMedicao={dados?.resumo?.ultima_medicao}

@@ -241,7 +241,7 @@ function mapearObra(registro) {
         id: orcamento.id,
         pep: orcamento.pep,
         ss: orcamento.ss,
-        cliente: orcamento.cliente,
+        cliente: orcamento.cliente || 'Vale',
         descricao: orcamento.descricao,
         endereco: orcamento.endereco,
         documentos_referencia: orcamento.documentos_referencia,
@@ -288,7 +288,7 @@ function mapearObra(registro) {
     // Campos achatados do projeto (compatibilidade com os cards e o Kanban).
     pep: dadosOrcamento?.pep ?? null,
     ss: dadosOrcamento?.ss ?? null,
-    cliente: dadosOrcamento?.cliente ?? null,
+    cliente: dadosOrcamento?.cliente || 'Vale',
     descricao: dadosOrcamento?.descricao ?? null,
     endereco: dadosOrcamento?.endereco ?? null,
     documentos_referencia: dadosOrcamento?.documentos_referencia ?? null,
@@ -371,7 +371,9 @@ async function findAll(filtros = {}) {
     prisma.obra.findMany({
       where,
       include: INCLUDE_OBRA,
-      orderBy: { id: 'desc' },
+      // Hierarquia dos cards: Para Iniciar → Em Andamento → Paralisado → Concluído
+      // (ordem de declaração do enum StatusObra); dentro de cada status, as mais recentes.
+      orderBy: [{ status: 'asc' }, { id: 'desc' }],
       skip: (page - 1) * limit,
       take: limit,
     }),

@@ -39,16 +39,6 @@ export const MODULOS = [
     icone: 'M4 5h7v6H4V5Zm9 0h7v6h-7V5ZM4 13h7v6H4v-6Zm9 0h7v6h-7v-6Z',
   },
   {
-    id: 'demandas',
-    rota: '/demandas',
-    label: 'Gestão de Demandas',
-    descricao: 'Rotinas e demandas da equipe, com farol de prazo.',
-    ativo: true,
-    // Pode ser liberado para usuários do perfil Cliente.
-    liberavelCliente: true,
-    icone: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
-  },
-  {
     id: 'medicao',
     rota: '/medicao',
     label: 'Medição',
@@ -59,20 +49,14 @@ export const MODULOS = [
     icone: 'M7 3h10a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm2 5h6M9 12h6M9 16h3',
   },
   {
-    id: 'curva-s',
-    rota: '/curva-s',
-    label: 'Curva S & BI',
-    descricao: 'Avanço físico e financeiro acumulado.',
-    ativo: false,
-    icone: 'M4 19h16M6 16l4-6 3 3 5-8',
-  },
-  {
-    id: 'mapa',
-    rota: '/mapa',
-    label: 'Mapa de Obras',
-    descricao: 'Geolocalização das obras em execução.',
-    ativo: false,
-    icone: 'M12 21s7-5.5 7-11a7 7 0 1 0-14 0c0 5.5 7 11 7 11Zm0-9.5a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z',
+    id: 'demandas',
+    rota: '/demandas',
+    label: 'Gestão de Demandas',
+    descricao: 'Rotinas e demandas da equipe, com farol de prazo.',
+    ativo: true,
+    // Pode ser liberado para usuários do perfil Cliente.
+    liberavelCliente: true,
+    icone: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
   },
   {
     id: 'usuarios',

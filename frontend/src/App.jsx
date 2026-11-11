@@ -17,8 +17,6 @@ const DashboardOrcamentosBI = lazy(() => import('./pages/DashboardOrcamentosBI.j
 const Obras = lazy(() => import('./pages/Obras.jsx'));
 const DetalheObra = lazy(() => import('./pages/DetalheObra.jsx'));
 const DashboardPlanejamento = lazy(() => import('./pages/DashboardPlanejamento.jsx'));
-const CurvaS = lazy(() => import('./pages/CurvaS.jsx'));
-const MapaObras = lazy(() => import('./pages/MapaObras.jsx'));
 const Medicao = lazy(() => import('./pages/Medicao.jsx'));
 const UsuariosPage = lazy(() => import('./pages/UsuariosPage.jsx'));
 const GestaoDemandasView = lazy(() => import('./pages/GestaoDemandasView.jsx'));
@@ -187,8 +185,6 @@ export default function App() {
         <Route path="/planejamento" element={<RotaPorPagina pagina="planejamento"><DashboardPlanejamento /></RotaPorPagina>} />
         <Route path="/demandas" element={<RotaPorPagina pagina="demandas"><GestaoDemandasView /></RotaPorPagina>} />
         <Route path="/medicao" element={<RotaPorPagina pagina="medicao"><Medicao /></RotaPorPagina>} />
-        <Route path="/curva-s" element={<RotaPorPagina pagina="curva-s"><CurvaS /></RotaPorPagina>} />
-        <Route path="/mapa" element={<RotaPorPagina pagina="mapa"><MapaObras /></RotaPorPagina>} />
       </Route>
 
       <Route path="*" element={<Inicio />} />

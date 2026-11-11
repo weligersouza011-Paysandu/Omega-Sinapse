@@ -203,7 +203,9 @@ async function findAll(filtros = {}) {
     prisma.orcamento.count({ where }),
     prisma.orcamento.findMany({
       where,
-      orderBy: { id: 'desc' },
+      // Hierarquia dos cards: Visita Técnica → Aguardando Aprovação → Aprovados → Desativados
+      // (ordem de declaração do enum StatusOrcamento); dentro de cada status, os mais recentes.
+      orderBy: [{ status: 'asc' }, { id: 'desc' }],
       skip: (page - 1) * limit,
       take: limit,
     }),

@@ -72,9 +72,8 @@ export default function DashboardOrcamentos() {
   const [busca, setBusca] = useState('');
   const [buscaAplicada, setBuscaAplicada] = useState('');
   const [status, setStatus] = useState('');
-  // Recorte padrão: apenas o ciclo comercial do orçamentista (as etapas de OSI
-  // ficam no escopo de Planejamento e só aparecem quando solicitadas).
-  const [escopo, setEscopo] = useState('comercial');
+  // Recorte fixo: apenas o ciclo comercial do orçamentista (as etapas de OSI ficam no Planejamento).
+  const escopo = 'comercial';
 
   const [modalNovo, setModalNovo] = useState(false);
   const [idDetalhe, setIdDetalhe] = useState(null);
@@ -124,15 +123,6 @@ export default function DashboardOrcamentos() {
   function alterarStatus(valor) {
     setStatus(valor);
     setPagina(1);
-  }
-
-  /** Troca o recorte (comercial ↔ todos) e reinicia a paginação/filtro. */
-  function alterarEscopo(valor) {
-    setEscopo(valor);
-    setPagina(1);
-    if (valor === 'comercial' && status && !STATUS_COMERCIAL.includes(status)) {
-      setStatus('');
-    }
   }
 
   /** Recarrega a visão ativa (o hook inativo ignora a chamada). */
@@ -201,7 +191,7 @@ export default function DashboardOrcamentos() {
     <>
       {/* O Kanban usa a largura total (aproveita a expansão da Sidebar);
           a listagem de cards mantém a largura de leitura confortável. */}
-      <div className={exibindoCards ? 'mx-auto w-full max-w-7xl' : 'w-full'}>
+      <div className="w-full">
         <AbasOrcamentos />
 
         <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
@@ -296,24 +286,6 @@ export default function DashboardOrcamentos() {
             </select>
           </div>
 
-          {/* Escopo: por padrão a visão foca o ciclo comercial do orçamentista. */}
-          <label
-            className="flex cursor-pointer items-center gap-2 whitespace-nowrap text-sm font-medium text-slate-600"
-            title="Inclui as etapas de OSI (Planejamento) na listagem"
-          >
-            <input
-              type="checkbox"
-              className="h-4 w-4 rounded border-slate-300 text-omega-600 focus:ring-2 focus:ring-omega-500/40"
-              checked={escopo === 'todos'}
-              onChange={(e) => alterarEscopo(e.target.checked ? 'todos' : 'comercial')}
-            />
-            Etapas de Planejamento (OSI)
-          </label>
-
-          <button type="button" className="btn-neutro sm:w-auto" onClick={recarregarTudo} disabled={carregando}>
-            {carregando ? <Spinner tamanho="sm" /> : null}
-            Atualizar
-          </button>
         </section>
 
         {/* O Kanban trata o erro dentro do próprio quadro (com retry). */}
