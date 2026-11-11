@@ -201,6 +201,15 @@ async function curvaDoContrato(contratoId) {
   });
 }
 
+/** Cria ciclos novos na curva do contrato (meses projetados até o fim do contrato). */
+async function criarCiclosDaCurva(contratoId, ciclos) {
+  if (ciclos.length === 0) return;
+  await prisma.curvaFinanceiraContrato.createMany({
+    data: ciclos.map((ciclo) => ({ ...ciclo, contrato_id: contratoId })),
+    skipDuplicates: true,
+  });
+}
+
 /** Grava, na mesma transação, as alterações de vários ciclos da curva ([{ id, dados }]). */
 async function atualizarCiclosDaCurva(alteracoes) {
   if (alteracoes.length === 0) return;
@@ -264,6 +273,7 @@ module.exports = {
   alterarItem,
   removerItem,
   curvaDoContrato,
+  criarCiclosDaCurva,
   atualizarCiclosDaCurva,
   obraParaProjecao,
   itensDaObra,

@@ -321,6 +321,8 @@ export default function Medicao() {
               contratoId={contratoId}
               podeGerir={podeGerir}
               onAlterado={recarregar}
+              dataFim={dados.contrato.data_fim}
+              valorContrato={dados.kpis.valor_contrato}
             />
           </div>
         </div>

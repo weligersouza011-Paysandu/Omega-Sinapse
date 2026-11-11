@@ -279,6 +279,11 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
         })),
   ].sort();
 
+  // Com a curva do contrato, a tabela vai até o mês da última medição prevista (fim do contrato).
+  const referenciaFimContrato = contrato.data_fim ? referenciaDaData(`${String(contrato.data_fim).slice(0, 10)}T00:00:00Z`) : null;
+  if (usarCurvaContrato && referenciaFimContrato) referenciasEnvolvidas.push(referenciaFimContrato);
+  referenciasEnvolvidas.sort();
+
   const curva = [];
   if (referenciasEnvolvidas.length > 0) {
     const primeira = referenciasEnvolvidas[0];
@@ -286,6 +291,10 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
     let referencia = primeira;
     let previstoAnteriorCent = 0;
     let realAcumuladoCent = 0;
+    // Tendência automática dos meses sem valor gravado: parte do medido acumulado no último ciclo
+    // medido e soma o previsto de cada mês × o ritmo do contrato (mesma regra de `calcularTendencia`).
+    let fatorTendencia = 1;
+    let tendenciaAnteriorCent = 0;
 
     for (let i = 0; i < MAX_MESES_CURVA; i += 1) {
       const fim = fimDoCiclo(referencia);
@@ -298,24 +307,48 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
             (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_prev_acum')) / 100),
             0
           );
-      const tendenciaAcumCent = usarCurvaContrato
-        ? linhaCurva && linhaCurva.tendencia_acumulada !== null && linhaCurva.tendencia_acumulada !== undefined
-          ? emCentavos(linhaCurva.tendencia_acumulada)
-          : 0
-        : obrasComSerie.reduce(
-            (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_tend_acum')) / 100),
-            0
-          );
+      const previstoMesCent =
+        usarCurvaContrato && linhaCurva ? emCentavos(linhaCurva.previsto_mensal) : previstoAcumCent - previstoAnteriorCent;
       const realMesCent = realPorMes.get(referencia) || 0;
       realAcumuladoCent += realMesCent;
       const medido = ultimaReferencia !== null && referencia <= ultimaReferencia;
+      const projecao = ultimaReferencia !== null && referencia > ultimaReferencia;
+      const tendenciaGravada =
+        linhaCurva && linhaCurva.tendencia_acumulada !== null && linhaCurva.tendencia_acumulada !== undefined
+          ? emCentavos(linhaCurva.tendencia_acumulada)
+          : null;
+
+      let tendenciaAcumCent;
+      let tendenciaCalculada = false;
+      if (!usarCurvaContrato) {
+        tendenciaAcumCent = obrasComSerie.reduce(
+          (soma, obra) => soma + Math.round((emCentavos(obra.orcamento?.valor) * percentualEm(obra.avanco_fisico, fim, 'fisico_tend_acum')) / 100),
+          0
+        );
+      } else if (ultimaReferencia === null) {
+        tendenciaAcumCent = tendenciaGravada ?? 0;
+      } else if (referencia === ultimaReferencia) {
+        // Âncora: no último ciclo medido a tendência é o próprio medido acumulado.
+        const bruto = previstoAcumCent > 0 ? realAcumuladoCent / previstoAcumCent : 1;
+        fatorTendencia = Math.min(FATOR_MAXIMO, Math.max(FATOR_MINIMO, bruto));
+        tendenciaCalculada = tendenciaGravada === null;
+        tendenciaAcumCent = tendenciaGravada ?? realAcumuladoCent;
+      } else if (projecao) {
+        tendenciaCalculada = tendenciaGravada === null;
+        tendenciaAcumCent = tendenciaGravada ?? tendenciaAnteriorCent + Math.round(previstoMesCent * fatorTendencia);
+      } else {
+        tendenciaAcumCent = 0; // meses já medidos: o real substitui a tendência
+      }
+      const tendenciaMensal = projecao && usarCurvaContrato ? tendenciaAcumCent - tendenciaAnteriorCent : null;
+      // A projeção sempre parte do medido acumulado real do último ciclo medido.
+      if (usarCurvaContrato) tendenciaAnteriorCent = referencia === ultimaReferencia ? realAcumuladoCent : tendenciaAcumCent;
 
       curva.push({
         referencia,
         rotulo: rotuloDoMes(referencia),
         ciclo_inicio: dataISO(cicloDoMes(referencia).inicio),
         ciclo_fim: dataISO(cicloDoMes(referencia).fim),
-        previsto: usarCurvaContrato && linhaCurva ? emReais(emCentavos(linhaCurva.previsto_mensal)) : emReais(previstoAcumCent - previstoAnteriorCent),
+        previsto: emReais(previstoMesCent),
         previsto_acumulado: emReais(previstoAcumCent),
         previsto_replanejado:
           usarCurvaContrato && linhaCurva && linhaCurva.previsto_replanejado !== null && linhaCurva.previsto_replanejado !== undefined
@@ -324,8 +357,12 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
         real: medido ? emReais(realMesCent) : null,
         real_acumulado: medido ? emReais(realAcumuladoCent) : null,
         tendencia_acumulada: emReais(tendenciaAcumCent),
-        // O previsto só é editável nos meses que têm linha na curva do contrato.
-        editavel: Boolean(usarCurvaContrato && linhaCurva),
+        tendencia_mensal: tendenciaMensal === null ? null : emReais(tendenciaMensal),
+        tendencia_calculada: tendenciaCalculada,
+        projecao,
+        fim_do_contrato: referencia === referenciaFimContrato,
+        // Com a curva do contrato todo mês é editável; um mês ainda sem linha ganha a linha ao ser ajustado.
+        editavel: usarCurvaContrato,
       });
 
       previstoAnteriorCent = previstoAcumCent;
@@ -350,8 +387,9 @@ function montarDashboardMedicao(contrato, boletins = [], obras = [], curvaContra
     aderencia = {
       ...aderencia,
       percentual,
+      // Só compara com uma tendência gravada (planilha/ajuste); a âncora automática é o próprio real.
       contra_tendencia:
-        pontoDaUltima.tendencia_acumulada > 0
+        pontoDaUltima.tendencia_acumulada > 0 && !pontoDaUltima.tendencia_calculada
           ? Math.round((acumuladoCent / emCentavos(pontoDaUltima.tendencia_acumulada)) * 10000) / 100
           : null,
       situacao: percentual >= 100 ? 'ACIMA_DO_PREVISTO' : percentual >= 90 ? 'NO_RITMO' : 'ABAIXO_DO_PREVISTO',
@@ -809,6 +847,47 @@ function alteracoesDeTendencia(linhas, tendencia) {
 }
 
 /**
+ * Garante que a curva tenha linha para `referencia`: cria o mês (e os meses vazios entre a linha
+ * anterior e ele) com previsto zero, mantendo o acumulado. Só vale até o fim do contrato.
+ * Devolve a curva atualizada.
+ */
+async function garantirMesNaCurva(contratoId, contrato, referencia, curva) {
+  const linhas = linhasEmCentavos(curva);
+  if (linhas.some((linha) => linha.referencia === referencia)) return curva;
+  if (linhas.length === 0) {
+    throw new AppError(409, 'O contrato ainda não tem a curva de previsto importada. Importe a planilha de acompanhamento primeiro.');
+  }
+  const fimContrato = referenciaDaData(`${String(contrato.data_fim).slice(0, 10)}T00:00:00Z`);
+  if (referencia > fimContrato) {
+    throw new AppError(400, `O mês ${referencia} fica depois do fim do contrato (${rotuloDoMes(fimContrato)}).`);
+  }
+  const anteriores = curva.filter((linha) => referenciaDaData(linha.ciclo_fim) < referencia);
+  if (anteriores.length === 0) {
+    throw new AppError(400, `O mês ${referencia} é anterior ao início da curva do contrato.`);
+  }
+  const base = anteriores[anteriores.length - 1];
+  const numeroBase = /^(.*?)(\d+)\s*$/.exec(String(base.numero_bmm || ''));
+
+  const novos = [];
+  let atual = proximoMes(referenciaDaData(base.ciclo_fim));
+  let passo = 1;
+  while (atual <= referencia) {
+    const ciclo = cicloDoMes(atual);
+    novos.push({
+      numero_bmm: numeroBase ? `${numeroBase[1]}${Number(numeroBase[2]) + passo}` : `PREV-${atual}`,
+      ciclo_inicio: ciclo.inicio,
+      ciclo_fim: ciclo.fim,
+      previsto_mensal: 0,
+      previsto_acumulado: base.previsto_acumulado,
+    });
+    atual = proximoMes(atual);
+    passo += 1;
+  }
+  await boletimRepository.criarCiclosDaCurva(contratoId, novos);
+  return boletimRepository.curvaDoContrato(contratoId);
+}
+
+/**
  * PUT /api/contratos/:id/curva/:referencia
  * Corpo: { previsto: number } — novo previsto do mês ("AAAA-MM"). O acumulado dos meses seguintes
  * acompanha a diferença e a tendência é recalculada. Devolve o dashboard atualizado.
@@ -818,7 +897,7 @@ function alteracoesDeTendencia(linhas, tendencia) {
  */
 async function atualizarPrevistoDaCurva(idParam, referenciaParam, payload = {}, usuario) {
   exigirGestor(usuario);
-  const { id } = await carregarContrato(idParam);
+  const { id, contrato } = await carregarContrato(idParam);
   const referencia = String(referenciaParam || '').trim();
   cicloDoMes(referencia); // valida o formato AAAA-MM
 
@@ -827,7 +906,7 @@ async function atualizarPrevistoDaCurva(idParam, referenciaParam, payload = {}, 
       throw new AppError(400, 'Informe o previsto ou a tendência do mês, não os dois ao mesmo tempo.');
     }
     const tendenciaCent = emCentavos(valorNaoNegativo(payload.tendencia_acumulada, 'tendencia_acumulada'));
-    const curvaAtual = await boletimRepository.curvaDoContrato(id);
+    const curvaAtual = await garantirMesNaCurva(id, contrato, referencia, await boletimRepository.curvaDoContrato(id));
     const linhaAlvo = linhasEmCentavos(curvaAtual).find((linha) => linha.referencia === referencia);
     if (!linhaAlvo) {
       throw new AppError(404, `O mês ${referencia} não está na curva do contrato. Importe a planilha de acompanhamento primeiro.`);
@@ -841,7 +920,8 @@ async function atualizarPrevistoDaCurva(idParam, referenciaParam, payload = {}, 
   }
   const novoCent = emCentavos(valorNaoNegativo(payload.previsto, 'previsto'));
 
-  const [curva, boletins] = await Promise.all([boletimRepository.curvaDoContrato(id), boletimRepository.listarPorContrato(id)]);
+  const [curvaLida, boletins] = await Promise.all([boletimRepository.curvaDoContrato(id), boletimRepository.listarPorContrato(id)]);
+  const curva = await garantirMesNaCurva(id, contrato, referencia, curvaLida);
   const linhas = linhasEmCentavos(curva);
   const alvo = linhas.find((linha) => linha.referencia === referencia);
   if (!alvo) {
