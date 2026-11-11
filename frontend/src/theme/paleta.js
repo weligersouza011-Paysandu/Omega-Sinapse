@@ -141,11 +141,11 @@ export function variaveis(tema) {
   Object.entries(g).forEach(([nome, hex]) => {
     v[`--g-${nome}`] = hexParaCanais(hex);
   });
-  // Curva S: o REAL é vermelho de destaque; PREVISTO e PROJETADO (previsto mensal) ficam em cinzas
-  // neutros (chumbo e cinza claro) para não competir com o executado; a tendência segue laranja tracejado.
+  // Curva S financeira: REAL (colunas e acumulado) em verde, PROJETADO em amarelo, TENDÊNCIA em
+  // âmbar tracejado; PREVISTO e previsto acumulado ficam em cinza-chumbo neutro.
   const s = tema === 'claro'
-    ? { previsto: ['#6b7280', 0.9], real: ['#dc2626', 1], mensal: ['#cbd5e1', 1], prevacum: ['#4b5563', 1], realacum: ['#ef4444', 1], tend: ['#ea580c', 1], grade: ['#e2e8f0', 1] }
-    : { previsto: ['#64748b', 0.55], real: ['#ef4444', 0.92], mensal: ['#cbd5e1', 0.28], prevacum: ['#94a3b8', 1], realacum: ['#f87171', 1], tend: ['#fb923c', 1], grade: ['#2a3a55', 0.55] };
+    ? { previsto: ['#6b7280', 0.9], real: ['#16a34a', 1], mensal: ['#eab308', 0.85], prevacum: ['#4b5563', 1], realacum: ['#22c55e', 1], tend: ['#d97706', 1], grade: ['#e2e8f0', 1] }
+    : { previsto: ['#64748b', 0.55], real: ['#22c55e', 0.9], mensal: ['#facc15', 0.6], prevacum: ['#94a3b8', 1], realacum: ['#4ade80', 1], tend: ['#fbbf24', 1], grade: ['#2a3a55', 0.55] };
   Object.entries(s).forEach(([nome, [hex, op]]) => {
     v[`--s-${nome}`] = hexParaCanais(hex);
     v[`--s-${nome}-op`] = String(op);
