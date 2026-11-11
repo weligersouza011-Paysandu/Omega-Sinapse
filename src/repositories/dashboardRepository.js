@@ -69,6 +69,12 @@ const INCLUDE_DASHBOARD = {
     select: SELECT_AVANCO,
     orderBy: [{ data: 'asc' }, { id: 'asc' }],
   },
+  // Revisão mais recente do cronograma: única fonte do físico previsto/real e da aderência.
+  cronogramas: {
+    orderBy: [{ numero_revisao: 'desc' }],
+    take: 1,
+    select: { versao: true, numero_revisao: true, data_snapshot: true, resumo: true },
+  },
   restricoes: {
     orderBy: [{ prazo: 'asc' }, { id: 'asc' }],
   },

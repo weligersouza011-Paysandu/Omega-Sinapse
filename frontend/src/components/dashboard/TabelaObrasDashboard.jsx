@@ -1,12 +1,20 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, ExternalLink, MapPinOff, UserRound } from 'lucide-react';
-import { formatarPercentual } from '../../utils/formatters.js';
+import { formatarData, formatarPercentual } from '../../utils/formatters.js';
 import { CategoriaBadge, StatusObraBadge } from './DashboardBadges.jsx';
 import { corAderencia, corDesvio, formatarPp, iniciaisDe, resumirFiscais } from './dashboardUtils.js';
 
 /** Ordem de exibição: o que está em execução primeiro e o que já terminou por último. */
 const ORDEM_STATUS = ['EM_ANDAMENTO', 'PARALISADA', 'PARA_INICIAR', 'CONCLUIDA'];
+
+/** Fundo suave da célula de status (Em Andamento em destaque). */
+const CELULA_STATUS = {
+  EM_ANDAMENTO: 'bg-sky-50',
+  PARALISADA: 'bg-amber-50',
+  PARA_INICIAR: 'bg-slate-50',
+  CONCLUIDA: 'bg-emerald-50',
+};
 
 function posicaoDoStatus(status) {
   const indice = ORDEM_STATUS.indexOf(status);
@@ -29,7 +37,7 @@ function CelulaPercentual({ valor, classe = 'text-slate-700' }) {
  * abaixo passa a mostrar só aquela obra.
  */
 export default function TabelaObrasDashboard({ obras = [], foco = null, onSelecionarObra = null }) {
-  const comMedicao = obras.filter((obra) => obra.tem_medicao).length;
+  const comCronograma = obras.filter((obra) => obra.tem_cronograma).length;
   const obraFocoId = foco?.id ?? null;
   const linhas = useRef(new Map());
 
@@ -59,7 +67,7 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
           <div>
             <h3 className="text-sm font-bold text-slate-800">Obras e Aderência de Avanço</h3>
             <p className="mt-0.5 max-w-2xl text-[11px] leading-relaxed text-slate-500">
-              OSI, SS, planejador, avanço físico, fiscal, status e carteira de cada obra do recorte.
+              OSI, SS, planejador, avanço físico do cronograma (revisão mais recente), fiscal, status e carteira de cada obra do recorte.
             </p>
           </div>
         </div>
@@ -69,7 +77,7 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
             {obras.length} obra(s)
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700">
-            {comMedicao} com medição
+            {comCronograma} com cronograma
           </span>
         </div>
       </header>
@@ -145,7 +153,9 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
                     title="Clique para localizar a obra no mapa e analisá-la abaixo"
                     className={`align-top transition-colors ${
                       onSelecionarObra ? 'cursor-pointer' : ''
-                    } ${selecionada ? 'bg-omega-50 ring-1 ring-inset ring-omega-200' : 'hover:bg-slate-50/80'}`}
+                    } ${selecionada ? 'bg-omega-50 ring-1 ring-inset ring-omega-200' : 'hover:bg-slate-50/80'} ${
+                      obra.status === 'EM_ANDAMENTO' ? 'shadow-[inset_3px_0_0_rgb(14_165_233)]' : ''
+                    }`}
                   >
                     <td className="whitespace-nowrap px-3 py-3 font-bold">
                       {obra.osi ? (
@@ -178,7 +188,9 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
                         {obra.descricao || 'Sem descrição informada.'}
                       </p>
                       <p className="mt-0.5 flex items-center gap-2 text-[10px] text-slate-400">
-                        {obra.semanas_medidas || 0} medição(ões)
+                        {obra.tem_cronograma
+                          ? `Cronograma ${obra.cronograma_versao || ''}${obra.cronograma_data_status ? ` · status ${formatarData(obra.cronograma_data_status)}` : ''}`
+                          : 'Sem cronograma'}
                         {Number(obra.quantidade_localizacoes) === 0 ? (
                           <span className="inline-flex items-center gap-0.5 text-amber-600" title="Sem localização cadastrada">
                             <MapPinOff className="h-3 w-3" aria-hidden="true" />
@@ -202,17 +214,17 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
                       </div>
                     </td>
 
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-[11px]">
-                      <CelulaPercentual valor={obra.previsto} />
+                    <td className={`whitespace-nowrap px-3 py-3 text-right text-[11px] ${obra.tem_cronograma ? 'bg-slate-50' : ''}`}>
+                      <CelulaPercentual valor={obra.previsto} classe="font-semibold text-slate-700" />
                     </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-right text-[11px]">
-                      <CelulaPercentual valor={obra.real} classe="text-omega-700" />
+                    <td className={`whitespace-nowrap px-3 py-3 text-right text-[11px] ${obra.tem_cronograma ? paletaAderencia.celula : ''}`}>
+                      <CelulaPercentual valor={obra.real} classe={`font-bold ${paletaAderencia.texto}`} />
                     </td>
 
-                    <td className="px-3 py-3">
+                    <td className={`px-3 py-3 ${temAderencia ? paletaAderencia.celula : ''}`}>
                       {temAderencia ? (
                         <div className="flex items-center gap-2">
-                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/70">
                             <div
                               className={`h-full rounded-full ${paletaAderencia.barra}`}
                               style={{ width: `${Math.min(100, Math.max(0, aderencia))}%` }}
@@ -227,15 +239,15 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
                       )}
                     </td>
 
-                    <td className="whitespace-nowrap px-3 py-3 text-right">
+                    <td
+                      className={`whitespace-nowrap px-3 py-3 text-right text-[11px] font-bold ${
+                        obra.desvio === null || obra.desvio === undefined ? '' : paletaDesvio.celula
+                      }`}
+                    >
                       {obra.desvio === null || obra.desvio === undefined ? (
                         <span className="text-slate-300">—</span>
                       ) : (
-                        <span
-                          className={`inline-flex rounded-md px-1.5 py-0.5 text-[11px] font-bold ring-1 ${paletaDesvio.fundo}`}
-                        >
-                          {formatarPp(obra.desvio, 2)}
-                        </span>
+                        formatarPp(obra.desvio, 2)
                       )}
                     </td>
 
@@ -256,7 +268,7 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
                       </div>
                     </td>
 
-                    <td className="px-3 py-3">
+                    <td className={`px-3 py-3 ${CELULA_STATUS[obra.status] || ''}`}>
                       <StatusObraBadge status={obra.status} label={obra.status_label} />
                     </td>
 
@@ -276,7 +288,7 @@ export default function TabelaObrasDashboard({ obras = [], foco = null, onSeleci
       )}
 
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-5 py-3 text-[10px] text-slate-500">
-        <span>Aderência = real ÷ previsto (limitada a 100%) · Desvio = real − previsto.</span>
+        <span>Fonte: cronograma (revisão mais recente, na data de status) · Aderência = real ÷ previsto (limitada a 100%) · Desvio = real − previsto.</span>
         <span>Clique numa linha para ver a obra no mapa e na análise abaixo; na OSI ou no SS para abrir o detalhe.</span>
       </footer>
     </section>

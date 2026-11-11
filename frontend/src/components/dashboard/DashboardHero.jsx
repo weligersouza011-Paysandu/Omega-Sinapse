@@ -49,7 +49,7 @@ export default function DashboardHero({
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
               <Activity className="h-3.5 w-3.5 text-sky-300" aria-hidden="true" />
-              {comMedicao} com medição
+              {comMedicao} com cronograma
             </span>
           </div>
         </div>
@@ -63,7 +63,7 @@ export default function DashboardHero({
           </p>
           <p className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-400">
             <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
-            Última medição: {formatarData(ultimaMedicao)}
+            Último status de cronograma: {formatarData(ultimaMedicao)}
           </p>
           <p className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-300">
             {carregando ? (

@@ -82,7 +82,8 @@ export default function MapaGeralObras({ mapa = {}, obras = [], foco = null, onS
     [mapa.pontos]
   );
   const [selecionadoId, setSelecionadoId] = useState(null);
-  const [listaAberta, setListaAberta] = useState(true);
+  // Começa recolhida: o mapa ocupa o espaço todo; "Mostrar lista de obras" abre o painel.
+  const [listaAberta, setListaAberta] = useState(false);
   const marcadores = useRef(new Map());
   const chave = (p) => `${p.obra_id}-${p.id}`;
   const selecionado = pontos.find((p) => chave(p) === selecionadoId) || null;

@@ -136,16 +136,16 @@ export function variaveis(tema) {
   v['--b-inv-800'] = hexParaCanais(invertido[tema][800]);
   v['--b-inv-900'] = hexParaCanais(invertido[tema][900]);
   const g = tema === 'claro'
-    ? { previsto: '#4b5563', real: '#9f1239', mensal: '#4a8f5f', prevacum: '#b08900', tend: '#3f8f5f', marca: '#164b7d', linha: '#1e293b', azul: '#2563eb', verde: '#059669', neutro: '#475569', teal: '#0f766e', critico: '#dc2626' }
-    : { previsto: '#9aa7bb', real: '#fb7185', mensal: '#5fb97e', prevacum: '#e0b43a', tend: '#5fc58a', marca: '#5aa9e6', linha: '#e2e8f2', azul: '#6ba6ff', verde: '#34d399', neutro: '#b4c0d4', teal: '#2dd4bf', critico: '#f87171' };
+    ? { previsto: '#4b5563', real: '#dc2626', mensal: '#9ca3af', prevacum: '#6b7280', tend: '#3f8f5f', marca: '#164b7d', linha: '#1e293b', azul: '#2563eb', verde: '#059669', neutro: '#475569', teal: '#0f766e', critico: '#dc2626' }
+    : { previsto: '#9aa7bb', real: '#ef4444', mensal: '#64748b', prevacum: '#cbd5e1', tend: '#5fc58a', marca: '#5aa9e6', linha: '#e2e8f2', azul: '#6ba6ff', verde: '#34d399', neutro: '#b4c0d4', teal: '#2dd4bf', critico: '#f87171' };
   Object.entries(g).forEach(([nome, hex]) => {
     v[`--g-${nome}`] = hexParaCanais(hex);
   });
-  // Curva S financeira: o REAL é verde, o PROJETADO (antigo previsto mensal) é amarelo e o PREVISTO fica
-  // em cinza-chumbo discreto; as linhas acumuladas são finas e a tendência é laranja tracejado.
+  // Curva S: o REAL é vermelho de destaque; PREVISTO e PROJETADO (previsto mensal) ficam em cinzas
+  // neutros (chumbo e cinza claro) para não competir com o executado; a tendência segue laranja tracejado.
   const s = tema === 'claro'
-    ? { previsto: ['#6b7280', 1], real: ['#16a34a', 1], mensal: ['#eab308', 0.85], prevacum: ['#4b5563', 1], realacum: ['#22c55e', 1], tend: ['#ea580c', 1], grade: ['#e2e8f0', 1] }
-    : { previsto: ['#8b97ab', 0.38], real: ['#34d399', 0.88], mensal: ['#facc15', 0.5], prevacum: ['#aab4c5', 1], realacum: ['#4ade80', 1], tend: ['#fb923c', 1], grade: ['#2a3a55', 0.55] };
+    ? { previsto: ['#6b7280', 0.9], real: ['#dc2626', 1], mensal: ['#cbd5e1', 1], prevacum: ['#4b5563', 1], realacum: ['#ef4444', 1], tend: ['#ea580c', 1], grade: ['#e2e8f0', 1] }
+    : { previsto: ['#64748b', 0.55], real: ['#ef4444', 0.92], mensal: ['#cbd5e1', 0.28], prevacum: ['#94a3b8', 1], realacum: ['#f87171', 1], tend: ['#fb923c', 1], grade: ['#2a3a55', 0.55] };
   Object.entries(s).forEach(([nome, [hex, op]]) => {
     v[`--s-${nome}`] = hexParaCanais(hex);
     v[`--s-${nome}-op`] = String(op);

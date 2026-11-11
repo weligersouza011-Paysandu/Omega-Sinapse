@@ -331,10 +331,16 @@ function mapearObra(registro) {
   const categoria = categoriaDaObra(registro);
   const status = statusInfo(registro.status);
   const avanco = (registro.avanco_fisico || []).map(mapearPontoCurva);
-  const ultimo = avanco.length > 0 ? avanco[avanco.length - 1] : null;
-  const previsto = ultimo?.previsto ?? null;
-  const real = ultimo?.real ?? null;
-  const tendencia = ultimo?.tendencia ?? null;
+  // Físico previsto, real e aderência vêm só do cronograma consolidado (revisão mais recente),
+  // na data de status do arquivo. Obra sem cronograma fica sem esses números.
+  const cronograma = (registro.cronogramas || [])[0] || null;
+  const resumoCronograma = cronograma?.resumo || {};
+  const previsto = cronograma ? arredondar(numeroOuNulo(resumoCronograma.avanco_previsto)) : null;
+  const real = cronograma ? arredondar(numeroOuNulo(resumoCronograma.avanco_real)) : null;
+  const tendencia = null;
+  const dataStatusCronograma = cronograma
+    ? String(resumoCronograma.data_status || cronograma.data_snapshot?.toISOString?.() || cronograma.data_snapshot || '').slice(0, 10) || null
+    : null;
   const desvio =
     previsto !== null && real !== null ? arredondar(real - previsto) : null;
   const aderencia =
@@ -403,9 +409,12 @@ function mapearObra(registro) {
     quantidade_localizacoes: localizacoes.length,
     centro,
     avanco_fisico: avanco,
-    tem_medicao: Boolean(ultimo),
-    ultima_medicao: ultimo,
-    semanas_medidas: avanco.length,
+    // "medição" aqui = posição do cronograma (mantém os nomes usados pelo resumo do dashboard).
+    tem_medicao: Boolean(cronograma) && previsto !== null && real !== null,
+    ultima_medicao: cronograma ? { data: dataStatusCronograma } : null,
+    tem_cronograma: Boolean(cronograma),
+    cronograma_versao: cronograma?.versao || null,
+    cronograma_data_status: dataStatusCronograma,
     previsto,
     real,
     tendencia,

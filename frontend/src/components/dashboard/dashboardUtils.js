@@ -130,6 +130,8 @@ export function corAderencia(valor) {
       texto: 'text-slate-500',
       barra: 'bg-slate-400',
       fundo: 'bg-slate-100 text-slate-600 ring-slate-200',
+      // Célula inteira pintada (tabela de obras).
+      celula: 'bg-slate-100 text-slate-600',
       hex: '#94a3b8',
     };
   }
@@ -138,6 +140,8 @@ export function corAderencia(valor) {
       texto: 'text-emerald-700',
       barra: 'bg-emerald-500',
       fundo: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+      // Célula inteira pintada (tabela de obras).
+      celula: 'bg-emerald-50 text-emerald-700',
       hex: '#059669',
     };
   }
@@ -146,6 +150,8 @@ export function corAderencia(valor) {
       texto: 'text-amber-700',
       barra: 'bg-amber-500',
       fundo: 'bg-amber-50 text-amber-700 ring-amber-200',
+      // Célula inteira pintada (tabela de obras).
+      celula: 'bg-amber-50 text-amber-700',
       hex: '#d97706',
     };
   }
@@ -153,6 +159,8 @@ export function corAderencia(valor) {
     texto: 'text-red-700',
     barra: 'bg-red-500',
     fundo: 'bg-red-50 text-red-700 ring-red-200',
+    // Célula inteira pintada (tabela de obras).
+    celula: 'bg-red-50 text-red-700',
     hex: '#dc2626',
   };
 }
@@ -165,6 +173,8 @@ export function corDesvio(valor) {
       return {
         texto: 'text-emerald-700',
         fundo: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+        // Célula inteira pintada (tabela de obras).
+        celula: 'bg-emerald-50 text-emerald-700',
         hex: '#059669',
       };
     }
@@ -172,6 +182,8 @@ export function corDesvio(valor) {
       return {
         texto: 'text-amber-700',
         fundo: 'bg-amber-50 text-amber-700 ring-amber-200',
+        // Célula inteira pintada (tabela de obras).
+        celula: 'bg-amber-50 text-amber-700',
         hex: '#d97706',
       };
     }
@@ -179,6 +191,8 @@ export function corDesvio(valor) {
   return {
     texto: 'text-red-700',
     fundo: 'bg-red-50 text-red-700 ring-red-200',
+    // Célula inteira pintada (tabela de obras).
+    celula: 'bg-red-50 text-red-700',
     hex: '#dc2626',
   };
 }
