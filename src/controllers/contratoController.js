@@ -71,8 +71,10 @@ const atualizarPrevistoDaCurva = acao((req) =>
   medicaoService.atualizarPrevistoDaCurva(req.params.id, req.params.referencia, req.body || {}, req.user)
 );
 
-/** POST /api/contratos/:id/curva/tendencia */
-const recalcularTendenciaDaCurva = acao((req) => medicaoService.recalcularTendenciaDaCurva(req.params.id, req.user));
+/** POST /api/contratos/:id/curva/historico/:historicoId/restaurar */
+const restaurarAlteracaoDaCurva = acao((req) =>
+  medicaoService.restaurarAlteracaoDaCurva(req.params.id, req.params.historicoId, req.user)
+);
 
 /** DELETE /api/contratos/:id/boletins/:boletimId */
 const excluirBoletim = acao((req) => medicaoService.excluirBoletim(req.params.id, req.params.boletimId, req.user));
@@ -84,7 +86,7 @@ const importarMedicao = acao((req) =>
 
 module.exports = {
   atualizarPrevistoDaCurva,
-  recalcularTendenciaDaCurva,
+  restaurarAlteracaoDaCurva,
   incluirItemBoletim,
   atualizarItemBoletim,
   removerItemBoletim,

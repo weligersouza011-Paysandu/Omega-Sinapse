@@ -852,6 +852,7 @@ model Contrato {
   itens_qqp        ItemQqp[]
   /// Previsto e tendência financeiros do contrato por ciclo (planilha de acompanhamento).
   curva_financeira CurvaFinanceiraContrato[]
+  historico_curva  HistoricoCurvaFinanceira[]
 
   @@map("contratos")
 }
@@ -1013,4 +1014,27 @@ model CurvaFinanceiraContrato {
 
   @@unique([contrato_id, ciclo_fim], name: "uq_curva_por_contrato_ciclo")
   @@map("curva_financeira_contrato")
+}
+
+/// Histórico das alterações manuais da curva (previsto, projetado, tendência) por mês, para auditoria
+/// e para voltar a um valor anterior.
+model HistoricoCurvaFinanceira {
+  id             Int      @id @default(autoincrement())
+  contrato_id    Int
+  /// Mês de referência "AAAA-MM".
+  referencia     String   @db.VarChar(7)
+  /// PREVISTO | PROJETADO | TENDENCIA
+  campo          String   @db.VarChar(20)
+  valor_anterior Decimal? @db.Decimal(16, 4)
+  valor_novo     Decimal? @db.Decimal(16, 4)
+  usuario_id     Int?
+  usuario_nome   String?  @db.VarChar(255)
+  /// Quando a alteração foi uma restauração, o id do registro restaurado.
+  restaurado_de  Int?
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  contrato Contrato @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+
+  @@index([contrato_id, created_at])
+  @@map("historico_curva_financeira")
 }

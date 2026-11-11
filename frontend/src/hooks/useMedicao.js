@@ -90,9 +90,15 @@ export async function removerItemBoletim(contratoId, boletimId, itemId) {
   return data;
 }
 
-/** Ajusta o previsto de um mês da Curva S; o acumulado seguinte e a tendência são recalculados. Devolve o dashboard. */
+/** Ajusta o previsto de um mês da Curva S; o acumulado seguinte acompanha. Devolve o dashboard. */
 export async function atualizarPrevistoDaCurva(contratoId, referencia, previsto) {
   const { data } = await api.put(`/contratos/${contratoId}/curva/${referencia}`, { previsto });
+  return data;
+}
+
+/** Ajusta o projetado (previsto replanejado) de um mês da Curva S. Devolve o dashboard. */
+export async function restaurarAlteracaoDaCurva(contratoId, historicoId) {
+  const { data } = await api.post(`/contratos/${contratoId}/curva/historico/${historicoId}/restaurar`);
   return data;
 }
 
@@ -105,12 +111,6 @@ export async function atualizarProjetadoDaCurva(contratoId, referencia, projetad
 /** Ajusta manualmente a tendência acumulada de um mês da Curva S. Devolve o dashboard. */
 export async function atualizarTendenciaDaCurva(contratoId, referencia, tendenciaAcumulada) {
   const { data } = await api.put(`/contratos/${contratoId}/curva/${referencia}`, { tendencia_acumulada: tendenciaAcumulada });
-  return data;
-}
-
-/** Recalcula a tendência da Curva S com o previsto e o medido atuais. Devolve o dashboard. */
-export async function recalcularTendenciaDaCurva(contratoId) {
-  const { data } = await api.post(`/contratos/${contratoId}/curva/tendencia`);
   return data;
 }
 

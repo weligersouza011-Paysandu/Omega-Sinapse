@@ -6,6 +6,7 @@ import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
 import CurvaSFinanceira from '../components/medicao/CurvaSFinanceira.jsx';
 import EstudoSaudeContratual from '../components/medicao/EstudoSaudeContratual.jsx';
 import TabelaPrevistoReal from '../components/medicao/TabelaPrevistoReal.jsx';
+import HistoricoCurva from '../components/medicao/HistoricoCurva.jsx';
 import GaugeAderencia from '../components/medicao/GaugeAderencia.jsx';
 import KpisMedicao from '../components/medicao/KpisMedicao.jsx';
 import ModalBoletim from '../components/medicao/ModalBoletim.jsx';
@@ -324,6 +325,14 @@ export default function Medicao() {
               dataFim={dados.contrato.data_fim}
               valorContrato={dados.kpis.valor_contrato}
             />
+            {dados.curva_s_fonte === 'CONTRATO' ? (
+              <HistoricoCurva
+                historico={dados.historico_curva}
+                contratoId={contratoId}
+                podeGerir={podeGerir}
+                onAlterado={recarregar}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

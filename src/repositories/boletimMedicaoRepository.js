@@ -210,6 +210,31 @@ async function criarCiclosDaCurva(contratoId, ciclos) {
   });
 }
 
+/** Registra uma alteração manual da curva no histórico. */
+async function registrarHistoricoCurva(dados) {
+  return prisma.historicoCurvaFinanceira.create({ data: dados });
+}
+
+/** Últimas alterações da curva do contrato (mais recentes primeiro). */
+async function historicoDaCurva(contratoId, limite = 200) {
+  try {
+    return await prisma.historicoCurvaFinanceira.findMany({
+      where: { contrato_id: contratoId },
+      orderBy: [{ created_at: 'desc' }, { id: 'desc' }],
+      take: limite,
+    });
+  } catch (err) {
+    // Banco ainda sem a migração do histórico: o dashboard abre normalmente, só sem histórico.
+    if (err?.code === 'P2021') return [];
+    throw err;
+  }
+}
+
+/** Um registro do histórico da curva, do contrato informado. */
+async function buscarHistoricoCurva(contratoId, historicoId) {
+  return prisma.historicoCurvaFinanceira.findFirst({ where: { id: historicoId, contrato_id: contratoId } });
+}
+
 /** Grava, na mesma transação, as alterações de vários ciclos da curva ([{ id, dados }]). */
 async function atualizarCiclosDaCurva(alteracoes) {
   if (alteracoes.length === 0) return;
@@ -275,6 +300,9 @@ module.exports = {
   curvaDoContrato,
   criarCiclosDaCurva,
   atualizarCiclosDaCurva,
+  registrarHistoricoCurva,
+  historicoDaCurva,
+  buscarHistoricoCurva,
   obraParaProjecao,
   itensDaObra,
   contarItensDaObra,

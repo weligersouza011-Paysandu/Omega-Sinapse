@@ -69,9 +69,10 @@ router.patch('/:id/boletins/:boletimId', autorizar(...PERFIS_QUE_GEREM_MEDICAO),
 router.post('/:id/boletins/:boletimId/itens', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.incluirItemBoletim);
 router.put('/:id/boletins/:boletimId/itens/:itemId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.atualizarItemBoletim);
 router.delete('/:id/boletins/:boletimId/itens/:itemId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.removerItemBoletim);
-// Curva S do contrato: ajusta o previsto de um mês (PUT, { previsto }) e recalcula a tendência (POST).
+// Curva S do contrato: ajusta previsto, projetado ou tendência de um mês (PUT).
 router.put('/:id/curva/:referencia', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.atualizarPrevistoDaCurva);
-router.post('/:id/curva/tendencia', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.recalcularTendenciaDaCurva);
+// Histórico da curva: volta um mês ao valor anterior a uma alteração.
+router.post('/:id/curva/historico/:historicoId/restaurar', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.restaurarAlteracaoDaCurva);
 // DELETE /api/contratos/:id/boletins/:boletimId
 router.delete('/:id/boletins/:boletimId', autorizar(...PERFIS_QUE_GEREM_MEDICAO), contratoController.excluirBoletim);
 

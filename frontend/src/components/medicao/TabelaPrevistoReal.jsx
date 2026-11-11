@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Pencil, RefreshCw, TableProperties, X } from 'lucide-react';
+import { Check, Pencil, TableProperties, X } from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import {
   atualizarPrevistoDaCurva,
   atualizarProjetadoDaCurva,
   atualizarTendenciaDaCurva,
-  recalcularTendenciaDaCurva,
 } from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
 
@@ -126,7 +125,6 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
   const toast = useToast();
   const [edicao, setEdicao] = useState(null); // { referencia, campo: 'previsto' | 'tendencia', valor }
   const [salvando, setSalvando] = useState(false);
-  const [recalculando, setRecalculando] = useState(false);
   const [filtro, setFiltro] = useState('TUDO');
   const rolagemRef = useRef(null);
   const ultimaLinhaRef = useRef(null);
@@ -182,7 +180,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
         toast.sucesso('Projetado do mês atualizado.');
       } else {
         await atualizarPrevistoDaCurva(contratoId, edicao.referencia, valor);
-        toast.sucesso('Previsto atualizado. Acumulado e tendência recalculados.');
+        toast.sucesso('Previsto atualizado. O acumulado dos meses seguintes acompanha.');
       }
       setEdicao(null);
       onAlterado();
@@ -190,19 +188,6 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
       toast.erro(err.message || 'Não foi possível atualizar o valor.');
     } finally {
       setSalvando(false);
-    }
-  }
-
-  async function recalcular() {
-    setRecalculando(true);
-    try {
-      await recalcularTendenciaDaCurva(contratoId);
-      toast.sucesso('Tendência recalculada com o previsto e o medido atuais.');
-      onAlterado();
-    } catch (err) {
-      toast.erro(err.message || 'Não foi possível recalcular a tendência.');
-    } finally {
-      setRecalculando(false);
     }
   }
 
@@ -238,18 +223,6 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
               </button>
             ))}
           </div>
-          {editavel ? (
-            <button
-              type="button"
-              className="btn-neutro !px-3 !py-1.5 !text-xs"
-              onClick={recalcular}
-              disabled={recalculando}
-              title="Recalcula a tendência com o previsto e o medido atuais (descarta ajustes manuais)"
-            >
-              {recalculando ? <Spinner tamanho="sm" /> : <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />}
-              Recalcular tendência
-            </button>
-          ) : null}
         </div>
       </header>
 
@@ -380,8 +353,14 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                       campo="tendencia"
                       valor={ponto.tendencia_acumulada}
                       vazio={!temTendencia}
-                      texto={temTendencia ? formatarMoeda(ponto.tendencia_acumulada) : <span className="text-slate-300">—</span>}
-                      classe={`text-amber-700 ${ponto.tendencia_calculada ? '' : 'font-semibold'}`}
+                      texto={
+                        temTendencia ? (
+                          formatarMoeda(ponto.tendencia_acumulada)
+                        ) : (
+                          <span className={ponto.projecao ? 'text-slate-400' : 'text-slate-300'}>{ponto.projecao ? 'a definir' : '—'}</span>
+                        )
+                      }
+                      classe="font-semibold text-amber-700"
                       rotuloAria="Tendência"
                       podeEditar={editavel && ponto.editavel && ponto.projecao}
                       {...celula}
@@ -426,9 +405,8 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
       </div>
 
       <p className="border-t border-slate-200 px-5 py-2.5 text-[11px] leading-relaxed text-slate-500">
-        Tendência = medido acumulado até o último ciclo medido + previsto de cada mês seguinte × o ritmo do contrato
-        {ritmo !== null ? ` (hoje ${formatarPercentual(ritmo, 1)} do previsto)` : ''}. Valores em negrito na tendência
-        foram fixados (planilha ou ajuste manual); os demais são calculados.
+        Tendência acumulada informada à mão em cada mês da projeção (nada é calculado automaticamente). Tend. mês =
+        tendência acumulada do mês − a do mês anterior (no primeiro mês, − o real acumulado do último ciclo medido).
       </p>
     </section>
   );
