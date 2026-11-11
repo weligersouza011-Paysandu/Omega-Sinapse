@@ -328,7 +328,7 @@ export default function RelatoriosObra({ obra, podeEditar = false, onObraAtualiz
         <div>
           <h2 className="flex items-center gap-2 text-lg font-bold text-slate-800">
             <FileText className="h-5 w-5 text-omega-600" aria-hidden="true" />
-            Relatórios Diários de Obra
+            RDO — Relatório de Diário de Obra
           </h2>
           <p className="text-sm text-slate-500">
             Registros de campo, ocorrências, comentários e mídias vinculadas à obra.

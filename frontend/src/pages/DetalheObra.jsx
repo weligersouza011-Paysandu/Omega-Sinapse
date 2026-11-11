@@ -6,9 +6,8 @@ import {
   FileSpreadsheet,
   FileText,
   LayoutDashboard,
-  ListChecks,
+  NotebookPen,
   RefreshCw,
-  Search,
   ReceiptText,
   Settings,
   Wallet,
@@ -22,9 +21,7 @@ import AbaMedicaoObra from '../components/obras/AbaMedicaoObra.jsx';
 import AbaProjecaoObra from '../components/obras/AbaProjecaoObra.jsx';
 import AbaVisaoGeral from '../components/obras/AbaVisaoGeral.jsx';
 import ConfiguracaoObra from '../components/obras/ConfiguracaoObra.jsx';
-import FiltroBuscaObra from '../components/obras/FiltroBuscaObra.jsx';
 import RelatoriosObra from '../components/obras/RelatoriosObra.jsx';
-import TarefasObra from '../components/obras/TarefasObra.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCabecalhoPagina } from '../context/CabecalhoContext.jsx';
 import { useObraDetalhe } from '../hooks/useObras.js';
@@ -32,24 +29,21 @@ import { useObraDetalhe } from '../hooks/useObras.js';
 const PERFIS_ESCRITA = ['PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
 const PERFIS_QUE_ATRIBUEM = ['SUPERVISOR', 'ADMIN'];
 
-/** Abas principais (análise da obra). */
-const ABAS_PRINCIPAIS = [
+/** Abas da obra (só as essenciais). */
+const ABAS = [
   { id: 'visao-geral', label: 'Visão Geral', Icone: LayoutDashboard },
   { id: 'cronograma', label: 'Cronograma', Icone: FileSpreadsheet },
   { id: '6wla', label: 'Programação de 6 Semanas (6WLA)', Icone: CalendarRange },
   { id: 'medicao', label: 'Medição', Icone: ReceiptText },
   { id: 'projecao', label: 'Projeção Financeira', Icone: Wallet },
+  { id: 'relatorios', label: 'RDO (Relatório de Diário de Obra)', Icone: NotebookPen },
 ];
 
-/** Abas operacionais (registros do dia a dia e edição). */
-const ABAS_OPERACIONAIS = [
-  { id: 'tarefas', label: 'Tarefas', Icone: ListChecks },
-  { id: 'relatorios', label: 'Relatórios', Icone: FileText },
-  { id: 'busca', label: 'Busca', Icone: Search },
-  { id: 'configuracao', label: 'Edição / Configuração', Icone: Settings },
-];
-
-const TODAS_AS_ABAS = [...ABAS_PRINCIPAIS, ...ABAS_OPERACIONAIS];
+/**
+ * Edição da obra (status, OSI, planejadores, documentos de partida, localizações): fica fora da
+ * barra de abas e abre pelo botão "Editar obra" do cabeçalho.
+ */
+const VISAO_EDICAO = 'configuracao';
 
 function BotaoAba({ aba, ativa, onSelecionar, discreta = false }) {
   const { id, label, Icone } = aba;
@@ -79,7 +73,7 @@ function BotaoAba({ aba, ativa, onSelecionar, discreta = false }) {
  * Cabeçalho compacto da obra, exibido na barra superior do layout:
  * voltar · SS / PEP + nome curto + badges · atualizar.
  */
-function CabecalhoObra({ obra, carregando, onAtualizar }) {
+function CabecalhoObra({ obra, carregando, onAtualizar, podeEditar, editando, onEditar }) {
   const nomeCurto = obra.descricao || obra.cliente || 'Sem descrição informada';
 
   return (
@@ -112,6 +106,19 @@ function CabecalhoObra({ obra, carregando, onAtualizar }) {
         </p>
       </div>
 
+      {podeEditar ? (
+        <button
+          type="button"
+          className={`shrink-0 ${editando ? 'btn-primario' : 'btn-neutro'}`}
+          onClick={onEditar}
+          aria-pressed={editando}
+          title="Status, OSI, planejadores, documentos de partida e localizações"
+        >
+          <Settings className="h-4 w-4" aria-hidden="true" />
+          <span className="hidden sm:inline">Editar obra</span>
+        </button>
+      ) : null}
+
       <button type="button" className="btn-neutro shrink-0" onClick={onAtualizar} disabled={carregando}>
         <RefreshCw className={`h-4 w-4 ${carregando ? 'animate-spin' : ''}`} aria-hidden="true" />
         <span className="hidden sm:inline">Atualizar</span>
@@ -124,9 +131,8 @@ function CabecalhoObra({ obra, carregando, onAtualizar }) {
  * Página dedicada de detalhamento da obra.
  *
  * A identificação da obra fica na barra superior do layout; o conteúdo é
- * dividido nas abas principais (Visão Geral, Medição, Projeção Financeira e
- * Programação de 6 Semanas) e nas operacionais (tarefas, relatórios, busca e
- * configuração). Todas as mutações devolvem a obra consolidada e atualizam a
+ * dividido nas abas Visão Geral, Cronograma, 6WLA, Medição, Projeção Financeira e RDO; a edição
+ * da obra abre pelo botão "Editar obra" do cabeçalho. Todas as mutações devolvem a obra consolidada e atualizam a
  * página sem refetch.
  */
 export default function DetalheObra() {
@@ -149,8 +155,17 @@ export default function DetalheObra() {
   );
 
   useCabecalhoPagina(
-    obra ? <CabecalhoObra obra={obra} carregando={carregando} onAtualizar={recarregar} /> : null,
-    [obra, carregando, recarregar]
+    obra ? (
+      <CabecalhoObra
+        obra={obra}
+        carregando={carregando}
+        onAtualizar={recarregar}
+        podeEditar={podeEditar}
+        editando={aba === VISAO_EDICAO}
+        onEditar={() => setAba((atual) => (atual === VISAO_EDICAO ? 'visao-geral' : VISAO_EDICAO))}
+      />
+    ) : null,
+    [obra, carregando, recarregar, podeEditar, aba]
   );
 
   useEffect(() => {
@@ -163,7 +178,7 @@ export default function DetalheObra() {
   }, [obra]);
 
   function selecionarAba(novaAba) {
-    if (TODAS_AS_ABAS.some((item) => item.id === novaAba)) {
+    if (novaAba === VISAO_EDICAO || ABAS.some((item) => item.id === novaAba)) {
       setAba(novaAba);
     }
   }
@@ -214,16 +229,8 @@ export default function DetalheObra() {
         aria-label="Seções do detalhamento da obra"
       >
         <div className="flex gap-1 overflow-x-auto">
-          {ABAS_PRINCIPAIS.map((item) => (
+          {ABAS.map((item) => (
             <BotaoAba key={item.id} aba={item} ativa={aba === item.id} onSelecionar={selecionarAba} />
-          ))}
-        </div>
-
-        <span className="mx-1 hidden h-6 w-px bg-slate-200 lg:block" aria-hidden="true" />
-
-        <div className="flex gap-1 overflow-x-auto lg:ml-auto">
-          {ABAS_OPERACIONAIS.map((item) => (
-            <BotaoAba key={item.id} aba={item} ativa={aba === item.id} onSelecionar={selecionarAba} discreta />
           ))}
         </div>
       </nav>
@@ -243,17 +250,11 @@ export default function DetalheObra() {
           <AbaProgramacao6Semanas obra={obra} podeEditar={podeEditar} onIrParaAba={selecionarAba} />
         ) : null}
 
-        {aba === 'tarefas' ? (
-          <TarefasObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
-        ) : null}
-
         {aba === 'relatorios' ? (
           <RelatoriosObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
         ) : null}
 
-        {aba === 'busca' ? <FiltroBuscaObra obra={obra} onIrParaAba={selecionarAba} /> : null}
-
-        {aba === 'configuracao' ? (
+        {aba === VISAO_EDICAO ? (
           <ConfiguracaoObra
             obra={obra}
             podeEditar={podeEditar}
