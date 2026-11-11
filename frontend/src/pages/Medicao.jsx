@@ -107,7 +107,7 @@ export default function Medicao() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1680px] space-y-4 pb-4 sm:space-y-5">
+    <div className="w-full space-y-4 pb-4 sm:space-y-5">
       <header className="card flex flex-wrap items-end justify-between gap-4 p-5">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Medição e projeção financeira</p>

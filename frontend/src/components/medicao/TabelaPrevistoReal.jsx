@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Pencil, RefreshCw, TableProperties, X } from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
-import { atualizarPrevistoDaCurva, atualizarTendenciaDaCurva, recalcularTendenciaDaCurva } from '../../hooks/useMedicao.js';
+import {
+  atualizarPrevistoDaCurva,
+  atualizarProjetadoDaCurva,
+  atualizarTendenciaDaCurva,
+  recalcularTendenciaDaCurva,
+} from '../../hooks/useMedicao.js';
 import { formatarData, formatarMoeda, formatarPercentual } from '../../utils/formatters.js';
 
 const Th = ({ children, className = '', title }) => (
@@ -149,6 +154,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
   const previstoFuturoZerado = projetados.length > 0 && projetados.every((ponto) => !(ponto.previsto > 0));
 
   const totalPrevisto = ultimoPonto.previsto_acumulado;
+  const totalProjetado = curva.reduce((soma, ponto) => soma + (Number(ponto.previsto_replanejado) || 0), 0);
   const totalReal = ultimaMedida ? ultimaMedida.real_acumulado : 0;
   const previstoAteUltima = ultimaMedida ? ultimaMedida.previsto_acumulado : 0;
 
@@ -171,6 +177,9 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
       if (edicao.campo === 'tendencia') {
         await atualizarTendenciaDaCurva(contratoId, edicao.referencia, valor);
         toast.sucesso('Tendência do mês atualizada.');
+      } else if (edicao.campo === 'projetado') {
+        await atualizarProjetadoDaCurva(contratoId, edicao.referencia, valor);
+        toast.sucesso('Projetado do mês atualizado.');
       } else {
         await atualizarPrevistoDaCurva(contratoId, edicao.referencia, valor);
         toast.sucesso('Previsto atualizado. Acumulado e tendência recalculados.');
@@ -209,7 +218,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
             <p className="mt-0.5 max-w-3xl text-[11px] leading-relaxed text-slate-500">
               Real = boletins aprovados do ciclo (16 a 15). Desvio = real − previsto.
               {dataFim ? ` Projeção até a última medição prevista (${formatarData(dataFim)}).` : ''}
-              {editavel ? ' Clique no previsto ou na tendência de um mês para ajustá-lo.' : ''}
+              {editavel ? ' Clique no previsto, no projetado ou na tendência de um mês para ajustá-lo.' : ''}
             </p>
           </div>
         </div>
@@ -286,6 +295,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
             <tr>
               <Th className="sticky left-0 z-20">Mês</Th>
               <Th>Previsto</Th>
+              <Th title="Previsto replanejado do ciclo (colunas amarelas da Curva S)">Projetado</Th>
               <Th>Real</Th>
               <Th title="Real − previsto do mês">Desvio</Th>
               <Th>Prev. acum.</Th>
@@ -333,6 +343,25 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                       {...celula}
                     />
                   </td>
+                  <td className="px-3 py-1.5 text-right">
+                    <CelulaEditavel
+                      ponto={ponto}
+                      campo="projetado"
+                      valor={ponto.previsto_replanejado}
+                      vazio={ponto.previsto_replanejado === null || ponto.previsto_replanejado === undefined}
+                      texto={
+                        ponto.previsto_replanejado === null || ponto.previsto_replanejado === undefined ? (
+                          <span className="text-slate-400">a definir</span>
+                        ) : (
+                          formatarMoeda(ponto.previsto_replanejado)
+                        )
+                      }
+                      classe="text-amber-700"
+                      rotuloAria="Projetado"
+                      podeEditar={editavel && ponto.editavel}
+                      {...celula}
+                    />
+                  </td>
                   <td className="px-3 py-1.5 text-right font-semibold text-slate-800">{medido ? formatarMoeda(ponto.real) : <span className="text-slate-300">—</span>}</td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold">
                     <ValorDesvio valor={desvio} percentual={ponto.previsto > 0 ? desvioPct : null} />
@@ -364,7 +393,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
               if (ponto.referencia !== primeiraProjecao) return linha;
               return [
                 <tr key={`${ponto.referencia}-divisor`} aria-hidden="true">
-                  <td colSpan={9} className="bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">
+                  <td colSpan={10} className="bg-amber-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-amber-800">
                     Projeção — {ponto.rotulo} a {ultimoPonto.rotulo}
                     {dataFim ? ` · última medição prevista em ${formatarData(dataFim)}` : ''}
                   </td>
@@ -379,6 +408,7 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                 Total até {ultimoPonto.rotulo}
               </th>
               <td className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-3 py-2 text-right">{formatarMoeda(totalPrevisto)}</td>
+              <td className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-3 py-2 text-right text-amber-700">{formatarMoeda(totalProjetado)}</td>
               <td className="sticky bottom-0 border-t border-slate-200 bg-slate-50 px-3 py-2 text-right">{formatarMoeda(totalReal)}</td>
               <td className="sticky bottom-0 whitespace-nowrap border-t border-slate-200 bg-slate-50 px-3 py-2 text-right">
                 {ultimaMedida ? <ValorDesvio valor={totalReal - previstoAteUltima} percentual={percentualDe(totalReal - previstoAteUltima, previstoAteUltima)} /> : '—'}

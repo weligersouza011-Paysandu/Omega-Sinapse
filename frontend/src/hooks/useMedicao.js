@@ -96,6 +96,12 @@ export async function atualizarPrevistoDaCurva(contratoId, referencia, previsto)
   return data;
 }
 
+/** Ajusta o projetado (previsto replanejado) de um mês da Curva S. Devolve o dashboard. */
+export async function atualizarProjetadoDaCurva(contratoId, referencia, projetado) {
+  const { data } = await api.put(`/contratos/${contratoId}/curva/${referencia}`, { projetado });
+  return data;
+}
+
 /** Ajusta manualmente a tendência acumulada de um mês da Curva S. Devolve o dashboard. */
 export async function atualizarTendenciaDaCurva(contratoId, referencia, tendenciaAcumulada) {
   const { data } = await api.put(`/contratos/${contratoId}/curva/${referencia}`, { tendencia_acumulada: tendenciaAcumulada });

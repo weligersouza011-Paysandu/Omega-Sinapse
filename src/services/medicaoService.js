@@ -892,6 +892,8 @@ async function garantirMesNaCurva(contratoId, contrato, referencia, curva) {
  * Corpo: { previsto: number } — novo previsto do mês ("AAAA-MM"). O acumulado dos meses seguintes
  * acompanha a diferença e a tendência é recalculada. Devolve o dashboard atualizado.
  *
+ * Ou { projetado: number } — previsto replanejado (coluna "Projetado") do mês; não mexe no acumulado.
+ *
  * Ou { tendencia_acumulada: number } — ajuste manual da tendência acumulada daquele mês, sem mexer
  * no previsto (a próxima edição de previsto ou o "recalcular tendência" volta ao cálculo automático).
  */
@@ -900,6 +902,17 @@ async function atualizarPrevistoDaCurva(idParam, referenciaParam, payload = {}, 
   const { id, contrato } = await carregarContrato(idParam);
   const referencia = String(referenciaParam || '').trim();
   cicloDoMes(referencia); // valida o formato AAAA-MM
+
+  if (!estaVazio(payload.projetado)) {
+    if (!estaVazio(payload.previsto) || !estaVazio(payload.tendencia_acumulada)) {
+      throw new AppError(400, 'Informe só um valor por vez: previsto, projetado ou tendência do mês.');
+    }
+    const projetadoCent = emCentavos(valorNaoNegativo(payload.projetado, 'projetado'));
+    const curvaAtual = await garantirMesNaCurva(id, contrato, referencia, await boletimRepository.curvaDoContrato(id));
+    const linhaAlvo = linhasEmCentavos(curvaAtual).find((linha) => linha.referencia === referencia);
+    await boletimRepository.atualizarCiclosDaCurva([{ id: linhaAlvo.id, dados: { previsto_replanejado: emReais(projetadoCent) } }]);
+    return obterDashboardMedicao(id, usuario);
+  }
 
   if (!estaVazio(payload.tendencia_acumulada)) {
     if (!estaVazio(payload.previsto)) {
