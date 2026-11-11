@@ -2,6 +2,8 @@ import { NavLink } from 'react-router-dom';
 import { MODULOS, moduloLiberado } from '../config/modulos.js';
 import { MODO_DEMO, BYPASS_LOGIN } from '../config/demo.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import Avatar from './Avatar.jsx';
+import { obterPerfil } from '../utils/perfis.js';
 
 /** Rótulo curto + cores do selo de ambiente exibido no rodapé. */
 const AMBIENTE = MODO_DEMO
@@ -39,16 +41,6 @@ function Icone({ caminho, className }) {
 
 const ICONE_SETA = 'M15 6l-6 6 6 6';
 const ICONE_SAIR = 'M14 8V6a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2M9 12h11m0 0-3-3m3 3-3 3';
-
-/** Extrai até duas iniciais do nome para o avatar. */
-function iniciaisDe(nome) {
-  return (nome || '?')
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((parte) => parte[0]?.toUpperCase())
-    .join('');
-}
 
 /**
  * Sidebar lateral retrátil (colapsável).
@@ -189,18 +181,19 @@ export default function Sidebar({ recolhido = false, onToggle }) {
 
       {/* ------------------------------------------------------------- Rodapé */}
       <div className="shrink-0 border-t border-white/10 p-3">
-        <div
-          className={[
-            'flex items-center rounded-md py-1',
-            recolhido ? 'justify-center' : 'gap-3',
-          ].join(' ')}
+        <NavLink
+          to="/perfil"
+          title={`Meu perfil · ${usuario?.nome || 'Usuário'}`}
+          className={({ isActive }) =>
+            [
+              'flex items-center rounded-md py-1 transition hover:bg-white/10',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-white/40',
+              recolhido ? 'justify-center' : 'gap-3 px-1',
+              isActive ? 'bg-white/10' : '',
+            ].join(' ')
+          }
         >
-          <div
-            title={recolhido ? `${usuario?.nome || 'Usuário'} · ${usuario?.perfil || '—'}` : undefined}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-omega-600 text-xs font-bold text-white ring-1 ring-white/20"
-          >
-            {iniciaisDe(usuario?.nome) || '?'}
-          </div>
+          <Avatar nome={usuario?.nome} foto={usuario?.foto_url} className="ring-1 ring-white/20" />
 
           {recolhido ? null : (
             <div className="min-w-0 flex-1 leading-tight">
@@ -208,11 +201,11 @@ export default function Sidebar({ recolhido = false, onToggle }) {
                 {usuario?.nome || 'Usuário'}
               </p>
               <p className="truncate text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                {usuario?.perfil || '—'}
+                {obterPerfil(usuario?.perfil).label} · Meu perfil
               </p>
             </div>
           )}
-        </div>
+        </NavLink>
 
         <div
           className={[

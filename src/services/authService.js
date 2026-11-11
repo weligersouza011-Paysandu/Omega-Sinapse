@@ -15,6 +15,22 @@ function estaVazio(valor) {
   return valor === undefined || valor === null || String(valor).trim() === '';
 }
 
+/** Dados do usuário devolvidos ao front (login, /me e Meu perfil). */
+function dadosPublicos(usuario) {
+  return {
+    id: usuario.id,
+    nome: usuario.nome,
+    matricula: usuario.matricula,
+    email: usuario.email,
+    perfil: usuario.perfil,
+    paginas_permitidas: usuario.paginas_permitidas ?? [],
+    foto_url: usuario.foto_url ?? null,
+    telefone: usuario.telefone ?? null,
+    cargo: usuario.cargo ?? null,
+    setor: usuario.setor ?? null,
+  };
+}
+
 /** Gera o JWT com o payload { id, nome, matricula, email, perfil } exigido pelo middleware. */
 async function gerarToken(usuario) {
   const secret = await obterJwtSecret();
@@ -65,14 +81,7 @@ async function login({ identificador, matricula, email, senha }) {
 
   return {
     token,
-    usuario: {
-      id: usuario.id,
-      nome: usuario.nome,
-      matricula: usuario.matricula,
-      email: usuario.email,
-      perfil: usuario.perfil,
-      paginas_permitidas: usuario.paginas_permitidas ?? [],
-    },
+    usuario: dadosPublicos(usuario),
   };
 }
 
@@ -82,14 +91,7 @@ async function obterUsuario(id) {
   if (!usuario) {
     throw new AppError(404, 'Usuário não encontrado.');
   }
-  return {
-    id: usuario.id,
-    nome: usuario.nome,
-    matricula: usuario.matricula,
-    email: usuario.email,
-    perfil: usuario.perfil,
-    paginas_permitidas: usuario.paginas_permitidas ?? [],
-  };
+  return dadosPublicos(usuario);
 }
 
 /**

@@ -20,6 +20,7 @@ const DashboardPlanejamento = lazy(() => import('./pages/DashboardPlanejamento.j
 const Medicao = lazy(() => import('./pages/Medicao.jsx'));
 const UsuariosPage = lazy(() => import('./pages/UsuariosPage.jsx'));
 const GestaoDemandasView = lazy(() => import('./pages/GestaoDemandasView.jsx'));
+const MeuPerfil = lazy(() => import('./pages/MeuPerfil.jsx'));
 
 /** Fallback exibido enquanto o código de uma página é baixado. */
 function PaginaCarregando() {
@@ -82,8 +83,9 @@ function AppLayoutConteudo() {
     return () => consulta.removeEventListener('change', aoMudar);
   }, []);
 
-  const moduloAtual =
-    MODULOS.find((modulo) => local.pathname.startsWith(modulo.rota)) || MODULOS[0];
+  const moduloAtual = local.pathname.startsWith('/perfil')
+    ? { label: 'Meu perfil', descricao: 'Foto, dados de contato e senha.' }
+    : MODULOS.find((modulo) => local.pathname.startsWith(modulo.rota)) || MODULOS[0];
 
   return (
     <div className="flex h-screen overflow-hidden bg-slate-100">
@@ -170,6 +172,7 @@ export default function App() {
       <Route element={<AreaPrivada />}>
         <Route path="/" element={<Inicio />} />
         <Route path="/sem-acesso" element={<SemAcesso />} />
+        <Route path="/perfil" element={<MeuPerfil />} />
         <Route path="/orcamentos" element={<RotaPorPagina pagina="orcamentos"><DashboardOrcamentos /></RotaPorPagina>} />
         <Route path="/obras" element={<RotaPorPagina pagina="obras"><Obras /></RotaPorPagina>} />
         <Route path="/obras/:id" element={<RotaPorPagina pagina="obras"><DetalheObra /></RotaPorPagina>} />

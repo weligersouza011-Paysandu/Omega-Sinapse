@@ -88,6 +88,8 @@ export function AuthProvider({ children }) {
       carregando,
       login,
       logout,
+      // Atualiza os dados do usuário logado na sessão (ex.: depois de salvar o Meu perfil).
+      atualizarUsuarioLocal: (dados) => setUsuario((atual) => (atual ? { ...atual, ...dados } : atual)),
     }),
     [usuario, carregando, login, logout]
   );

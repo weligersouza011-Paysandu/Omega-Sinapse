@@ -11,6 +11,10 @@ const CAMPOS_PUBLICOS = {
   perfil: true,
   ativo: true,
   paginas_permitidas: true,
+  foto_url: true,
+  telefone: true,
+  cargo: true,
+  setor: true,
   created_at: true,
   updated_at: true,
 };
@@ -65,6 +69,11 @@ async function findByMatricula(matricula) {
  * @param {number} id
  * @returns {Promise<object|null>}
  */
+/** Usuário pelo ID com o hash da senha (uso interno: troca de senha no Meu perfil). */
+async function findByIdInterno(id) {
+  return prisma.usuario.findUnique({ where: { id }, select: CAMPOS_INTERNOS });
+}
+
 async function findById(id) {
   return prisma.usuario.findUnique({
     where: { id },
@@ -85,6 +94,7 @@ async function create(dados) {
       email: dados.email,
       senha_hash: dados.senha_hash,
       perfil: dados.perfil,
+      paginas_permitidas: Array.isArray(dados.paginas_permitidas) ? dados.paginas_permitidas : [],
       // O status inicial é opcional; sem ele o schema aplica o default (true).
       ...(typeof dados.ativo === 'boolean' ? { ativo: dados.ativo } : {}),
     },
@@ -160,7 +170,7 @@ async function findManyByPerfil(perfil) {
  */
 async function update(id, dados) {
   const campos = {};
-  for (const campo of ['nome', 'matricula', 'email', 'perfil', 'ativo']) {
+  for (const campo of ['nome', 'matricula', 'email', 'perfil', 'ativo', 'paginas_permitidas', 'foto_url', 'telefone', 'cargo', 'setor']) {
     if (Object.prototype.hasOwnProperty.call(dados, campo)) {
       campos[campo] = dados[campo];
     }
@@ -196,6 +206,7 @@ module.exports = {
   findByEmail,
   findByMatricula,
   findById,
+  findByIdInterno,
   create,
   findAll,
   findManyByPerfil,

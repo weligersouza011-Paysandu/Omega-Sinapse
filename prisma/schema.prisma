@@ -219,6 +219,11 @@ model Usuario {
   ativo      Boolean       @default(true)
   /// Páginas liberadas para o perfil CLIENTE (ids dos módulos, ex.: "medicao"). Ignorado nos demais perfis.
   paginas_permitidas String[] @default([])
+  /// Dados do "Meu perfil" (o próprio usuário edita): foto, telefone, cargo/função e setor.
+  foto_url   String?
+  telefone   String?       @db.VarChar(30)
+  cargo      String?       @db.VarChar(120)
+  setor      String?       @db.VarChar(120)
   created_at DateTime      @default(now()) @db.Timestamptz(6)
   updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 
