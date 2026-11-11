@@ -1,5 +1,22 @@
+/**
+ * Modo "valores ocultos" (olho da página de Medição): enquanto ligado, todo valor em R$ formatado
+ * por `formatarMoeda`/`formatarMoedaCompacta` aparece mascarado. A página liga ao abrir e desliga
+ * ao sair, então as outras telas não são afetadas.
+ */
+let moedaOculta = false;
+export const MASCARA_MOEDA = 'R$ ••••••';
+
+export function definirMoedaOculta(ocultar) {
+  moedaOculta = Boolean(ocultar);
+}
+
+export function moedaEstaOculta() {
+  return moedaOculta;
+}
+
 /** Formata um número como moeda brasileira (R$). */
 export function formatarMoeda(valor) {
+  if (moedaOculta) return MASCARA_MOEDA;
   const numero = Number(valor);
   const seguro = Number.isFinite(numero) ? numero : 0;
   return seguro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -7,6 +24,7 @@ export function formatarMoeda(valor) {
 
 /** Formata um número como moeda compacta (ex.: "R$ 82,9 mi"), para eixos de gráfico. */
 export function formatarMoedaCompacta(valor) {
+  if (moedaOculta) return 'R$ •••';
   const numero = Number(valor);
   const seguro = Number.isFinite(numero) ? numero : 0;
   return seguro.toLocaleString('pt-BR', {

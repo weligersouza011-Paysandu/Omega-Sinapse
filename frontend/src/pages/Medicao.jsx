@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { AlertTriangle, FilePlus2, FileSignature, FileSpreadsheet, Link2, ReceiptText, RefreshCw, Table2, Trash2 } from 'lucide-react';
+import { AlertTriangle, Eye, EyeOff, FilePlus2, FileSignature, FileSpreadsheet, Link2, ReceiptText, RefreshCw, Table2, Trash2 } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import ArvoreMedicao from '../components/medicao/ArvoreMedicao.jsx';
@@ -27,7 +27,7 @@ import {
   removerItemBoletim,
   useDashboardMedicao,
 } from '../hooks/useMedicao.js';
-import { formatarData, formatarMoeda } from '../utils/formatters.js';
+import { definirMoedaOculta, formatarData, formatarMoeda } from '../utils/formatters.js';
 
 const ROTULO_STATUS = { APROVADO: 'aprovado', REJEITADO: 'rejeitado', EM_ANALISE: 'voltou para análise' };
 
@@ -43,6 +43,13 @@ export default function Medicao() {
 
   const { contratos, contratoId, selecionarContrato, dados, carregando, carregandoContratos, erro, recarregar } =
     useDashboardMedicao();
+
+  // Segurança: os valores em R$ de todas as abas (e dos modais) começam ocultos; o olho mostra/oculta.
+  // A máscara é aplicada já durante a renderização, para nenhum valor aparecer nem por um instante,
+  // e é desligada ao sair da página.
+  const [valoresOcultos, setValoresOcultos] = useState(true);
+  definirMoedaOculta(valoresOcultos);
+  useEffect(() => () => definirMoedaOculta(false), []);
 
   // Diálogos: 'contrato' | 'tac' | 'obras' | 'boletim' | 'qqp' | 'importar' | 'editar' | null.
   const [dialogo, setDialogo] = useState(null);
@@ -183,6 +190,17 @@ export default function Medicao() {
           <button type="button" className="btn-neutro" onClick={recarregar} disabled={carregando}>
             {carregando ? <Spinner tamanho="sm" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
             Atualizar
+          </button>
+
+          <button
+            type="button"
+            className={valoresOcultos ? 'btn-primario' : 'btn-neutro'}
+            onClick={() => setValoresOcultos((atual) => !atual)}
+            aria-pressed={!valoresOcultos}
+            title={valoresOcultos ? 'Mostrar os valores em R$' : 'Ocultar os valores em R$'}
+          >
+            {valoresOcultos ? <Eye className="h-4 w-4" aria-hidden="true" /> : <EyeOff className="h-4 w-4" aria-hidden="true" />}
+            {valoresOcultos ? 'Mostrar valores' : 'Ocultar valores'}
           </button>
         </div>
       </header>
