@@ -18,9 +18,7 @@ import ModalOsi from '../ModalOsi.jsx';
 import AnexoOsiAssinada, { descricaoOsi } from '../AnexoOsiAssinada.jsx';
 import Spinner from '../Spinner.jsx';
 import StatusBadge from '../StatusBadge.jsx';
-import AvancoFisicoEditor from './AvancoFisicoEditor.jsx';
 import LocalizacoesObra from './LocalizacoesObra.jsx';
-import MidiasObra from './MidiasObra.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import {
   atualizarObra,
@@ -81,7 +79,6 @@ export default function ConfiguracaoObra({
 
   const [statusSelecionado, setStatusSelecionado] = useState(obra?.status || '');
   const [numeroOsi, setNumeroOsi] = useState(obra?.osi_numero || '');
-  const [observacoes, setObservacoes] = useState(obra?.observacoes || '');
   const [osiAberta, setOsiAberta] = useState(false);
   const [salvando, setSalvando] = useState('');
 
@@ -90,8 +87,7 @@ export default function ConfiguracaoObra({
   useEffect(() => {
     setStatusSelecionado(obra?.status || '');
     setNumeroOsi(obra?.osi_numero || '');
-    setObservacoes(obra?.observacoes || '');
-  }, [obra?.id, obra?.status, obra?.osi_numero, obra?.observacoes]);
+  }, [obra?.id, obra?.status, obra?.osi_numero]);
 
   const osiEmitida = Boolean(obra?.osi_emitida_em);
   // Só a OSI assinada anexada conclui a pendência documental.
@@ -156,14 +152,6 @@ export default function ConfiguracaoObra({
       'planejador',
       () => atualizarObra(obra.id, { planejadores_ids: ids }),
       ids.length === 0 ? 'Responsável removido da obra.' : 'Planejadores responsáveis atualizados.'
-    );
-  }
-
-  function salvarObservacoes() {
-    return executar(
-      'observacoes',
-      () => atualizarObra(obra.id, { observacoes: observacoes.trim() }),
-      'Observações salvas.'
     );
   }
 
@@ -387,37 +375,6 @@ export default function ConfiguracaoObra({
       </section>
 
       <LocalizacoesObra obra={obra} podeEditar={podeEditar} onObraAtualizada={onObraAtualizada} />
-
-      <AvancoFisicoEditor obra={obra} podeEditar={podeEditar} onObraAtualizada={onObraAtualizada} />
-
-      <MidiasObra obra={obra} podeEditar={podeEditar} onObraAtualizada={onObraAtualizada} />
-
-      {/* ------------------------------------------------ Observações */}
-      <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">Observações da obra</h3>
-
-        <textarea
-          className="campo min-h-[96px] resize-y"
-          placeholder="Restrições, condicionantes e alinhamentos da obra"
-          value={observacoes}
-          onChange={(e) => setObservacoes(e.target.value)}
-          disabled={!podeEditar || salvando === 'observacoes'}
-        />
-
-        {podeEditar ? (
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              className="btn-primario"
-              onClick={salvarObservacoes}
-              disabled={salvando === 'observacoes'}
-            >
-              {salvando === 'observacoes' ? <Spinner tamanho="sm" /> : null}
-              Salvar observações
-            </button>
-          </div>
-        ) : null}
-      </section>
 
       {/* ------------------------------------------ Dados do projeto */}
       <section className="rounded-lg border border-slate-200 bg-white p-4">
