@@ -3,9 +3,10 @@
 const jwt = require('jsonwebtoken');
 const AppError = require('../errors/AppError');
 const { obterJwtSecret } = require('../config/jwtSecret');
+const usuarioRepository = require('../repositories/usuarioRepository');
 
 /** Perfis aceitos pelo sistema (RBAC). */
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 
 /**
  * ACESSO TEMPORÁRIO (BYPASS) — válido somente quando `AUTH_BYPASS=true` no .env.
@@ -87,14 +88,47 @@ async function autenticar(req, res, next) {
       nome: payload.nome || null,
       email: payload.email || null,
     };
-
-    return next();
   } catch (err) {
     if (err.name === 'TokenExpiredError') {
       return next(new AppError(401, 'Token expirado. Faça login novamente.'));
     }
     return next(new AppError(401, 'Token inválido ou corrompido.'));
   }
+
+  // Cliente: as páginas liberadas vêm sempre do banco (mudanças valem na hora, sem novo login).
+  if (req.user.perfil === 'CLIENTE') {
+    try {
+      const registro = await usuarioRepository.findById(req.user.id);
+      if (!registro || registro.ativo === false || registro.perfil !== 'CLIENTE') {
+        return next(new AppError(401, 'Acesso do cliente desativado ou alterado. Faça login novamente.'));
+      }
+      req.user.paginas_permitidas = registro.paginas_permitidas || [];
+    } catch (err) {
+      return next(err);
+    }
+  }
+  return next();
+}
+
+const METODOS_DE_CONSULTA = ['GET', 'HEAD', 'OPTIONS'];
+
+/**
+ * Restringe o perfil CLIENTE: só consulta (GET) e só nas APIs das páginas liberadas para ele.
+ * Os demais perfis passam direto. Sem páginas informadas, a API fica fechada para o cliente.
+ * Uso: app.use('/api/contratos', autenticar, acessoCliente('medicao'), contratoRoutes)
+ */
+function acessoCliente(...paginas) {
+  return (req, res, next) => {
+    if (req.user?.perfil !== 'CLIENTE') return next();
+    if (!METODOS_DE_CONSULTA.includes(req.method)) {
+      return next(new AppError(403, 'O perfil Cliente tem acesso somente para consulta.'));
+    }
+    const liberadas = req.user.paginas_permitidas || [];
+    if (!paginas.some((pagina) => liberadas.includes(pagina))) {
+      return next(new AppError(403, 'Esta página não está liberada para o seu usuário.'));
+    }
+    return next();
+  };
 }
 
 /**
@@ -115,4 +149,4 @@ function autorizar(...perfisPermitidos) {
   };
 }
 
-module.exports = { autenticar, autorizar, PERFIS_VALIDOS, BYPASS_ATIVO };
+module.exports = { autenticar, autorizar, acessoCliente, PERFIS_VALIDOS, BYPASS_ATIVO };

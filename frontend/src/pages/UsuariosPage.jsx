@@ -17,6 +17,14 @@ import { useAuth } from '../context/AuthContext.jsx';
 import { useUsuarios } from '../hooks/useUsuarios.js';
 import { formatarData } from '../utils/formatters.js';
 import { obterPerfil, OPCOES_PERFIL } from '../utils/perfis.js';
+import { PAGINAS_CLIENTE } from '../config/modulos.js';
+
+/** Nomes das páginas liberadas para um usuário Cliente, separados por vírgula. */
+function paginasDoCliente(usuario) {
+  return PAGINAS_CLIENTE.filter((pagina) => (usuario.paginas_permitidas || []).includes(pagina.id))
+    .map((pagina) => pagina.label)
+    .join(', ');
+}
 
 const LIMITE = 10;
 
@@ -292,6 +300,14 @@ export default function UsuariosPage() {
                               <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
                               {infoPerfil.label}
                             </span>
+                            {usuario.perfil === 'CLIENTE' ? (
+                              <p
+                                className="mt-1 max-w-[16rem] truncate text-[11px] text-slate-500"
+                                title={paginasDoCliente(usuario)}
+                              >
+                                {paginasDoCliente(usuario) || 'Nenhuma página liberada'}
+                              </p>
+                            ) : null}
                           </td>
 
                           <td className="whitespace-nowrap px-4 py-3">

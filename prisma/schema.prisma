@@ -22,6 +22,8 @@ enum PerfilUsuario {
   PLANEJADOR
   SUPERVISOR
   ADMIN
+  /// Usuário externo, somente consulta, nas páginas liberadas em `paginas_permitidas`.
+  CLIENTE
 }
 
 /// Fluxo operacional do orçamento (validado pelo processo de engenharia).
@@ -215,6 +217,8 @@ model Usuario {
   senha_hash String        @db.VarChar(255)
   perfil     PerfilUsuario @default(ORCAMENTISTA)
   ativo      Boolean       @default(true)
+  /// Páginas liberadas para o perfil CLIENTE (ids dos módulos, ex.: "medicao"). Ignorado nos demais perfis.
+  paginas_permitidas String[] @default([])
   created_at DateTime      @default(now()) @db.Timestamptz(6)
   updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 

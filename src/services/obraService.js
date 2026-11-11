@@ -11,6 +11,7 @@ const PERFIS = {
   PLANEJADOR: 'PLANEJADOR',
   SUPERVISOR: 'SUPERVISOR',
   ADMIN: 'ADMIN',
+  CLIENTE: 'CLIENTE',
 };
 
 /** Somente SUPERVISOR/ADMIN atribuem o planejador responsável pela obra. */

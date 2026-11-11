@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { MODULOS } from '../config/modulos.js';
+import { MODULOS, moduloLiberado } from '../config/modulos.js';
 import { MODO_DEMO, BYPASS_LOGIN } from '../config/demo.js';
 import { useAuth } from '../context/AuthContext.jsx';
 
@@ -64,9 +64,8 @@ export default function Sidebar({ recolhido = false, onToggle }) {
 
   // Módulos com `perfis` definidos (ex.: Gestão de Usuários) só são exibidos
   // para os perfis autorizados; os demais continuam visíveis para todos.
-  const modulosVisiveis = MODULOS.filter(
-    (modulo) => !modulo.perfis || modulo.perfis.includes(usuario?.perfil)
-  );
+  // O Cliente vê apenas as páginas liberadas no cadastro dele.
+  const modulosVisiveis = MODULOS.filter((modulo) => moduloLiberado(usuario, modulo));
 
   return (
     <aside

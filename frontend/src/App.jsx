@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import RotaPorPerfil from './components/RotaPorPerfil.jsx';
+import RotaPorPagina from './components/RotaPorPagina.jsx';
+import { useAuth } from './context/AuthContext.jsx';
 import BotaoTema from './components/BotaoTema.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Spinner from './components/Spinner.jsx';
@@ -29,7 +31,7 @@ function PaginaCarregando() {
     </div>
   );
 }
-import { MODULOS } from './config/modulos.js';
+import { MODULOS, rotaInicial } from './config/modulos.js';
 import { MODO_DEMO, BYPASS_LOGIN } from './config/demo.js';
 
 /** Selo de ambiente exibido na barra de cabeçalho. */
@@ -130,6 +132,24 @@ function AppLayoutConteudo() {
   );
 }
 
+/** Leva o usuário à primeira página que ele pode abrir (Cliente: a primeira liberada). */
+function Inicio() {
+  const { usuario } = useAuth();
+  return <Navigate to={rotaInicial(usuario)} replace />;
+}
+
+/** Cliente sem nenhuma página liberada. */
+function SemAcesso() {
+  return (
+    <div className="mx-auto mt-16 max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <h2 className="text-base font-bold text-slate-800">Nenhuma página liberada</h2>
+      <p className="mt-2 text-sm text-slate-500">
+        Seu usuário ainda não tem páginas liberadas. Peça ao administrador do Synapse para liberar o acesso.
+      </p>
+    </div>
+  );
+}
+
 /** Rota privada: exige autenticação e monta o layout com Sidebar. */
 function AreaPrivada() {
   return (
@@ -150,10 +170,11 @@ export default function App() {
 
       {/* Rotas privadas: renderizadas dentro do <Outlet /> do AppLayout. */}
       <Route element={<AreaPrivada />}>
-        <Route path="/" element={<Navigate to="/orcamentos" replace />} />
-        <Route path="/orcamentos" element={<DashboardOrcamentos />} />
-        <Route path="/obras" element={<Obras />} />
-        <Route path="/obras/:id" element={<DetalheObra />} />
+        <Route path="/" element={<Inicio />} />
+        <Route path="/sem-acesso" element={<SemAcesso />} />
+        <Route path="/orcamentos" element={<RotaPorPagina pagina="orcamentos"><DashboardOrcamentos /></RotaPorPagina>} />
+        <Route path="/obras" element={<RotaPorPagina pagina="obras"><Obras /></RotaPorPagina>} />
+        <Route path="/obras/:id" element={<RotaPorPagina pagina="obras"><DetalheObra /></RotaPorPagina>} />
         <Route
           path="/usuarios"
           element={
@@ -162,15 +183,15 @@ export default function App() {
             </RotaPorPerfil>
           }
         />
-        <Route path="/orcamentos/dashboard" element={<DashboardOrcamentosBI />} />
-        <Route path="/planejamento" element={<DashboardPlanejamento />} />
-        <Route path="/demandas" element={<GestaoDemandasView />} />
-        <Route path="/medicao" element={<Medicao />} />
-        <Route path="/curva-s" element={<CurvaS />} />
-        <Route path="/mapa" element={<MapaObras />} />
+        <Route path="/orcamentos/dashboard" element={<RotaPorPagina pagina="orcamentos"><DashboardOrcamentosBI /></RotaPorPagina>} />
+        <Route path="/planejamento" element={<RotaPorPagina pagina="planejamento"><DashboardPlanejamento /></RotaPorPagina>} />
+        <Route path="/demandas" element={<RotaPorPagina pagina="demandas"><GestaoDemandasView /></RotaPorPagina>} />
+        <Route path="/medicao" element={<RotaPorPagina pagina="medicao"><Medicao /></RotaPorPagina>} />
+        <Route path="/curva-s" element={<RotaPorPagina pagina="curva-s"><CurvaS /></RotaPorPagina>} />
+        <Route path="/mapa" element={<RotaPorPagina pagina="mapa"><MapaObras /></RotaPorPagina>} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/orcamentos" replace />} />
+      <Route path="*" element={<Inicio />} />
     </Routes>
   );
 }

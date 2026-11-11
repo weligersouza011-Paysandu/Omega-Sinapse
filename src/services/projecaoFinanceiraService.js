@@ -28,7 +28,7 @@ const {
  * Valores monetários em centavos inteiros durante as somas.
  */
 
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 const HORAS_DIA_PADRAO = 8;
 const MAX_CICLOS = 120;
 

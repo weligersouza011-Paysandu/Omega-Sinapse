@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { obterToken, salvarToken } from '../services/api.js';
+import api, { obterToken, salvarToken } from '../services/api.js';
 import { fazerLogin } from '../hooks/useOrcamentos.js';
 import { BYPASS_LOGIN, USUARIO_BYPASS } from '../config/demo.js';
 
@@ -37,6 +37,24 @@ export function AuthProvider({ children }) {
       // Armazenamento indisponível: a sessão segue apenas em memória.
     }
   }, [usuario]);
+
+  // Ao abrir o sistema, atualiza perfil e páginas liberadas a partir da API: se o administrador
+  // mudou as páginas de um Cliente, o menu acompanha sem precisar sair e entrar de novo.
+  useEffect(() => {
+    if (BYPASS_LOGIN || !obterToken()) return;
+    let ativo = true;
+    api
+      .get('/auth/me')
+      .then(({ data }) => {
+        if (ativo && data?.usuario) setUsuario((atual) => (atual ? { ...atual, ...data.usuario } : atual));
+      })
+      .catch(() => {
+        // Token inválido/expirado: o interceptador da API já trata o 401.
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   /** Autentica na API (e-mail) e guarda token + usuário. */
   const login = useCallback(async (email, senha) => {

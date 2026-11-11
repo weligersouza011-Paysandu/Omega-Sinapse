@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { CircleAlert, KeyRound } from 'lucide-react';
+import { CircleAlert, KeyRound, LayoutList } from 'lucide-react';
+import { PAGINAS_CLIENTE } from '../config/modulos.js';
 import Dropdown from './Dropdown.jsx';
 import ModalBase from './ModalBase.jsx';
 import Spinner from './Spinner.jsx';
@@ -14,6 +15,7 @@ const FORMULARIO_VAZIO = {
   matricula: '',
   perfil: 'ORCAMENTISTA',
   ativo: true,
+  paginas_permitidas: [],
   senha: '',
   confirmarSenha: '',
 };
@@ -58,6 +60,7 @@ export default function ModalUsuario({
         matricula: usuario.matricula || '',
         perfil: usuario.perfil || 'ORCAMENTISTA',
         ativo: usuario.ativo !== false,
+        paginas_permitidas: usuario.paginas_permitidas || [],
         senha: '',
         confirmarSenha: '',
       });
@@ -83,6 +86,9 @@ export default function ModalUsuario({
     }
     if (!formulario.perfil) {
       return 'Selecione o perfil de acesso.';
+    }
+    if (formulario.perfil === 'CLIENTE' && formulario.paginas_permitidas.length === 0) {
+      return 'Marque pelo menos uma página para o cliente acessar.';
     }
     if (!editando) {
       if (formulario.senha.length < SENHA_MIN_CARACTERES) {
@@ -113,6 +119,8 @@ export default function ModalUsuario({
       matricula: formulario.matricula.trim() || null,
       perfil: formulario.perfil,
       ativo: formulario.ativo,
+      // Páginas só valem para o Cliente; nos demais perfis a lista fica vazia.
+      paginas_permitidas: formulario.perfil === 'CLIENTE' ? formulario.paginas_permitidas : [],
     };
 
     try {
@@ -279,6 +287,71 @@ export default function ModalUsuario({
               </p>
             </div>
           </div>
+
+          {formulario.perfil === 'CLIENTE' ? (
+            <section className="rounded-lg border border-teal-200 bg-teal-50/40 p-4" aria-labelledby="paginasClienteTitulo">
+              <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                <h3 id="paginasClienteTitulo" className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-slate-600">
+                  <LayoutList className="h-4 w-4 text-teal-700" aria-hidden="true" />
+                  Páginas liberadas
+                </h3>
+                <div className="flex gap-2 text-[11px] font-semibold">
+                  <button
+                    type="button"
+                    className="text-omega-700 hover:underline disabled:opacity-50"
+                    onClick={() => alterarCampo('paginas_permitidas', PAGINAS_CLIENTE.map((pagina) => pagina.id))}
+                    disabled={salvando}
+                  >
+                    Marcar todas
+                  </button>
+                  <button
+                    type="button"
+                    className="text-slate-500 hover:underline disabled:opacity-50"
+                    onClick={() => alterarCampo('paginas_permitidas', [])}
+                    disabled={salvando}
+                  >
+                    Desmarcar todas
+                  </button>
+                </div>
+              </div>
+              <p className="mb-3 text-[11px] text-slate-500">
+                O cliente só vê no menu as páginas marcadas e tem acesso somente para consulta (não altera dados).
+              </p>
+              <ul className="grid gap-2 sm:grid-cols-2">
+                {PAGINAS_CLIENTE.map((pagina) => {
+                  const marcada = formulario.paginas_permitidas.includes(pagina.id);
+                  return (
+                    <li key={pagina.id}>
+                      <label
+                        className={`flex cursor-pointer items-start gap-2.5 rounded-md border px-3 py-2 transition ${
+                          marcada ? 'border-teal-300 bg-white shadow-sm' : 'border-slate-200 bg-white/60 hover:bg-white'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 accent-teal-600"
+                          checked={marcada}
+                          disabled={salvando}
+                          onChange={() =>
+                            alterarCampo(
+                              'paginas_permitidas',
+                              marcada
+                                ? formulario.paginas_permitidas.filter((id) => id !== pagina.id)
+                                : [...formulario.paginas_permitidas, pagina.id]
+                            )
+                          }
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-slate-800">{pagina.label}</span>
+                          <span className="block text-[11px] text-slate-500">{pagina.descricao}</span>
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
 
           {!editando ? (
             <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">

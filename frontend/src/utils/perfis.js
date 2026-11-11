@@ -30,6 +30,12 @@ export const PERFIS_OPCOES = [
     descricao: 'Gestão de usuários e acesso irrestrito ao sistema.',
     cor: 'bg-slate-800 text-white border-slate-900',
   },
+  {
+    value: 'CLIENTE',
+    label: 'Cliente',
+    descricao: 'Acesso externo somente para consulta, apenas nas páginas liberadas no cadastro.',
+    cor: 'bg-teal-100 text-teal-800 border-teal-300',
+  },
 ];
 
 /** Opções no formato consumido pelo Dropdown customizado. */

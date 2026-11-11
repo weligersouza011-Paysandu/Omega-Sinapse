@@ -14,7 +14,7 @@ const contratoRepository = require('../repositories/contratoRepository');
 /** Perfis que cadastram contratos, registram TACs e vinculam obras. */
 const PERFIS_QUE_GEREM_CONTRATOS = ['SUPERVISOR', 'ADMIN'];
 
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */

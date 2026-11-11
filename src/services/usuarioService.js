@@ -4,9 +4,10 @@ const bcrypt = require('bcryptjs');
 const AppError = require('../errors/AppError');
 const usuarioRepository = require('../repositories/usuarioRepository');
 const authService = require('./authService');
+const { normalizarPaginas } = require('../config/paginas');
 
 /** Perfis reconhecidos pelo RBAC (espelha o enum PerfilUsuario do schema). */
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 
 /** Rótulos oficiais exibidos na tela de Gestão de Usuários. */
 const ROTULOS_PERFIL = {
@@ -14,6 +15,7 @@ const ROTULOS_PERFIL = {
   PLANEJADOR: 'Técnico Planejador',
   SUPERVISOR: 'Gestor / Supervisor',
   ADMIN: 'Administrador',
+  CLIENTE: 'Cliente',
 };
 
 const SALT_ROUNDS = 10;
@@ -127,6 +129,10 @@ async function atualizarUsuario(idParam, payload) {
 
   if (temCampo(payload, 'ativo')) {
     dados.ativo = normalizarBooleano(payload.ativo);
+  }
+
+  if (temCampo(payload, 'paginas_permitidas')) {
+    dados.paginas_permitidas = normalizarPaginas(payload.paginas_permitidas);
   }
 
   if (temCampo(payload, 'email')) {

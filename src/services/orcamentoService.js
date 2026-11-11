@@ -11,6 +11,7 @@ const PERFIS = {
   PLANEJADOR: 'PLANEJADOR',
   SUPERVISOR: 'SUPERVISOR',
   ADMIN: 'ADMIN',
+  CLIENTE: 'CLIENTE',
 };
 
 /** Somente estes perfis podem gravar/atualizar o campo `art`. */

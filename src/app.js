@@ -14,7 +14,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const tarefaRoutes = require('./routes/tarefaRoutes');
 const cronogramaRoutes = require('./routes/cronogramaRoutes');
 const contratoRoutes = require('./routes/contratoRoutes');
-const { autenticar } = require('./middlewares/auth');
+const { autenticar, acessoCliente } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 const app = express();
@@ -67,20 +67,21 @@ app.get('/health', async (req, res) => {
 app.use('/api/auth', authRoutes);
 
 // Rotas protegidas por JWT
-app.use('/api/orcamentos', autenticar, orcamentoRoutes);
+// Perfil CLIENTE: só consulta e só nas APIs das páginas liberadas (acessoCliente).
+app.use('/api/orcamentos', autenticar, acessoCliente('orcamentos'), orcamentoRoutes);
 // Governança ISO 9001: gestão de usuários (RBAC ADMIN aplicado nas rotas internas).
-app.use('/api/usuarios', autenticar, usuarioRoutes);
+app.use('/api/usuarios', autenticar, acessoCliente(), usuarioRoutes);
 // Ciclo operacional de execução (obras): status, planejador, OSI e Ata de Partida.
-app.use('/api/obras', autenticar, obraRoutes);
+app.use('/api/obras', autenticar, acessoCliente('obras', 'planejamento', 'medicao'), obraRoutes);
 // Dashboard executivo de planejamento (obras, mapa, Curva S e restrições 6WLA).
-app.use('/api/dashboard', autenticar, dashboardRoutes);
+app.use('/api/dashboard', autenticar, acessoCliente('planejamento'), dashboardRoutes);
 // Gestão de demandas e carga da equipe de planejamento.
-app.use('/api/tarefas', autenticar, tarefaRoutes);
+app.use('/api/tarefas', autenticar, acessoCliente('demandas'), tarefaRoutes);
 // Ingestão e versionamento de cronogramas (base da Curva S, CPM e 6WLA).
-app.use('/api/cronogramas', autenticar, cronogramaRoutes);
+app.use('/api/cronogramas', autenticar, acessoCliente('obras', 'planejamento'), cronogramaRoutes);
 // Contratos com a Vale e Termos Aditivos (base da medição e projeção financeira).
-app.use('/api/contratos', autenticar, contratoRoutes);
-app.use('/api/uploads', autenticar, uploadRoutes);
+app.use('/api/contratos', autenticar, acessoCliente('medicao'), contratoRoutes);
+app.use('/api/uploads', autenticar, acessoCliente(), uploadRoutes);
 
 // ---------------------------------------------------------------------------
 // Front-end (build do Vite) — deploy unificado

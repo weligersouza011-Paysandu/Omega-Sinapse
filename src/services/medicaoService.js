@@ -17,7 +17,7 @@ const { montarContrato } = require('./contratoService');
  */
 
 const PERFIS_QUE_GEREM_MEDICAO = ['SUPERVISOR', 'ADMIN'];
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 const STATUS_BOLETIM = ['EM_ANALISE', 'APROVADO', 'REJEITADO'];
 
 /** Dia em que o ciclo de medição começa (e termina no dia anterior, no mês seguinte). */

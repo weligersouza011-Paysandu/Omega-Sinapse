@@ -1,5 +1,6 @@
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { rotaInicial } from '../config/modulos.js';
 
 /**
  * Proteção de rota por perfil (RBAC no front-end).
@@ -12,7 +13,7 @@ export default function RotaPorPerfil({ perfis = [], children }) {
   const { usuario } = useAuth();
 
   if (!perfis.includes(usuario?.perfil)) {
-    return <Navigate to="/orcamentos" replace />;
+    return <Navigate to={rotaInicial(usuario)} replace />;
   }
 
   return children;

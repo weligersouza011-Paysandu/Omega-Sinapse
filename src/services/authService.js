@@ -5,8 +5,9 @@ const jwt = require('jsonwebtoken');
 const AppError = require('../errors/AppError');
 const { obterJwtSecret } = require('../config/jwtSecret');
 const usuarioRepository = require('../repositories/usuarioRepository');
+const { normalizarPaginas } = require('../config/paginas');
 
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
 const SALT_ROUNDS = 10;
 const SENHA_MIN_CARACTERES = 4;
 
@@ -70,6 +71,7 @@ async function login({ identificador, matricula, email, senha }) {
       matricula: usuario.matricula,
       email: usuario.email,
       perfil: usuario.perfil,
+      paginas_permitidas: usuario.paginas_permitidas ?? [],
     },
   };
 }
@@ -86,6 +88,7 @@ async function obterUsuario(id) {
     matricula: usuario.matricula,
     email: usuario.email,
     perfil: usuario.perfil,
+    paginas_permitidas: usuario.paginas_permitidas ?? [],
   };
 }
 
@@ -93,7 +96,7 @@ async function obterUsuario(id) {
  * Cria um usuário com senha criptografada (bcrypt).
  * @param {{nome:string, matricula?:string, email:string, senha:string, perfil:string}} dados
  */
-async function criarUsuario({ nome, matricula, email, senha, perfil, ativo }) {
+async function criarUsuario({ nome, matricula, email, senha, perfil, ativo, paginas_permitidas: paginasPermitidas }) {
   if (estaVazio(nome) || estaVazio(email) || estaVazio(senha) || estaVazio(perfil)) {
     throw new AppError(400, 'Informe "nome", "email", "senha" e "perfil".');
   }
@@ -122,6 +125,7 @@ async function criarUsuario({ nome, matricula, email, senha, perfil, ativo }) {
     email: emailNormalizado,
     senha_hash,
     perfil,
+    paginas_permitidas: normalizarPaginas(paginasPermitidas),
     ...(typeof ativo === 'boolean' ? { ativo } : {}),
   });
 }

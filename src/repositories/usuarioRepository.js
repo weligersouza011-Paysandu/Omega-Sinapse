@@ -10,6 +10,7 @@ const CAMPOS_PUBLICOS = {
   email: true,
   perfil: true,
   ativo: true,
+  paginas_permitidas: true,
   created_at: true,
   updated_at: true,
 };
