@@ -9,8 +9,8 @@ import { CG, CURVA_S } from '../../utils/coresGrafico.js';
  * que no tema escuro é translúcido para as barras agrupadas não pesarem.
  */
 const SERIES = [
-  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: CURVA_S.real.linha, fundo: CURVA_S.real.fundo },
   { chave: 'previsto_replanejado', nome: 'Projetado', tipo: 'coluna', cor: CURVA_S.mensal.linha, fundo: CURVA_S.mensal.fundo },
+  { chave: 'real', nome: 'Real', tipo: 'coluna', cor: CURVA_S.real.linha, fundo: CURVA_S.real.fundo },
   { chave: 'real_acumulado', nome: 'Real acum.', tipo: 'linha', cor: CURVA_S.realAcum.linha },
   { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: CURVA_S.tendencia.linha },
 ];
@@ -72,7 +72,7 @@ function TooltipFinanceiro({ active, payload, label }) {
 /**
  * Curva S financeira do contrato (linha do tempo mensal).
  *
- * Colunas (eixo esquerdo): Real e Projetado de cada ciclo.
+ * Colunas (eixo esquerdo): Projetado e Real de cada ciclo.
  * Linhas (eixo direito): Real acumulado e Tendência.
  * Clicar na legenda mostra ou oculta cada série.
  */
@@ -100,7 +100,7 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
         <div>
           <h3 className="text-sm font-bold text-slate-800">Curva S financeira — linha do tempo do contrato</h3>
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-            Colunas: real e projetado de cada ciclo (eixo esquerdo). Linhas: real acumulado e tendência
+            Colunas: projetado e real de cada ciclo (eixo esquerdo). Linhas: real acumulado e tendência
             (eixo direito).
             {fonte === 'CONTRATO'
               ? ' Projetado e tendência vêm da planilha de acompanhamento do contrato.'
