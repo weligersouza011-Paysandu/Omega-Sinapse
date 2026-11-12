@@ -34,14 +34,40 @@ const LEITURAS = {
   SEM_MEDICAO: { texto: 'Anterior à medição importada', classe: 'border-slate-200 bg-slate-100 text-slate-600' },
 };
 
+/** Como a projeção foi feita, para legenda, textos e tooltip. */
+const BASES = {
+  PROJETADO: {
+    legenda: 'Projeção pelo Projetado',
+    tooltip: 'Projeção (Projetado)',
+    expressao: 'pelo Projetado da Curva S',
+    descricao: 'A linha tracejada soma ao real acumulado as colunas "Projetado" da Curva S financeira, mês a mês.',
+    rodape: 'A projeção soma ao real acumulado o Projetado lançado na Curva S financeira para cada ciclo futuro.',
+  },
+  TENDENCIA: {
+    legenda: 'Projeção pela tendência',
+    tooltip: 'Projeção (tendência)',
+    expressao: 'pela tendência da Curva S',
+    descricao: 'A linha tracejada segue a tendência acumulada informada na Curva S financeira.',
+    rodape: 'Sem Projetado lançado, a projeção segue a tendência acumulada da Curva S financeira.',
+  },
+  RUN_RATE: {
+    legenda: 'Projeção no run rate',
+    tooltip: 'Projeção no ritmo atual',
+    expressao: 'no ritmo atual',
+    descricao: 'Sem Projetado lançado na Curva S, a linha tracejada projeta o acumulado no run rate atual.',
+    rodape: 'Sem Projetado lançado, a projeção supõe que o run rate se mantém; ela não considera sazonalidade nem aditivos futuros.',
+  },
+};
+
 function detalheDaSituacao(ind) {
+  const base = BASES[ind.base_projecao] || BASES.RUN_RATE;
   switch (ind.situacao) {
     case 'OK':
-      return `Folga estimada de ${formatarMoeda(ind.folga)} ao fim da vigência (consumo projetado ${formatarMoeda(ind.consumo_ate_fim)} para um saldo de ${formatarMoeda(ind.saldo)}).`;
+      return `Folga estimada de ${formatarMoeda(ind.folga)} ao fim da vigência (consumo projetado ${base.expressao} de ${formatarMoeda(ind.consumo_ate_fim)} para um saldo de ${formatarMoeda(ind.saldo)}).`;
     case 'ATENCAO':
-      return `Sobram apenas ${formatarMoeda(ind.folga)} ao fim da vigência: qualquer aceleração do ritmo pede aditivo.`;
+      return `Sobram apenas ${formatarMoeda(ind.folga)} ao fim da vigência ${base.expressao}: qualquer aceleração pede aditivo.`;
     case 'ADITIVO':
-      return `Faltam cerca de ${formatarMoeda(ind.aditivo_necessario)} para sustentar o ritmo até o fim da vigência. O saldo de ${formatarMoeda(ind.saldo)} acaba por volta de ${rotuloDoMes(ind.referencia_esgota)}.`;
+      return `Faltam cerca de ${formatarMoeda(ind.aditivo_necessario)} para cobrir o consumo projetado ${base.expressao} até o fim da vigência.${ind.referencia_esgota ? ` O saldo de ${formatarMoeda(ind.saldo)} acaba por volta de ${rotuloDoMes(ind.referencia_esgota)}.` : ''}`;
     case 'ESGOTADO':
       return `Medido acumulado ${formatarMoeda(ind.acumulado)} para um teto de ${formatarMoeda(ind.teto_atual)}: excedente de ${formatarMoeda(-ind.saldo)}.`;
     case 'ENCERRADA':
@@ -64,7 +90,7 @@ function Cartao({ Icone, rotulo, valor, apoio, tom = 'text-slate-800' }) {
   );
 }
 
-function TooltipEstudo({ active, payload }) {
+function TooltipEstudo({ active, payload, rotuloProjecao }) {
   if (!active || !payload?.length) return null;
   const ponto = payload[0].payload;
   const consumo = ponto.real !== null && ponto.teto > 0 ? (ponto.real / ponto.teto) * 100 : null;
@@ -91,7 +117,7 @@ function TooltipEstudo({ active, payload }) {
         </>
       ) : ponto.projecao !== null ? (
         <p className="flex justify-between gap-4 py-0.5 text-slate-600">
-          <span>Projeção no ritmo atual</span>
+          <span>{rotuloProjecao}</span>
           <span className="font-semibold tabular-nums text-slate-900">{formatarMoeda(ponto.projecao)}</span>
         </p>
       ) : null}
@@ -109,6 +135,7 @@ export default function EstudoSaudeContratual({ contrato, curva = [] }) {
 
   const { serie, analiseTacs, indicadores: ind } = estudo;
   const situacao = SITUACOES[ind.situacao];
+  const base = BASES[ind.base_projecao] || BASES.RUN_RATE;
   const Veredito = situacao.Icone;
   const rotulos = new Set(serie.map((ponto) => ponto.rotulo));
   const realEm = (referencia) => serie.find((ponto) => ponto.referencia === referencia)?.real ?? null;
@@ -149,7 +176,13 @@ export default function EstudoSaudeContratual({ contrato, curva = [] }) {
           rotulo="Runway do saldo"
           valor={ind.ciclos_ate_esgotar === null ? '—' : `${ind.ciclos_ate_esgotar.toLocaleString('pt-BR')} ciclos`}
           tom={ind.situacao === 'ADITIVO' || ind.situacao === 'ESGOTADO' ? 'text-red-700' : 'text-slate-800'}
-          apoio={ind.referencia_esgota ? `Saldo esgota por volta de ${rotuloDoMes(ind.referencia_esgota)} no ritmo atual.` : 'Depende do run rate.'}
+          apoio={
+            ind.referencia_esgota
+              ? `Saldo esgota por volta de ${rotuloDoMes(ind.referencia_esgota)} ${base.expressao}.`
+              : ind.base_projecao === 'RUN_RATE'
+                ? 'Depende do run rate.'
+                : `O saldo não esgota ${base.expressao}.`
+          }
         />
         <Cartao
           Icone={CalendarClock}
@@ -182,15 +215,14 @@ export default function EstudoSaudeContratual({ contrato, curva = [] }) {
           <h3 className="text-sm font-bold text-slate-800">Teto contratual em degraus × acumulado real</h3>
           <p className="mt-0.5 max-w-4xl text-[11px] leading-relaxed text-slate-500">
             O teto sobe em degraus no mês de assinatura de cada TAC. Os pontos marcam em que mês o realizado alcançou o
-            teto anterior, o que mostra o momento em que o aditivo passou a ser necessário. A linha tracejada projeta o
-            acumulado no run rate atual.
+            teto anterior, o que mostra o momento em que o aditivo passou a ser necessário. {base.descricao}
           </p>
         </header>
 
         <div className="mb-2 flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-[11px] text-slate-600">
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-0 w-5" style={{ borderTop: `3px solid ${COR_TETO}` }} aria-hidden="true" />Teto do contrato</span>
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-0 w-5" style={{ borderTop: `3px solid ${COR_REAL}` }} aria-hidden="true" />Real acumulado</span>
-          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-0 w-5" style={{ borderTop: `2px dashed ${COR_PROJECAO}` }} aria-hidden="true" />Projeção no run rate</span>
+          <span className="inline-flex items-center gap-1.5"><span className="inline-block h-0 w-5" style={{ borderTop: `2px dashed ${COR_PROJECAO}` }} aria-hidden="true" />{base.legenda}</span>
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-3 w-0" style={{ borderLeft: `2px dashed ${COR_TAC}` }} aria-hidden="true" />Assinatura do TAC</span>
           <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: COR_REAL, boxShadow: `0 0 0 2px ${CG.superficie}` }} aria-hidden="true" />Real alcançou o teto anterior</span>
         </div>
@@ -208,7 +240,7 @@ export default function EstudoSaudeContratual({ contrato, curva = [] }) {
                 domain={[0, (max) => Math.ceil((max * 1.06) / 1000000) * 1000000]}
                 tickFormatter={(valor) => formatarMoedaCompacta(valor)}
               />
-              <Tooltip content={<TooltipEstudo />} cursor={{ stroke: 'rgb(var(--c-slate-500) / 0.4)', strokeDasharray: '3 3' }} />
+              <Tooltip content={<TooltipEstudo rotuloProjecao={base.tooltip} />} cursor={{ stroke: 'rgb(var(--c-slate-500) / 0.4)', strokeDasharray: '3 3' }} />
 
               {analiseTacs
                 .filter((tac) => rotulos.has(rotuloDoMes(tac.referencia)))
@@ -319,8 +351,8 @@ export default function EstudoSaudeContratual({ contrato, curva = [] }) {
           </div>
         )}
         <p className="border-t border-slate-200 px-5 py-2.5 text-[11px] leading-relaxed text-slate-500">
-          Run rate = média do medido nos últimos {Math.min(3, ind.ciclos_medidos) || 3} ciclos aprovados. Runway = saldo ÷ run rate.
-          A projeção supõe que o ritmo se mantém; ela não considera sazonalidade nem aditivos futuros.
+          Run rate = média do medido nos últimos {Math.min(3, ind.ciclos_medidos) || 3} ciclos aprovados. Runway = ciclos até a projeção alcançar o teto.
+          {base.rodape}
         </p>
       </section>
     </div>

@@ -9,10 +9,8 @@ import { CG, CURVA_S } from '../../utils/coresGrafico.js';
  * que no tema escuro é translúcido para as barras agrupadas não pesarem.
  */
 const SERIES = [
-  { chave: 'previsto', nome: 'Previsto', tipo: 'coluna', cor: CURVA_S.previsto.linha, fundo: CURVA_S.previsto.fundo },
   { chave: 'real', nome: 'Real', tipo: 'coluna', cor: CURVA_S.real.linha, fundo: CURVA_S.real.fundo },
   { chave: 'previsto_replanejado', nome: 'Projetado', tipo: 'coluna', cor: CURVA_S.mensal.linha, fundo: CURVA_S.mensal.fundo },
-  { chave: 'previsto_acumulado', nome: 'Prev. acum.', tipo: 'linha', cor: CURVA_S.previstoAcum.linha },
   { chave: 'real_acumulado', nome: 'Real acum.', tipo: 'linha', cor: CURVA_S.realAcum.linha },
   { chave: 'tendencia_acumulada', nome: 'Tendência', tipo: 'tracejada', cor: CURVA_S.tendencia.linha },
 ];
@@ -74,8 +72,8 @@ function TooltipFinanceiro({ active, payload, label }) {
 /**
  * Curva S financeira do contrato (linha do tempo mensal).
  *
- * Colunas (eixo esquerdo): Previsto, Real e Projetado de cada ciclo.
- * Linhas (eixo direito): Previsto acumulado, Real acumulado e Tendência.
+ * Colunas (eixo esquerdo): Real e Projetado de cada ciclo.
+ * Linhas (eixo direito): Real acumulado e Tendência.
  * Clicar na legenda mostra ou oculta cada série.
  */
 export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
@@ -102,11 +100,11 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
         <div>
           <h3 className="text-sm font-bold text-slate-800">Curva S financeira — linha do tempo do contrato</h3>
           <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
-            Colunas: previsto, real e projetado de cada ciclo (eixo esquerdo). Linhas: previsto acumulado, real
-            acumulado e tendência (eixo direito).
+            Colunas: real e projetado de cada ciclo (eixo esquerdo). Linhas: real acumulado e tendência
+            (eixo direito).
             {fonte === 'CONTRATO'
-              ? ' Previsto e tendência vêm da planilha de acompanhamento do contrato.'
-              : ' Previsto e tendência vêm do avanço físico das obras do contrato.'}{' '}
+              ? ' Projetado e tendência vêm da planilha de acompanhamento do contrato.'
+              : ' A tendência vem do avanço físico das obras do contrato.'}{' '}
             Clique na legenda para ocultar uma série.
           </p>
         </div>

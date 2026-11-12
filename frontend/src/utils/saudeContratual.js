@@ -80,14 +80,79 @@ export function montarEstudo(contrato, curva = []) {
   const pico = medidos.length ? medidos.reduce((maior, item) => (item.real > maior.real ? item : maior), medidos[0]) : null;
 
   const mesesRestantes = ultima ? Math.max(0, diferencaEmMeses(ultima.referencia, refFim)) : null;
-  const ciclosAteEsgotar = ritmoRecente > 0 ? (saldo > 0 ? saldo / ritmoRecente : 0) : null;
-  const referenciaEsgota = ultima && ciclosAteEsgotar !== null ? somarMeses(ultima.referencia, Math.ceil(ciclosAteEsgotar)) : null;
-  const consumoAteFim = ritmoRecente !== null && mesesRestantes !== null ? arredondar(ritmoRecente * mesesRestantes) : null;
+
+  /*
+   * Base da projeção depois do último ciclo medido, em ordem de preferência:
+   *  1. PROJETADO: real acumulado + colunas "Projetado" (previsto_replanejado) da Curva S, mês a mês;
+   *  2. TENDENCIA: tendência acumulada informada na Curva S;
+   *  3. RUN_RATE: real acumulado + run rate dos últimos ciclos.
+   */
+  const futuros = ultima
+    ? curva.filter((ponto) => ponto.referencia > ultima.referencia).sort((a, b) => (a.referencia < b.referencia ? -1 : 1))
+    : [];
+  const temValor = (valor) => valor !== null && valor !== undefined;
+  let baseProjecao = 'RUN_RATE';
+  if (futuros.some((ponto) => temValor(ponto.previsto_replanejado))) baseProjecao = 'PROJETADO';
+  else if (futuros.some((ponto) => Number(ponto.tendencia_acumulada) > 0)) baseProjecao = 'TENDENCIA';
+
+  // Projeção acumulada mês a mês depois do último medido (só para PROJETADO e TENDENCIA).
+  const projecaoPorMes = new Map();
+  if (ultima && baseProjecao === 'PROJETADO') {
+    let soma = acumulado;
+    futuros.forEach((ponto) => {
+      soma = arredondar(soma + (temValor(ponto.previsto_replanejado) ? Number(ponto.previsto_replanejado) : 0));
+      projecaoPorMes.set(ponto.referencia, soma);
+    });
+  } else if (ultima && baseProjecao === 'TENDENCIA') {
+    let anterior = acumulado;
+    futuros.forEach((ponto) => {
+      const valor = Number(ponto.tendencia_acumulada) > 0 ? Number(ponto.tendencia_acumulada) : anterior;
+      projecaoPorMes.set(ponto.referencia, valor);
+      anterior = valor;
+    });
+  }
+  const ultimaFutura = futuros.length ? futuros[futuros.length - 1].referencia : null;
+
+  /** Acumulado projetado em `referencia` (>= último medido); null sem base. */
+  const projecaoEm = (referencia) => {
+    if (!ultima || referencia < ultima.referencia) return null;
+    if (referencia === ultima.referencia) return acumulado;
+    if (baseProjecao === 'RUN_RATE') {
+      return ritmoRecente === null ? null : arredondar(acumulado + ritmoRecente * diferencaEmMeses(ultima.referencia, referencia));
+    }
+    if (projecaoPorMes.has(referencia)) return projecaoPorMes.get(referencia);
+    // Depois do último mês da curva o projetado acaba: o acumulado fica parado.
+    return ultimaFutura && referencia > ultimaFutura ? projecaoPorMes.get(ultimaFutura) : acumulado;
+  };
+
+  let ciclosAteEsgotar = null;
+  let referenciaEsgota = null;
+  if (ultima && baseProjecao === 'RUN_RATE') {
+    ciclosAteEsgotar = ritmoRecente > 0 ? (saldo > 0 ? saldo / ritmoRecente : 0) : null;
+    referenciaEsgota = ciclosAteEsgotar !== null ? somarMeses(ultima.referencia, Math.ceil(ciclosAteEsgotar)) : null;
+  } else if (ultima) {
+    if (saldo <= 0) {
+      ciclosAteEsgotar = 0;
+      referenciaEsgota = ultima.referencia;
+    } else {
+      const ponto = futuros.find((item) => projecaoPorMes.get(item.referencia) >= tetoAtual);
+      if (ponto) {
+        referenciaEsgota = ponto.referencia;
+        ciclosAteEsgotar = diferencaEmMeses(ultima.referencia, ponto.referencia);
+      }
+    }
+  }
+
+  let consumoAteFim = null;
+  if (mesesRestantes !== null) {
+    if (baseProjecao === 'RUN_RATE') consumoAteFim = ritmoRecente !== null ? arredondar(ritmoRecente * mesesRestantes) : null;
+    else consumoAteFim = arredondar(projecaoEm(refFim > ultima.referencia ? refFim : ultima.referencia) - acumulado);
+  }
   const folga = consumoAteFim !== null ? arredondar(saldo - consumoAteFim) : null;
   const ritmoNecessario = mesesRestantes > 0 ? arredondar(saldo / mesesRestantes) : null;
 
   let situacao = 'SEM_DADOS';
-  if (ultima && ritmoRecente !== null) {
+  if (ultima && consumoAteFim !== null) {
     if (saldo <= 0) situacao = 'ESGOTADO';
     else if (mesesRestantes === 0) situacao = 'ENCERRADA';
     else if (folga < 0) situacao = 'ADITIVO';
@@ -98,6 +163,7 @@ export function montarEstudo(contrato, curva = []) {
   const totalAditivos = arredondar(aditivos.reduce((soma, tac) => soma + tac.valor, 0));
   const indicadores = {
     situacao,
+    base_projecao: baseProjecao,
     teto_atual: tetoAtual,
     acumulado,
     saldo,
@@ -128,10 +194,7 @@ export function montarEstudo(contrato, curva = []) {
     const referencia = somarMeses(inicio, i);
     const teto = aditivos.reduce((soma, tac) => (tac.referencia <= referencia ? tac.teto_novo : soma), Number(contrato.valor_inicial));
     const real = realPorMes.has(referencia) ? realPorMes.get(referencia) : null;
-    let projecao = null;
-    if (ultima && ritmoRecente !== null && referencia >= ultima.referencia) {
-      projecao = referencia === ultima.referencia ? acumulado : arredondar(acumulado + ritmoRecente * diferencaEmMeses(ultima.referencia, referencia));
-    }
+    const projecao = projecaoEm(referencia);
     serie.push({
       referencia,
       rotulo: rotuloDoMes(referencia),
