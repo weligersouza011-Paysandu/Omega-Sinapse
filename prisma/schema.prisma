@@ -210,22 +210,22 @@ enum PrioridadeTarefa {
 // Usuários (autenticação JWT)
 // -----------------------------------------------------------------------------
 model Usuario {
-  id         Int           @id @default(autoincrement())
-  nome       String        @db.VarChar(255)
-  matricula  String?       @unique @db.VarChar(30)
-  email      String        @unique @db.VarChar(255)
-  senha_hash String        @db.VarChar(255)
-  perfil     PerfilUsuario @default(ORCAMENTISTA)
-  ativo      Boolean       @default(true)
+  id                 Int           @id @default(autoincrement())
+  nome               String        @db.VarChar(255)
+  matricula          String?       @unique @db.VarChar(30)
+  email              String        @unique @db.VarChar(255)
+  senha_hash         String        @db.VarChar(255)
+  perfil             PerfilUsuario @default(ORCAMENTISTA)
+  ativo              Boolean       @default(true)
   /// Páginas liberadas para o perfil CLIENTE (ids dos módulos, ex.: "medicao"). Ignorado nos demais perfis.
-  paginas_permitidas String[] @default([])
+  paginas_permitidas String[]      @default([])
   /// Dados do "Meu perfil" (o próprio usuário edita): foto, telefone, cargo/função e setor.
-  foto_url   String?
-  telefone   String?       @db.VarChar(30)
-  cargo      String?       @db.VarChar(120)
-  setor      String?       @db.VarChar(120)
-  created_at DateTime      @default(now()) @db.Timestamptz(6)
-  updated_at DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
+  foto_url           String?
+  telefone           String?       @db.VarChar(30)
+  cargo              String?       @db.VarChar(120)
+  setor              String?       @db.VarChar(120)
+  created_at         DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime      @default(now()) @updatedAt @db.Timestamptz(6)
 
   orcamentos_orcamentista Orcamento[]                     @relation("Orcamentista")
   orcamentos_planejador   Orcamento[]                     @relation("Planejador")
@@ -241,6 +241,8 @@ model Usuario {
   historico_cronogramas   HistoricoImportacaoCronograma[] @relation("HistoricoCronogramaUsuario")
   aditivos_registrados    TermoAditivo[]                  @relation("AditivoAutor")
   boletins_registrados    BoletimMedicao[]                @relation("BoletimAutor")
+  feriados_cadastrados    FeriadoPersonalizado[]          @relation("FeriadoAutor")
+  projecoes_bmm           ProjecaoBmm[]                   @relation("ProjecaoBmmAutor")
 
   @@map("usuarios")
 }
@@ -422,6 +424,8 @@ model Obra {
   itens_medicao         BoletimMedicaoItem[]
   /// Recursos (HH, equipamentos, insumos) planejados para a obra, com preços do QQP.
   recursos_qqp          RecursoObraQqp[]
+  /// Projeções de BMM (receita prevista) da obra por ciclo.
+  projecoes_bmm         ProjecaoBmm[]
 
   @@index([status])
   @@index([planejador_id])
@@ -845,20 +849,36 @@ model HistoricoImportacaoCronograma {
 // As obras (SS) se vinculam ao contrato-mãe por `obras.contrato_id`.
 // -----------------------------------------------------------------------------
 model Contrato {
-  id            Int      @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   /// Identificação do contrato na Vale (ex.: "CT-251").
-  id_vale       String   @unique @db.VarChar(60)
-  descricao     String
-  valor_inicial Decimal  @db.Decimal(14, 2)
-  data_inicio   DateTime @db.Date
-  data_fim      DateTime @db.Date
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id_vale         String   @unique @db.VarChar(60)
+  descricao       String
+  valor_inicial   Decimal  @db.Decimal(14, 2)
+  data_inicio     DateTime @db.Date
+  data_fim        DateTime @db.Date
+  /// Nº CT SAP do contrato original (o "TAC0" do QQP).
+  numero_sap      String?  @db.VarChar(60)
+  /// Nº CT Omega e descrição interna do contrato.
+  numero_omega    String?  @db.VarChar(60)
+  descricao_omega String?
+  /// Nº do contrato no sistema do cliente.
+  numero_cliente  String?  @db.VarChar(60)
+  /// Versão do QQP (itens de todos os TACs + ordem de visualização). Cada gravação do QQP
+  /// só é aceita se a versão carregada ainda for a atual (controle de concorrência otimista).
+  qqp_revisao     Int      @default(0)
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
   aditivos         TermoAditivo[]
   obras            Obra[]
   boletins         BoletimMedicao[]
   itens_qqp        ItemQqp[]
+  /// Ordem personalizada de categorias, grupos e subgrupos na tela do QQP.
+  qqp_ordem        QqpOrdemVisualizacao?
+  /// Feriados cadastrados só para este contrato (os globais têm `contrato_id` vazio).
+  feriados         FeriadoPersonalizado[]
+  /// Projeções de BMM (receita prevista por ciclo) das obras do contrato.
+  projecoes_bmm    ProjecaoBmm[]
   /// Previsto e tendência financeiros do contrato por ciclo (planilha de acompanhamento).
   curva_financeira CurvaFinanceiraContrato[]
   historico_curva  HistoricoCurvaFinanceira[]
@@ -867,21 +887,31 @@ model Contrato {
 }
 
 model TermoAditivo {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   contrato_id      Int
   /// Identificação do termo (ex.: "TAC 01"), única dentro do contrato.
-  numero_tac       String   @db.VarChar(30)
-  valor_aditivo    Decimal  @db.Decimal(14, 2)
+  numero_tac       String    @db.VarChar(30)
+  valor_aditivo    Decimal   @db.Decimal(14, 2)
   /// Teto do contrato depois deste aditivo (valor inicial + aditivos até ele).
-  novo_valor_total Decimal  @db.Decimal(14, 2)
-  data_assinatura  DateTime @db.Date
+  novo_valor_total Decimal   @db.Decimal(14, 2)
+  data_assinatura  DateTime  @db.Date
   motivo           String
+  /// Nº CT SAP do TAC (pode repetir o do contrato ou de outros TACs).
+  numero_sap       String?   @db.VarChar(60)
+  /// Vigência do TAC; a data final do contrato acompanha o TAC de maior número.
+  data_inicio      DateTime? @db.Date
+  data_fim         DateTime? @db.Date
   /// Quem registrou o aditivo no sistema.
   usuario_id       Int?
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
 
-  contrato Contrato @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
-  usuario  Usuario? @relation("AditivoAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+  contrato      Contrato      @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  usuario       Usuario?      @relation("AditivoAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+  /// Itens do QQP próprios deste TAC. NoAction: o TAC só sai se não tiver itens
+  /// (a exclusão do contrato inteiro continua removendo tudo em cascata).
+  itens_qqp     ItemQqp[]
+  /// Projeções de BMM feitas sobre o QQP deste TAC (NoAction: o TAC fica enquanto houver projeção).
+  projecoes_bmm ProjecaoBmm[]
 
   @@unique([contrato_id, numero_tac], name: "uq_tac_por_contrato")
   @@index([contrato_id])
@@ -947,27 +977,170 @@ model BoletimMedicaoItem {
 // Cada item é um recurso com preço contratual (HH, equipamento, insumo). A
 // alocação desses itens em cada obra (RecursoObraQqp) alimenta a projeção de
 // custos por ciclo de medição, com base nos dias úteis.
+//
+// Escopo: cada item pertence ao contrato original ("TAC0", `termo_aditivo_id`
+// vazio) ou a um TAC. O mesmo código pode existir em TACs diferentes, mas não se
+// repete dentro do mesmo escopo. `escopo_tac` espelha o TAC (0 = contrato
+// original) só para a unicidade funcionar com o TAC vazio; uma CHECK no banco
+// garante `escopo_tac = COALESCE(termo_aditivo_id, 0)`.
+//
+// Hierarquia de exibição (planilha do QQP): categoria da planilha › grupo ›
+// subgrupo. `categoria`/`unidade` (enums) continuam sendo o que o cálculo usa.
 // -----------------------------------------------------------------------------
 model ItemQqp {
-  id             Int          @id @default(autoincrement())
-  contrato_id    Int
-  /// Código do item na planilha do contrato, único dentro do contrato.
-  codigo         String       @db.VarChar(40)
-  descricao      String
-  categoria      CategoriaQqp
-  unidade        UnidadeQqp
-  preco_unitario Decimal      @db.Decimal(14, 4)
+  id                 Int          @id @default(autoincrement())
+  contrato_id        Int
+  /// TAC a que o item pertence; vazio = contrato original (TAC0).
+  termo_aditivo_id   Int?
+  /// 0 = contrato original; senão, o id do TAC. Sempre igual a COALESCE(termo_aditivo_id, 0).
+  escopo_tac         Int          @default(0)
+  /// Código do item na planilha do contrato, único dentro do contrato/TAC.
+  codigo             String       @db.VarChar(120)
+  descricao          String
+  categoria          CategoriaQqp
+  unidade            UnidadeQqp
+  /// Categoria como escrita na planilha (ex.: "Price list de materiais").
+  categoria_planilha String?      @db.VarChar(200)
+  grupo              String?      @db.VarChar(200)
+  subgrupo           String?      @db.VarChar(200)
+  /// Unidade como escrita na planilha (ex.: "mês", "h", "un").
+  unidade_planilha   String?      @db.VarChar(30)
+  /// Quantidade contratada (Total do item = quantidade x preço unitário).
+  quantidade         Decimal?     @db.Decimal(24, 8)
+  preco_unitario     Decimal      @db.Decimal(18, 8)
+  /// Ordem do item na planilha importada.
+  posicao            Int          @default(0)
   /// Item desativado deixa de ser sugerido, mas preserva as alocações existentes.
-  ativo          Boolean      @default(true)
-  created_at     DateTime     @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
+  ativo              Boolean      @default(true)
+  created_at         DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
 
-  contrato Contrato         @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
-  recursos RecursoObraQqp[]
+  contrato      Contrato          @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  termo_aditivo TermoAditivo?     @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
+  recursos      RecursoObraQqp[]
+  /// Linhas de Projeção de BMM que usam o item (NoAction: o item em uso só pode ser desativado).
+  projecoes     ProjecaoBmmItem[]
 
-  @@unique([contrato_id, codigo], name: "uq_qqp_codigo_por_contrato")
+  @@unique([contrato_id, escopo_tac, codigo], name: "uq_qqp_codigo_por_escopo")
   @@index([contrato_id])
+  @@index([termo_aditivo_id])
+  @@index([contrato_id, escopo_tac, posicao])
   @@map("itens_qqp")
+}
+
+/// Ordem personalizada de categorias, grupos e subgrupos do QQP, por contrato.
+/// `ordem` = { categorias: [...], grupos: { [categoria]: [...] }, subgrupos: { ["categoria›grupo"]: [...] } }.
+model QqpOrdemVisualizacao {
+  contrato_id Int      @id
+  ordem       Json
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  contrato Contrato @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+
+  @@map("qqp_ordem_visualizacao")
+}
+
+// -----------------------------------------------------------------------------
+// Feriados personalizados (além dos nacionais calculados em utils/diasUteis.js)
+//
+// Sem contrato = vale para todos os contratos. Entram na contagem de dias úteis
+// dos ciclos de medição e das projeções.
+// -----------------------------------------------------------------------------
+model FeriadoPersonalizado {
+  id          Int      @id @default(autoincrement())
+  data        DateTime @db.Date
+  nome        String   @db.VarChar(120)
+  /// Vazio = feriado global.
+  contrato_id Int?
+  /// Quem cadastrou o feriado.
+  usuario_id  Int?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  contrato Contrato? @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  usuario  Usuario?  @relation("FeriadoAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@index([data])
+  @@index([contrato_id])
+  @@map("feriados_personalizados")
+}
+
+// -----------------------------------------------------------------------------
+// Projeção de BMM (receita prevista por obra e ciclo 16→15)
+//
+// Grade semanal de dias × pessoas/quantidade sobre os preços do QQP de um
+// contrato/TAC, com a mesma lógica do sistema Projeção Financeira para itens MES
+// (preço × dias × quantidade ÷ dias úteis do ciclo). Preço e unidade ficam
+// congelados no momento do cálculo. A soma das projeções do contrato no mês vira
+// o "Projetado" da curva financeira.
+// -----------------------------------------------------------------------------
+model ProjecaoBmm {
+  id               Int      @id @default(autoincrement())
+  contrato_id      Int
+  /// TAC cujo QQP foi usado; vazio = contrato original (TAC0).
+  termo_aditivo_id Int?
+  obra_id          Int
+  numero_bmm       String   @db.VarChar(30)
+  /// "AAAA-MM": o ciclo termina no dia 15 deste mês.
+  referencia       String   @db.VarChar(7)
+  ciclo_inicio     DateTime @db.Date
+  ciclo_fim        DateTime @db.Date
+  /// Dias úteis do ciclo no momento do cálculo (divisor dos itens MES).
+  dias_uteis       Int
+  total            Decimal  @db.Decimal(16, 2)
+  observacao       String?
+  usuario_id       Int?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  contrato      Contrato          @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  termo_aditivo TermoAditivo?     @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
+  obra          Obra              @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  usuario       Usuario?          @relation("ProjecaoBmmAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+  itens         ProjecaoBmmItem[]
+
+  @@unique([obra_id, numero_bmm, referencia], name: "uq_projecao_bmm_por_obra")
+  @@index([contrato_id, referencia])
+  @@index([obra_id])
+  @@map("projecoes_bmm")
+}
+
+model ProjecaoBmmItem {
+  id             Int        @id @default(autoincrement())
+  projecao_id    Int
+  item_qqp_id    Int
+  /// Preço e unidade congelados no cálculo.
+  preco_unitario Decimal    @db.Decimal(18, 8)
+  unidade        UnidadeQqp
+  /// Horas por dia (só itens por HORA).
+  horas_dia      Decimal?   @db.Decimal(4, 2)
+  total          Decimal    @db.Decimal(16, 2)
+  posicao        Int        @default(0)
+
+  projecao ProjecaoBmm         @relation(fields: [projecao_id], references: [id], onDelete: Cascade)
+  item_qqp ItemQqp             @relation(fields: [item_qqp_id], references: [id], onDelete: NoAction)
+  semanas  ProjecaoBmmSemana[]
+
+  @@unique([projecao_id, item_qqp_id], name: "uq_item_por_projecao")
+  @@index([item_qqp_id])
+  @@map("projecoes_bmm_itens")
+}
+
+model ProjecaoBmmSemana {
+  id               Int      @id @default(autoincrement())
+  projecao_item_id Int
+  /// Segunda-feira da semana (a semana é recortada ao ciclo).
+  semana_inicio    DateTime @db.Date
+  /// Dias trabalhados na semana (0 até os dias úteis dela).
+  dias             Int
+  /// Pessoas ou quantidade (pode ser fracionária).
+  pessoas          Decimal  @db.Decimal(12, 4)
+  valor            Decimal  @db.Decimal(16, 2)
+
+  item ProjecaoBmmItem @relation(fields: [projecao_item_id], references: [id], onDelete: Cascade)
+
+  @@unique([projecao_item_id, semana_inicio], name: "uq_semana_por_item")
+  @@map("projecoes_bmm_semanas")
 }
 
 model RecursoObraQqp {

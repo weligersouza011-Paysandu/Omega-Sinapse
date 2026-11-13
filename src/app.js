@@ -14,6 +14,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const tarefaRoutes = require('./routes/tarefaRoutes');
 const cronogramaRoutes = require('./routes/cronogramaRoutes');
 const contratoRoutes = require('./routes/contratoRoutes');
+const projecaoBmmRoutes = require('./routes/projecaoBmmRoutes');
 const { autenticar, acessoCliente } = require('./middlewares/auth');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
@@ -81,6 +82,8 @@ app.use('/api/tarefas', autenticar, acessoCliente('demandas'), tarefaRoutes);
 app.use('/api/cronogramas', autenticar, acessoCliente('obras', 'planejamento'), cronogramaRoutes);
 // Contratos com a Vale e Termos Aditivos (base da medição e projeção financeira).
 app.use('/api/contratos', autenticar, acessoCliente('medicao'), contratoRoutes);
+app.use('/api/projecoes-bmm', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.projecoes);
+app.use('/api/feriados', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.feriados);
 app.use('/api/uploads', autenticar, acessoCliente(), uploadRoutes);
 
 // ---------------------------------------------------------------------------

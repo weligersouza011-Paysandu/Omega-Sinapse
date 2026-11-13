@@ -77,6 +77,15 @@ async function buscarAditivo(contratoId, aditivoId) {
   return prisma.termoAditivo.findFirst({ where: { id: aditivoId, contrato_id: contratoId } });
 }
 
+/** Quantos itens do QQP e projeções de BMM dependem do TAC (impedem a exclusão). */
+async function contarDependenciasDoAditivo(aditivoId) {
+  const [itensQqp, projecoes] = await Promise.all([
+    prisma.itemQqp.count({ where: { termo_aditivo_id: aditivoId } }),
+    prisma.projecaoBmm.count({ where: { termo_aditivo_id: aditivoId } }),
+  ]);
+  return { itensQqp, projecoes };
+}
+
 async function existeNumeroTac(contratoId, numeroTac, ignorarId = null) {
   const encontrado = await prisma.termoAditivo.findFirst({
     where: { contrato_id: contratoId, numero_tac: numeroTac, ...(ignorarId ? { id: { not: ignorarId } } : {}) },
@@ -220,6 +229,7 @@ module.exports = {
   atualizarAditivo,
   excluirAditivo,
   buscarAditivo,
+  contarDependenciasDoAditivo,
   existeNumeroTac,
   atualizar,
   resumirDependencias,

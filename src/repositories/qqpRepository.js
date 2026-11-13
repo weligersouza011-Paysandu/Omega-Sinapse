@@ -7,20 +7,21 @@ async function listarItens(contratoId) {
   return prisma.itemQqp.findMany({
     where: { contrato_id: contratoId },
     orderBy: [{ ativo: 'desc' }, { categoria: 'asc' }, { codigo: 'asc' }],
-    include: { _count: { select: { recursos: true } } },
+    include: { _count: { select: { recursos: true, projecoes: true } } },
   });
 }
 
 async function buscarItem(contratoId, itemId) {
   return prisma.itemQqp.findFirst({
     where: { id: itemId, contrato_id: contratoId },
-    include: { _count: { select: { recursos: true } } },
+    include: { _count: { select: { recursos: true, projecoes: true } } },
   });
 }
 
-async function buscarItemPorCodigo(contratoId, codigo) {
+/** Item pelo código dentro do escopo (0 = contrato original/TAC0; senão, o id do TAC). */
+async function buscarItemPorCodigo(contratoId, codigo, escopoTac = 0) {
   return prisma.itemQqp.findUnique({
-    where: { uq_qqp_codigo_por_contrato: { contrato_id: contratoId, codigo } },
+    where: { uq_qqp_codigo_por_escopo: { contrato_id: contratoId, escopo_tac: escopoTac, codigo } },
     select: { id: true },
   });
 }

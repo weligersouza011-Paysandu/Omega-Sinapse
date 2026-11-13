@@ -4,7 +4,8 @@
  * Calendário de dias úteis para a projeção financeira (QQP).
  *
  * Dia útil = segunda a sexta (e sábado, se a alocação o inclui) que não seja
- * feriado nacional. Todas as datas são tratadas como datas de calendário em UTC
+ * feriado nacional, estadual (UF da obra; padrão PA, como no sistema Projeção
+ * Financeira) nem feriado personalizado (`feriadosExtras`). Todas as datas são tratadas como datas de calendário em UTC
  * (sem horário), como as colunas DATE do banco.
  */
 
@@ -62,13 +63,28 @@ function feriadosNacionais(ano) {
   return conjunto;
 }
 
+/** UF padrão das obras (contratos da Vale no Pará). */
+const UF_PADRAO = 'PA';
+
+/** Feriados estaduais fixos por UF: [mês (0-11), dia, nome]. */
+const FERIADOS_ESTADUAIS = {
+  PA: [[7, 15, 'Adesão do Grão-Pará à Independência do Brasil']],
+};
+
+/** Feriados estaduais do ano (datas AAAA-MM-DD) da UF informada. */
+function feriadosEstaduais(ano, uf = UF_PADRAO) {
+  const lista = FERIADOS_ESTADUAIS[String(uf || '').toUpperCase()] || [];
+  return new Set(lista.map(([mes, dia]) => iso(new Date(Date.UTC(ano, mes, dia)))));
+}
+
 /** O dia (Date em UTC) é útil? */
-function ehDiaUtil(data, { sabados = false, feriadosExtras = null } = {}) {
+function ehDiaUtil(data, { sabados = false, feriadosExtras = null, uf = UF_PADRAO } = {}) {
   const diaSemana = data.getUTCDay();
   if (diaSemana === 0) return false;
   if (diaSemana === 6 && !sabados) return false;
   const texto = iso(data);
   if (feriadosNacionais(data.getUTCFullYear()).has(texto)) return false;
+  if (feriadosEstaduais(data.getUTCFullYear(), uf).has(texto)) return false;
   if (feriadosExtras && feriadosExtras.has(texto)) return false;
   return true;
 }
@@ -90,4 +106,61 @@ function contarDiasUteis(inicio, fim, opcoes = {}) {
   return total;
 }
 
-module.exports = { dataDeCalendario, feriadosNacionais, ehDiaUtil, percorrerDias, contarDiasUteis, iso };
+/** Dia em que o ciclo de medição começa (termina no dia 15 do mês de referência). */
+const DIA_INICIO_CICLO = 16;
+
+/**
+ * Ciclo 16→15 do mês de referência "AAAA-MM" (o ciclo termina no dia 15 desse mês).
+ * Devolve null se o texto não for uma referência válida.
+ */
+function cicloDaReferencia(referencia) {
+  const partes = /^(\d{4})-(\d{2})$/.exec(String(referencia || '').trim());
+  const mes = partes ? Number(partes[2]) : 0;
+  if (!partes || mes < 1 || mes > 12) return null;
+  const ano = Number(partes[1]);
+  return {
+    inicio: new Date(Date.UTC(ano, mes - 2, DIA_INICIO_CICLO)),
+    fim: new Date(Date.UTC(ano, mes - 1, DIA_INICIO_CICLO - 1)),
+  };
+}
+
+/**
+ * Semanas (segunda a domingo) do intervalo [inicio, fim], recortadas a ele, com os dias
+ * úteis de cada uma (segunda a sexta, sem feriados). Port de `projection_weeks` do Projeção:
+ * cada semana é identificada pela segunda-feira e rotulada pela sexta-feira.
+ */
+function semanasDoIntervalo(inicio, fim, opcoes = {}) {
+  const semanas = [];
+  let atual = null;
+  for (const dia of percorrerDias(inicio, fim)) {
+    const recuo = (dia.getUTCDay() + 6) % 7; // segunda = 0
+    const segunda = new Date(dia.getTime() - recuo * DIA_MS);
+    const chave = iso(segunda);
+    if (!atual || atual.semana_inicio !== chave) {
+      atual = {
+        semana_inicio: chave,
+        sexta: iso(new Date(segunda.getTime() + 4 * DIA_MS)),
+        inicio: iso(dia),
+        fim: iso(dia),
+        dias_uteis: 0,
+      };
+      semanas.push(atual);
+    }
+    atual.fim = iso(dia);
+    if (ehDiaUtil(dia, { ...opcoes, sabados: false })) atual.dias_uteis += 1;
+  }
+  return semanas;
+}
+
+module.exports = {
+  dataDeCalendario,
+  feriadosNacionais,
+  feriadosEstaduais,
+  ehDiaUtil,
+  percorrerDias,
+  contarDiasUteis,
+  cicloDaReferencia,
+  semanasDoIntervalo,
+  iso,
+  UF_PADRAO,
+};

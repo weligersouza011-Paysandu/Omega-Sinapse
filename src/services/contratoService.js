@@ -360,6 +360,13 @@ async function excluirTac(idParam, tacIdParam, usuario) {
   if (!(await contratoRepository.buscarAditivo(id, tacId))) {
     throw new AppError(404, `TAC ${tacId} não encontrado neste contrato.`);
   }
+  const dependencias = await contratoRepository.contarDependenciasDoAditivo(tacId);
+  if (dependencias.itensQqp > 0 || dependencias.projecoes > 0) {
+    throw new AppError(
+      409,
+      `O TAC tem ${dependencias.itensQqp} item(ns) no QQP e ${dependencias.projecoes} projeção(ões) de BMM. Remova-os antes de excluir o TAC.`
+    );
+  }
 
   await contratoRepository.excluirAditivo(id, tacId);
   return montarContrato(await contratoRepository.findById(id));

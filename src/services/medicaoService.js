@@ -952,6 +952,7 @@ async function excluirBoletim(idParam, boletimIdParam, usuario) {
 }
 
 module.exports = {
+  aplicarAlteracaoNaCurva,
   atualizarPrevistoDaCurva,
   restaurarAlteracaoDaCurva,
   incluirItemBoletim,

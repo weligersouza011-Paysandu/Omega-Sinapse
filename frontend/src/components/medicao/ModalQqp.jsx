@@ -196,7 +196,7 @@ export default function ModalQqp({ aberto, contrato, podeGerir, onFechar }) {
               </div>
               <div>
                 <label className="rotulo" htmlFor="qqp-preco">Preço unitário (R$) *</label>
-                <input id="qqp-preco" type="number" min="0" step="0.0001" className="campo" value={form.preco_unitario} onChange={(e) => alterar('preco_unitario', e.target.value)} disabled={salvando} />
+                <input id="qqp-preco" type="number" min="0" step="any" className="campo" value={form.preco_unitario} onChange={(e) => alterar('preco_unitario', e.target.value)} disabled={salvando} />
               </div>
             </div>
             {erro ? (

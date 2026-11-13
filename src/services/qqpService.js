@@ -140,14 +140,14 @@ async function criarItem(idParam, payload = {}, usuario) {
   if (estaVazio(payload.codigo)) throw new AppError(400, 'O campo "codigo" é obrigatório.');
   if (estaVazio(payload.descricao)) throw new AppError(400, 'O campo "descricao" é obrigatório.');
   const codigo = String(payload.codigo).trim().toUpperCase();
-  if (codigo.length > 40) throw new AppError(400, 'O campo "codigo" aceita no máximo 40 caracteres.');
+  if (codigo.length > 120) throw new AppError(400, 'O campo "codigo" aceita no máximo 120 caracteres.');
 
   const dados = {
     codigo,
     descricao: String(payload.descricao).trim(),
     categoria: opcaoDe(payload.categoria, CATEGORIAS, 'categoria'),
     unidade: opcaoDe(payload.unidade, UNIDADES, 'unidade'),
-    preco_unitario: numeroPositivo(payload.preco_unitario, 'preco_unitario', 4),
+    preco_unitario: numeroPositivo(payload.preco_unitario, 'preco_unitario', 8),
     ativo: payload.ativo === undefined ? true : Boolean(payload.ativo),
   };
 
@@ -170,7 +170,7 @@ async function atualizarItem(idParam, itemIdParam, payload = {}, usuario) {
   if (temCampo(payload, 'codigo')) {
     if (estaVazio(payload.codigo)) throw new AppError(400, 'O campo "codigo" não pode ficar vazio.');
     dados.codigo = String(payload.codigo).trim().toUpperCase();
-    if (dados.codigo.length > 40) throw new AppError(400, 'O campo "codigo" aceita no máximo 40 caracteres.');
+    if (dados.codigo.length > 120) throw new AppError(400, 'O campo "codigo" aceita no máximo 120 caracteres.');
   }
   if (temCampo(payload, 'descricao')) {
     if (estaVazio(payload.descricao)) throw new AppError(400, 'O campo "descricao" não pode ficar vazio.');
@@ -183,7 +183,7 @@ async function atualizarItem(idParam, itemIdParam, payload = {}, usuario) {
       throw new AppError(409, 'A unidade não pode mudar enquanto houver recursos de obra usando este item.');
     }
   }
-  if (temCampo(payload, 'preco_unitario')) dados.preco_unitario = numeroPositivo(payload.preco_unitario, 'preco_unitario', 4);
+  if (temCampo(payload, 'preco_unitario')) dados.preco_unitario = numeroPositivo(payload.preco_unitario, 'preco_unitario', 8);
   if (temCampo(payload, 'ativo')) dados.ativo = Boolean(payload.ativo);
 
   if (Object.keys(dados).length === 0) throw new AppError(400, 'Informe ao menos um campo do item para alterar.');
@@ -206,6 +206,12 @@ async function excluirItem(idParam, itemIdParam, usuario) {
     throw new AppError(
       409,
       `O item ${existente.codigo} está em uso em ${existente._count.recursos} alocação(ões) de obra. Desative-o em vez de excluir.`
+    );
+  }
+  if (existente._count.projecoes > 0) {
+    throw new AppError(
+      409,
+      `O item ${existente.codigo} está em uso em ${existente._count.projecoes} projeção(ões) de BMM. Desative-o em vez de excluir.`
     );
   }
   await qqpRepository.excluirItem(contratoId, itemId);

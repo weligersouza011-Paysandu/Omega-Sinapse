@@ -11,3 +11,6 @@ npm-debug.log*
 
 # Leitor de .mpp (Java + MPXJ) instalado no build por scripts/instalarMpxj.js
 vendor/
+
+# Connection string da branch de teste do Neon (scripts/testarFase1QqpNeon.js)
+.env.neon-teste

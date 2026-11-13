@@ -3,11 +3,13 @@
 const { Router } = require('express');
 const contratoController = require('../controllers/contratoController');
 const obraMedicaoController = require('../controllers/obraMedicaoController');
+const projecaoBmmController = require('../controllers/projecaoBmmController');
 const { autorizar } = require('../middlewares/auth');
 const { uploadPlanilhasMedicao } = require('../config/multer');
 const { PERFIS_QUE_GEREM_CONTRATOS } = require('../services/contratoService');
 const { PERFIS_QUE_GEREM_MEDICAO } = require('../services/medicaoService');
 const { PERFIS_QUE_GEREM_QQP } = require('../services/qqpService');
+const { PERFIS_QUE_PROJETAM } = require('../services/projecaoBmmService');
 
 const router = Router();
 
@@ -58,6 +60,17 @@ router.get('/:id/qqp', obraMedicaoController.listarItensQqp);
 router.post('/:id/qqp', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.criarItemQqp);
 router.put('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.atualizarItemQqp);
 router.delete('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.excluirItemQqp);
+
+// Projeções de BMM (receita prevista por obra e ciclo 16→15, sobre os preços do QQP).
+// GET  /api/contratos/:id/projecoes-bmm?referencia=AAAA-MM&obra=&tac=0|<id>|todos
+// POST /api/contratos/:id/projecoes-bmm/calcular -> prévia (não grava)
+// POST /api/contratos/:id/projecoes-bmm          -> { obra_id, termo_aditivo_id?, numero_bmm, referencia, observacao?,
+//                                                    itens: [{ item_qqp_id, horas_dia?, semanas: [{ semana_inicio, dias, pessoas }] }] }
+// GET  /api/contratos/:id/ciclos/:referencia/semanas -> semanas do ciclo e dias úteis
+router.get('/:id/projecoes-bmm', projecaoBmmController.listar);
+router.post('/:id/projecoes-bmm/calcular', projecaoBmmController.calcular);
+router.post('/:id/projecoes-bmm', autorizar(...PERFIS_QUE_PROJETAM), projecaoBmmController.criar);
+router.get('/:id/ciclos/:referencia/semanas', projecaoBmmController.semanasDoCiclo);
 
 // Boletins de Medição (BMM) do contrato.
 // POST   /api/contratos/:id/boletins -> { numero_bmm, mes_referencia | ciclo_inicio+ciclo_fim,
