@@ -651,6 +651,7 @@ module.exports = {
   PERFIS_QUE_EXCLUEM,
   PERFIS_GESTORES,
   calcularGrade,
+  formatarCalculo,
   centavosDaSemana,
   semanasDoCiclo,
   calcular,

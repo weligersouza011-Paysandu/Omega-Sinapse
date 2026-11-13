@@ -21,6 +21,7 @@ import {
   obterProjecaoObra,
   useCarregamento,
 } from '../../hooks/useMedicao.js';
+import { listarProjecoesBmm, rotuloReferencia } from '../../hooks/useProjecaoBmm.js';
 import { formatarData, formatarMoeda, formatarMoedaCompacta, formatarPercentual } from '../../utils/formatters.js';
 import { CORES_CURVA_S, linhasPrevisto, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
 import { CG, GS } from '../../utils/coresGrafico.js';
@@ -83,6 +84,11 @@ export default function AbaProjecaoObra({ obra, podeEditar = false }) {
   const itensQqp = useCarregamento(
     () => (obra.contrato_id ? listarItensQqp(obra.contrato_id) : Promise.resolve([])),
     [obra.contrato_id]
+  );
+
+  const projecoesBmm = useCarregamento(
+    () => (obra.contrato_id ? listarProjecoesBmm(obra.contrato_id, { obra: obra.id }) : Promise.resolve([])),
+    [obra.contrato_id, obra.id]
   );
 
   const [modal, setModal] = useState({ aberto: false, recurso: null });
@@ -393,6 +399,73 @@ export default function AbaProjecaoObra({ obra, podeEditar = false }) {
           Premissas: {dados.premissas.dias_uteis} {dados.premissas.ciclo} Itens por hora usam {dados.premissas.horas_por_dia_padrao} h/dia quando
           não informado.
         </p>
+      </section>
+
+      {/* ------------------------ Receita projetada (Projeções de BMM) ------------------------ */}
+      <section className="card p-4">
+        <header className="mb-2 flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-bold text-slate-800">Receita projetada (BMM)</h2>
+            <p className="text-xs text-slate-500">
+              Projeções de BMM desta obra por ciclo (grade semanal sobre os preços do QQP), comparadas ao custo dos recursos planejados.
+            </p>
+          </div>
+          <Link to="/medicao" className="btn-neutro text-xs">
+            <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+            Projeções na Medição
+          </Link>
+        </header>
+        {projecoesBmm.carregando && !projecoesBmm.dados ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-slate-500"><Spinner tamanho="sm" className="text-omega-600" /> Carregando projeções…</div>
+        ) : projecoesBmm.erro ? (
+          <p className="text-sm text-red-700">{projecoesBmm.erro}</p>
+        ) : !(projecoesBmm.dados || []).length ? (
+          <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center text-xs text-slate-500">
+            {obra.contrato_id ? 'Nenhuma projeção de BMM cadastrada para esta obra.' : 'Vincule a obra a um contrato para projetar a receita por BMM.'}
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50">
+                <tr>
+                  <Cabecalho>Ciclo</Cabecalho>
+                  <Cabecalho>BMM</Cabecalho>
+                  <Cabecalho>Receita projetada</Cabecalho>
+                  <Cabecalho>Custo QQP planejado</Cabecalho>
+                  <Cabecalho>Margem</Cabecalho>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {Object.values(
+                  (projecoesBmm.dados || []).reduce((porCiclo, p) => {
+                    const atual = porCiclo[p.referencia] || { referencia: p.referencia, bmms: [], centavos: 0 };
+                    atual.bmms.push(p.numero_bmm);
+                    atual.centavos += Math.round(p.total * 100);
+                    porCiclo[p.referencia] = atual;
+                    return porCiclo;
+                  }, {})
+                )
+                  .sort((a, b) => a.referencia.localeCompare(b.referencia))
+                  .map((ciclo) => {
+                    const receita = ciclo.centavos / 100;
+                    const custo = meses.find((mes) => mes.referencia === ciclo.referencia)?.custo_qqp ?? null;
+                    const margem = custo === null ? null : Math.round((receita - custo) * 100) / 100;
+                    return (
+                      <tr key={ciclo.referencia}>
+                        <td className="whitespace-nowrap px-3 py-2 font-semibold text-slate-700">{rotuloReferencia(ciclo.referencia)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 text-slate-600">{ciclo.bmms.join(', ')}</td>
+                        <td className="whitespace-nowrap px-3 py-2 font-medium tabular-nums text-emerald-700">{formatarMoeda(receita)}</td>
+                        <td className="whitespace-nowrap px-3 py-2 tabular-nums text-orange-700">{custo === null ? '—' : formatarMoeda(custo)}</td>
+                        <td className={`whitespace-nowrap px-3 py-2 font-semibold tabular-nums ${margem !== null && margem < 0 ? 'text-red-600' : 'text-slate-700'}`}>
+                          {margem === null ? '—' : formatarMoeda(margem)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {/* ----------------------------- Recursos planejados ----------------------------- */}

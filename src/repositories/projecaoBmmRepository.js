@@ -102,6 +102,17 @@ async function somarDoContratoNaReferencia(contratoId, referencia) {
   return resultado._count._all > 0 ? String(resultado._sum.total) : null;
 }
 
+/** Soma e quantidade das projeções do contrato por referência ("AAAA-MM"). */
+async function somasPorReferencia(contratoId) {
+  const linhas = await prisma.projecaoBmm.groupBy({
+    by: ['referencia'],
+    where: { contrato_id: contratoId },
+    _sum: { total: true },
+    _count: { _all: true },
+  });
+  return linhas.map((l) => ({ referencia: l.referencia, total: String(l._sum.total), quantidade: l._count._all }));
+}
+
 function dadosDosItens(itens) {
   return itens.map((item, posicao) => ({
     item_qqp_id: item.item_qqp_id,
@@ -195,6 +206,7 @@ module.exports = {
   listar,
   obter,
   somarDoContratoNaReferencia,
+  somasPorReferencia,
   criar,
   substituir,
   excluir,

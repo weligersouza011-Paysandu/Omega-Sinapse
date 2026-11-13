@@ -3,6 +3,7 @@
 const AppError = require('../errors/AppError');
 const contratoRepository = require('../repositories/contratoRepository');
 const boletimRepository = require('../repositories/boletimMedicaoRepository');
+const projecaoBmmRepository = require('../repositories/projecaoBmmRepository');
 const { montarContrato } = require('./contratoService');
 
 /**
@@ -471,17 +472,42 @@ async function carregarContrato(idParam) {
 }
 
 /** GET /api/contratos/:id/dashboard-medicao */
+/**
+ * Marca em cada mês da curva de onde veio o "Projetado": `projetado_bmm` é a soma das
+ * Projeções de BMM do mês (ou null) e `projetado_origem` é 'PROJECOES' quando o Projetado
+ * gravado é essa soma, 'MANUAL' quando há projeções mas o valor foi ajustado à mão depois
+ * (será sobrescrito na próxima gravação de projeção) e null sem projeções.
+ */
+function marcarOrigemDoProjetado(curva = [], somas = []) {
+  const porReferencia = new Map(somas.map((s) => [s.referencia, s]));
+  return curva.map((ponto) => {
+    const soma = porReferencia.get(ponto.referencia);
+    if (!soma) return { ...ponto, projetado_bmm: null, projecoes_bmm: 0, projetado_origem: null };
+    const somaCent = emCentavos(soma.total);
+    const igual = ponto.previsto_replanejado !== null && emCentavos(ponto.previsto_replanejado) === somaCent;
+    return {
+      ...ponto,
+      projetado_bmm: emReais(somaCent),
+      projecoes_bmm: soma.quantidade,
+      projetado_origem: igual ? 'PROJECOES' : 'MANUAL',
+    };
+  });
+}
+
 async function obterDashboardMedicao(idParam, usuario) {
   validarUsuario(usuario);
   const { id, contrato } = await carregarContrato(idParam);
-  const [boletins, obras, curvaContrato, historico] = await Promise.all([
+  const [boletins, obras, curvaContrato, historico, somasProjecoes] = await Promise.all([
     boletimRepository.listarPorContrato(id),
     boletimRepository.obrasComAvanco(id),
     boletimRepository.curvaDoContrato(id),
     boletimRepository.historicoDaCurva(id),
+    projecaoBmmRepository.somasPorReferencia(id),
   ]);
+  const painel = montarDashboardMedicao(contrato, boletins, obras, curvaContrato);
   return {
-    ...montarDashboardMedicao(contrato, boletins, obras, curvaContrato),
+    ...painel,
+    curva_s: marcarOrigemDoProjetado(painel.curva_s, somasProjecoes),
     historico_curva: historico.map((item) => ({
       id: item.id,
       referencia: item.referencia,

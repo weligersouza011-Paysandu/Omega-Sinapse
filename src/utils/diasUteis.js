@@ -58,6 +58,9 @@ function feriadosNacionais(ano) {
     [11, 25], // Natal
   ].map(([mes, dia]) => iso(new Date(Date.UTC(ano, mes, dia))));
 
+  // Dia Nacional de Zumbi e da Consciência Negra: feriado nacional desde 2024 (Lei 14.759/2023).
+  if (ano >= 2024) fixos.push(iso(new Date(Date.UTC(ano, 10, 20))));
+
   const conjunto = new Set([...fixos, iso(sextaSanta)]);
   cacheFeriados.set(ano, conjunto);
   return conjunto;

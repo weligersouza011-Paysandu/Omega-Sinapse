@@ -53,3 +53,11 @@ test('as semanas da projeção ignoram sábados mesmo se a opção vier ligada',
   const semanas = du.semanasDoIntervalo(ciclo.inicio, ciclo.fim, { sabados: true });
   assert.equal(total(semanas), du.contarDiasUteis(ciclo.inicio, ciclo.fim));
 });
+
+test('20/11 (Consciência Negra) é feriado nacional a partir de 2024', () => {
+  assert.ok(du.feriadosNacionais(2026).has('2026-11-20'));
+  assert.ok(!du.feriadosNacionais(2023).has('2023-11-20'));
+  const ciclo = du.cicloDaReferencia('2026-12'); // 16/11 a 15/12/2026
+  const semanas = du.semanasDoIntervalo(ciclo.inicio, ciclo.fim);
+  assert.equal(semanas.find((s) => s.semana_inicio === '2026-11-16').dias_uteis, 4);
+});

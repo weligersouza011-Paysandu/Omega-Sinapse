@@ -104,7 +104,12 @@ export default function CurvaSFinanceira({ curva = [], fonte = 'OBRAS' }) {
             (eixo direito).
             {fonte === 'CONTRATO'
               ? ' Projetado e tendência vêm da planilha de acompanhamento do contrato.'
-              : ' A tendência vem do avanço físico das obras do contrato.'}{' '}
+              : ' A tendência vem do avanço físico das obras do contrato.'}
+            {curva.some((ponto) => ponto.projetado_origem)
+              ? ` Projetado de ${curva.filter((ponto) => ponto.projetado_origem === 'PROJECOES').length} mês(es) vem das Projeções de BMM${
+                  curva.some((ponto) => ponto.projetado_origem === 'MANUAL') ? ` (${curva.filter((ponto) => ponto.projetado_origem === 'MANUAL').length} ajustado(s) à mão depois)` : ''
+                }.`
+              : ''}{' '}
             Clique na legenda para ocultar uma série.
           </p>
         </div>

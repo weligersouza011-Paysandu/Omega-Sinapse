@@ -176,6 +176,15 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
         await atualizarTendenciaDaCurva(contratoId, edicao.referencia, valor);
         toast.sucesso('Tendência do mês atualizada.');
       } else if (edicao.campo === 'projetado') {
+        const ponto = curva.find((p) => p.referencia === edicao.referencia);
+        if (
+          ponto?.projecoes_bmm > 0 &&
+          !window.confirm(
+            `Este mês tem ${ponto.projecoes_bmm} projeção(ões) de BMM (soma ${formatarMoeda(ponto.projetado_bmm)}). O valor digitado será substituído pela soma na próxima gravação de projeção. Continuar?`
+          )
+        ) {
+          return;
+        }
         await atualizarProjetadoDaCurva(contratoId, edicao.referencia, valor);
         toast.sucesso('Projetado do mês atualizado.');
       } else {
@@ -334,6 +343,21 @@ export default function TabelaPrevistoReal({ curva = [], fonte, contratoId, pode
                       podeEditar={editavel && ponto.editavel}
                       {...celula}
                     />
+                    {ponto.projetado_origem === 'PROJECOES' ? (
+                      <span
+                        className="ml-1 rounded bg-emerald-50 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200"
+                        title={`Soma de ${ponto.projecoes_bmm} projeção(ões) de BMM do mês`}
+                      >
+                        BMM
+                      </span>
+                    ) : ponto.projetado_origem === 'MANUAL' ? (
+                      <span
+                        className="ml-1 rounded bg-amber-50 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200"
+                        title={`Ajustado à mão: as projeções de BMM do mês somam ${formatarMoeda(ponto.projetado_bmm)}. A próxima gravação de projeção substitui este valor.`}
+                      >
+                        manual
+                      </span>
+                    ) : null}
                   </td>
                   <td className="px-3 py-1.5 text-right font-semibold text-slate-800">{medido ? formatarMoeda(ponto.real) : <span className="text-slate-300">—</span>}</td>
                   <td className="whitespace-nowrap px-3 py-1.5 text-right font-semibold">

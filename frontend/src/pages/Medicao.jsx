@@ -18,6 +18,7 @@ import ModalImportarPlanilhas from '../components/medicao/ModalImportarPlanilhas
 import ModalQqp from '../components/medicao/ModalQqp.jsx';
 import ModalTac from '../components/medicao/ModalTac.jsx';
 import ModalVincularObras from '../components/medicao/ModalVincularObras.jsx';
+import ProjecaoBmm from './ProjecaoBmm.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import {
@@ -205,11 +206,12 @@ export default function Medicao() {
         </div>
       </header>
 
-      <div role="tablist" aria-label="Seções da medição" className="inline-flex gap-1 rounded-lg bg-slate-100 p-1">
+      <div role="tablist" aria-label="Seções da medição" className="inline-flex flex-wrap gap-1 rounded-lg bg-slate-100 p-1">
         {[
           ['dashboard', 'Dashboard de medição'],
           ['saude', 'Saúde contratual e TACs'],
           ['medicoes', `Histórico de medições (${dados?.boletins?.length ?? 0})`],
+          ['projecoes', 'Projeções de BMM'],
           ['historico', `Histórico de contratos (${contratos.length})`],
         ].map(([id, rotulo]) => (
           <button
@@ -266,6 +268,8 @@ export default function Medicao() {
           onAtualizado={recarregar}
           onExcluir={setExcluir}
         />
+      ) : aba === 'projecoes' ? (
+        <ProjecaoBmm contrato={contrato} onCurvaAlterada={recarregar} />
       ) : aba === 'historico' ? (
         <HistoricoContratos
           contratos={contratos}
