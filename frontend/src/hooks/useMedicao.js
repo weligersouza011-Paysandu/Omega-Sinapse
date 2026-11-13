@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../services/api.js';
+import { baixarArquivo } from '../services/cronogramaApi.js';
 
 /* -------------------------------------------------------------------------- */
 /* Camada de dados do Dashboard de Medição (contratos, TACs e boletins)       */
@@ -160,11 +161,22 @@ export async function obterProjecaoObra(obraId) {
 
 /* ----------------------------- QQP do contrato e recursos da obra ----------------------------- */
 
+/** Lista plana dos itens do QQP de todos os TACs (telas de recursos da obra). */
 export async function listarItensQqp(contratoId) {
-  const { data } = await api.get(`/contratos/${contratoId}/qqp`);
+  const { data } = await api.get(`/contratos/${contratoId}/qqp`, { params: { tac: 'todos' } });
   return data.data || [];
 }
 
+/**
+ * QQP de um escopo (tac = 0 para o contrato original, id do TAC ou "todos"): itens, árvore
+ * Categoria › Grupo › Subgrupo, escopos do contrato e `qqp_revisao` (enviada em toda gravação).
+ */
+export async function obterQqp(contratoId, tac = 0) {
+  const { data } = await api.get(`/contratos/${contratoId}/qqp`, { params: { tac } });
+  return data;
+}
+
+/** `dados` inclui `qqp_revisao`; 409 = o QQP mudou desde que foi carregado. */
 export async function criarItemQqp(contratoId, dados) {
   const { data } = await api.post(`/contratos/${contratoId}/qqp`, dados);
   return data;
@@ -175,9 +187,44 @@ export async function atualizarItemQqp(contratoId, itemId, dados) {
   return data;
 }
 
-export async function excluirItemQqp(contratoId, itemId) {
-  const { data } = await api.delete(`/contratos/${contratoId}/qqp/${itemId}`);
+export async function excluirItemQqp(contratoId, itemId, revisao) {
+  const { data } = await api.delete(`/contratos/${contratoId}/qqp/${itemId}`, { params: { qqp_revisao: revisao } });
   return data;
+}
+
+export async function salvarOrdemQqp(contratoId, ordem, revisao) {
+  const { data } = await api.put(`/contratos/${contratoId}/qqp/ordem`, { ordem, qqp_revisao: revisao });
+  return data;
+}
+
+/** Prévia (sem `confirmar`) ou gravação da planilha .xlsx no escopo `tac`. */
+export async function importarPlanilhaQqp(contratoId, tac, arquivo, { confirmar = false, revisao } = {}) {
+  const formulario = new FormData();
+  formulario.append('arquivo', arquivo);
+  formulario.append('tac', String(tac));
+  formulario.append('confirmar', confirmar ? 'true' : 'false');
+  if (revisao !== undefined && revisao !== null) formulario.append('qqp_revisao', String(revisao));
+  const { data } = await api.post(`/contratos/${contratoId}/qqp/importar`, formulario, {
+    params: { tac },
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 120000,
+  });
+  return data;
+}
+
+/** Baixa o template/exportação XLSX (`vazio` = só cabeçalhos) do escopo. */
+export function baixarPlanilhaQqp(contratoId, tac, { vazio = false } = {}) {
+  return baixarArquivo(`/contratos/${contratoId}/qqp/template`, { tac, vazio: vazio ? 'true' : undefined }, {
+    mensagemErro: 'Não foi possível gerar a planilha do QQP.',
+    nomePadrao: 'QQP.xlsx',
+  });
+}
+
+export function baixarPdfQqp(contratoId, tac) {
+  return baixarArquivo(`/contratos/${contratoId}/qqp/pdf`, { tac }, {
+    mensagemErro: 'Não foi possível gerar o PDF do QQP.',
+    nomePadrao: 'QQP.pdf',
+  });
 }
 
 export async function listarRecursosObra(obraId) {

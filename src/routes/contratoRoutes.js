@@ -5,7 +5,7 @@ const contratoController = require('../controllers/contratoController');
 const obraMedicaoController = require('../controllers/obraMedicaoController');
 const projecaoBmmController = require('../controllers/projecaoBmmController');
 const { autorizar } = require('../middlewares/auth');
-const { uploadPlanilhasMedicao } = require('../config/multer');
+const { uploadPlanilhasMedicao, uploadPlanilhaQqp } = require('../config/multer');
 const { PERFIS_QUE_GEREM_CONTRATOS } = require('../services/contratoService');
 const { PERFIS_QUE_GEREM_MEDICAO } = require('../services/medicaoService');
 const { PERFIS_QUE_GEREM_QQP } = require('../services/qqpService');
@@ -53,10 +53,20 @@ router.delete('/:id/tac/:tacId', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contr
 // POST /api/contratos/:id/obras  -> vincula obras ao contrato { obra_ids: [..] }
 router.post('/:id/obras', autorizar(...PERFIS_QUE_GEREM_CONTRATOS), contratoController.vincularObras);
 
-// QQP (Quadro de Quantidades e Preços) do contrato: itens com preço de HH, equipamentos e insumos.
-// GET /api/contratos/:id/qqp | POST (codigo, descricao, categoria, unidade, preco_unitario)
+// QQP (Quadro de Quantidades e Preços) do contrato: itens por contrato original (TAC0) ou TAC.
+// GET  /api/contratos/:id/qqp?tac=0|<id>|todos -> lista, árvore Categoria › Grupo › Subgrupo e qqp_revisao
+// POST /api/contratos/:id/qqp (codigo, descricao, categoria, unidade, preco_unitario, termo_aditivo_id?, ...)
 // PUT/DELETE /api/contratos/:id/qqp/:itemId (item em uso só pode ser desativado)
+// Toda gravação envia qqp_revisao (corpo, query ou If-Match): 428 sem ela, 409 se o QQP mudou.
+// GET  /api/contratos/:id/qqp/template?tac=&vazio=true -> XLSX (8 colunas do Projeção + Tipo de unidade + Categoria Synapse)
+// POST /api/contratos/:id/qqp/importar?tac=  (multipart "arquivo"; confirmar=true grava, senão só a prévia)
+// GET  /api/contratos/:id/qqp/pdf?tac=
+// PUT  /api/contratos/:id/qqp/ordem -> { ordem: { categorias, grupos, subgrupos }, qqp_revisao }
 router.get('/:id/qqp', obraMedicaoController.listarItensQqp);
+router.get('/:id/qqp/template', obraMedicaoController.templateQqp);
+router.get('/:id/qqp/pdf', obraMedicaoController.pdfQqp);
+router.post('/:id/qqp/importar', autorizar(...PERFIS_QUE_GEREM_QQP), uploadPlanilhaQqp, obraMedicaoController.importarQqp);
+router.put('/:id/qqp/ordem', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.salvarOrdemQqp);
 router.post('/:id/qqp', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.criarItemQqp);
 router.put('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.atualizarItemQqp);
 router.delete('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedicaoController.excluirItemQqp);

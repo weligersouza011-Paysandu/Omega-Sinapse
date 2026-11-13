@@ -126,7 +126,19 @@ const uploadPlanilhasMedicao = multer({
   { name: 'curva', maxCount: 1 },
 ]);
 
+/** Upload da planilha .xlsx do QQP (campo "arquivo"), em memória, até 5 MB. */
+const uploadPlanilhaQqp = multer({
+  storage,
+  fileFilter(req, file, cb) {
+    const extensao = path.extname(file.originalname || '').toLowerCase();
+    if (extensao === '.xlsx' || /spreadsheetml/.test(file.mimetype || '')) return cb(null, true);
+    return cb(new AppError(400, `Envie a planilha do QQP em formato .xlsx (recebido: ${file.originalname}).`));
+  },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+}).single('arquivo');
+
 module.exports = upload;
+module.exports.uploadPlanilhaQqp = uploadPlanilhaQqp;
 module.exports.uploadPlanilhasMedicao = uploadPlanilhasMedicao;
 module.exports.upload = upload;
 module.exports.uploadCronograma = uploadCronograma;

@@ -4,6 +4,7 @@ const AppError = require('../errors/AppError');
 const contratoRepository = require('../repositories/contratoRepository');
 const qqpRepository = require('../repositories/qqpRepository');
 const { projetarCustosQqp } = require('./projecaoFinanceiraService');
+const dinheiro = require('../utils/dinheiro');
 
 /**
  * QQP (Quadro de Quantidades e Preços) do contrato e recursos planejados por
@@ -83,17 +84,39 @@ function opcaoDe(valor, lista, rotulo) {
 const numero = (valor) => (valor === null || valor === undefined ? null : Number(valor));
 const dataISO = (valor) => (valor ? new Date(valor).toISOString().slice(0, 10) : null);
 
+/** Decimal do Prisma em texto exato, sem zeros à direita ("12.50000000" -> "12.5"). */
+function textoDecimalExato(valor) {
+  if (valor === null || valor === undefined) return null;
+  const texto = typeof valor === 'object' && typeof valor.toFixed === 'function' ? valor.toFixed() : String(valor);
+  return texto.includes('.') ? texto.replace(/0+$/, '').replace(/\.$/, '') : texto;
+}
+
 function formatarItem(item) {
+  const quantidade = textoDecimalExato(item.quantidade);
+  const preco = textoDecimalExato(item.preco_unitario);
   return {
     id: item.id,
     contrato_id: item.contrato_id,
+    termo_aditivo_id: item.termo_aditivo_id ?? null,
+    escopo_tac: item.escopo_tac ?? 0,
     codigo: item.codigo,
     descricao: item.descricao,
     categoria: item.categoria,
     unidade: item.unidade,
+    categoria_planilha: item.categoria_planilha ?? null,
+    categoria_exibida: categoriaExibida(item),
+    grupo: item.grupo ?? null,
+    subgrupo: item.subgrupo ?? null,
+    unidade_planilha: item.unidade_planilha ?? null,
+    /** Quantidade e preço exatos em texto (até 8 casas); `preco_unitario` segue como número. */
+    quantidade,
     preco_unitario: numero(item.preco_unitario),
+    preco_unitario_exato: preco,
+    total: quantidade === null ? null : dinheiro.centavosParaReais(dinheiro.totalDoItemEmCentavos(quantidade, preco)),
+    posicao: item.posicao ?? 0,
     ativo: item.ativo,
     recursos_em_uso: item._count?.recursos ?? 0,
+    projecoes_em_uso: item._count?.projecoes ?? 0,
   };
 }
 
@@ -124,98 +147,334 @@ async function garantirContrato(idParam) {
 /* Itens do QQP (contrato)                                                    */
 /* -------------------------------------------------------------------------- */
 
-/** GET /api/contratos/:id/qqp */
-async function listarItens(idParam, usuario) {
-  validarUsuario(usuario);
-  const contratoId = await garantirContrato(idParam);
-  const itens = (await qqpRepository.listarItens(contratoId)).map(formatarItem);
-  return { data: itens, total: itens.length };
+const SEM_GRUPO = '';
+const ROTULO_CATEGORIA_ENUM = { HH: 'HH (mão de obra)', EQUIPAMENTO: 'Equipamentos', INSUMO: 'Insumos', OUTROS: 'Outros' };
+
+/**
+ * Decimal não negativo como texto exato (sem ponto flutuante), com no máximo `casas`
+ * casas decimais e `inteiros` dígitos inteiros. Aceita vírgula decimal ("1.234,56").
+ */
+function decimalExato(valor, rotulo, { casas, inteiros, permitirZero = true }) {
+  if (estaVazio(valor)) throw new AppError(400, `O campo "${rotulo}" é obrigatório.`);
+  const bruto = typeof valor === 'number' ? (Number.isFinite(valor) ? String(valor) : '') : String(valor).trim();
+  const texto = /,/.test(bruto) ? bruto.replace(/\./g, '').replace(',', '.') : bruto;
+  let partes;
+  try {
+    partes = dinheiro.partesDecimais(texto);
+  } catch {
+    throw new AppError(400, `O campo "${rotulo}" deve ser um número maior ou igual a zero.`);
+  }
+  let { digitos, escala } = partes;
+  while (escala > 0 && digitos % 10n === 0n) {
+    digitos /= 10n;
+    escala -= 1;
+  }
+  if (escala > casas) throw new AppError(400, `O campo "${rotulo}" aceita no máximo ${casas} casas decimais.`);
+  const base = 10n ** BigInt(escala);
+  const inteiro = digitos / base;
+  if (String(inteiro).length > inteiros) throw new AppError(400, `O campo "${rotulo}" está acima do limite permitido.`);
+  if (!permitirZero && digitos === 0n) throw new AppError(400, `O campo "${rotulo}" deve ser maior que zero.`);
+  return escala === 0 ? String(inteiro) : `${inteiro}.${String(digitos % base).padStart(escala, '0')}`;
 }
 
-/** POST /api/contratos/:id/qqp */
+const lerPreco = (valor) => decimalExato(valor, 'preco_unitario', { casas: 8, inteiros: 10 });
+const lerQuantidade = (valor) => decimalExato(valor, 'quantidade', { casas: 8, inteiros: 16 });
+
+function textoOpcional(valor, rotulo, maximo) {
+  if (estaVazio(valor)) return null;
+  const texto = String(valor).trim().replace(/\s+/g, ' ');
+  if (texto.length > maximo) throw new AppError(400, `O campo "${rotulo}" aceita no máximo ${maximo} caracteres.`);
+  return texto;
+}
+
+function lerCodigo(valor) {
+  if (estaVazio(valor)) throw new AppError(400, 'O campo "codigo" é obrigatório.');
+  const codigo = String(valor).trim().toUpperCase();
+  if (codigo.length > 120) throw new AppError(400, 'O campo "codigo" aceita no máximo 120 caracteres.');
+  return codigo;
+}
+
+/** Revisão do QQP enviada pelo cliente: 428 se faltar (exigida em toda gravação do QQP). */
+function lerRevisao(valor) {
+  if (estaVazio(valor)) {
+    throw new AppError(428, 'Recarregue o QQP: a gravação precisa informar a versão carregada ("qqp_revisao").');
+  }
+  const revisao = Number(String(valor).replace(/"/g, ''));
+  if (!Number.isInteger(revisao) || revisao < 0) throw new AppError(400, 'O campo "qqp_revisao" é inválido.');
+  return revisao;
+}
+
+/** Executa a gravação sob a revisão informada; 409 se o QQP mudou desde que foi carregado. */
+async function gravarComRevisao(contratoId, revisaoParam, operacao) {
+  const revisao = lerRevisao(revisaoParam);
+  const saida = await qqpRepository.comRevisao(contratoId, revisao, operacao);
+  if (saida.conflito) {
+    const atual = await qqpRepository.revisaoAtual(contratoId);
+    throw new AppError(
+      409,
+      'O QQP deste contrato foi alterado por outra pessoa depois que você o abriu. Recarregue para ver a versão atual.',
+      { revisao_atual: atual, revisao_enviada: revisao }
+    );
+  }
+  return saida;
+}
+
+/**
+ * Escopo pedido: "todos" = todos; "0"/"TAC0" = contrato original; senão o id do TAC.
+ * Vazio = todos (listagem) ou contrato original (gravação, com `padraoTodos: false`).
+ */
+function lerEscopo(valor, { padraoTodos = true } = {}) {
+  const texto = String(valor ?? '').trim();
+  if (texto === '') return padraoTodos ? undefined : 0;
+  if (texto.toLowerCase() === 'todos') return undefined;
+  if (texto === '0' || /^tac0$/i.test(texto)) return 0;
+  return validarId(texto, 'tac');
+}
+
+function rotuloEscopo(contrato, tac) {
+  if (!tac) return `${contrato.numero_sap || contrato.id_vale} – TAC0`;
+  return `${tac.numero_sap || contrato.numero_sap || contrato.id_vale} – ${tac.numero_tac}`;
+}
+
+function escoposDoContrato(contrato) {
+  return [
+    { tac_id: 0, numero_tac: 'TAC0', numero_sap: contrato.numero_sap, rotulo: rotuloEscopo(contrato, null) },
+    ...contrato.aditivos.map((tac) => ({
+      tac_id: tac.id,
+      numero_tac: tac.numero_tac,
+      numero_sap: tac.numero_sap,
+      data_inicio: dataISO(tac.data_inicio),
+      data_fim: dataISO(tac.data_fim),
+      rotulo: rotuloEscopo(contrato, tac),
+    })),
+  ];
+}
+
+async function carregarEstado(contratoId) {
+  const contrato = await qqpRepository.estadoDoContrato(contratoId);
+  if (!contrato) throw new AppError(404, `Contrato ${contratoId} não encontrado.`);
+  return contrato;
+}
+
+function garantirEscopoDoContrato(contrato, escopo) {
+  if (escopo && !contrato.aditivos.some((tac) => tac.id === escopo)) {
+    throw new AppError(404, `TAC ${escopo} não encontrado neste contrato.`);
+  }
+}
+
+function totalCentavosDoItem(item) {
+  if (item.quantidade === null || item.quantidade === undefined) return null;
+  return dinheiro.totalDoItemEmCentavos(textoDecimalExato(item.quantidade), textoDecimalExato(item.preco_unitario));
+}
+
+/** Categoria exibida na árvore: a da planilha ou, sem ela, o rótulo da categoria do Synapse. */
+function categoriaExibida(item) {
+  return item.categoria_planilha || ROTULO_CATEGORIA_ENUM[item.categoria] || item.categoria;
+}
+
+/** Ordena nomes pela ordem personalizada; os que não estão nela vêm depois, na ordem original. */
+function ordenarPor(lista, preferida = []) {
+  const indice = new Map((Array.isArray(preferida) ? preferida : []).map((nome, i) => [nome, i]));
+  return lista
+    .map((nome, original) => ({ nome, original }))
+    .sort((a, b) => {
+      const ia = indice.has(a.nome) ? indice.get(a.nome) : Infinity;
+      const ib = indice.has(b.nome) ? indice.get(b.nome) : Infinity;
+      return ia === ib ? a.original - b.original : ia - ib;
+    })
+    .map(({ nome }) => nome);
+}
+
+/**
+ * Árvore Categoria › Grupo › Subgrupo › itens, com totais (Σ quantidade × preço) em reais.
+ * Função pura: recebe itens formatados com `total_centavos` (BigInt ou null).
+ * Ordem: { categorias: [nome], grupos: { [categoria]: [grupo] }, subgrupos: { ["categoria›grupo"]: [subgrupo] } }.
+ */
+function montarArvore(itens, ordem = null) {
+  const categorias = new Map();
+  const ordenados = [...itens].sort((a, b) => a.escopo_tac - b.escopo_tac || a.posicao - b.posicao || a.codigo.localeCompare(b.codigo));
+  for (const item of ordenados) {
+    const nomeCategoria = item.categoria_exibida;
+    if (!categorias.has(nomeCategoria)) categorias.set(nomeCategoria, new Map());
+    const grupos = categorias.get(nomeCategoria);
+    const nomeGrupo = item.grupo || SEM_GRUPO;
+    if (!grupos.has(nomeGrupo)) grupos.set(nomeGrupo, new Map());
+    const subgrupos = grupos.get(nomeGrupo);
+    const nomeSubgrupo = item.subgrupo || SEM_GRUPO;
+    if (!subgrupos.has(nomeSubgrupo)) subgrupos.set(nomeSubgrupo, []);
+    subgrupos.get(nomeSubgrupo).push(item);
+  }
+
+  const reais = (centavos) => dinheiro.centavosParaReais(centavos);
+  const preferencias = ordem && typeof ordem === 'object' ? ordem : {};
+  const semCentavos = ({ total_centavos: _t, ...resto }) => resto;
+
+  let totalGeral = 0n;
+  const arvore = ordenarPor([...categorias.keys()], preferencias.categorias).map((nomeCategoria) => {
+    const grupos = categorias.get(nomeCategoria);
+    let totalCategoria = 0n;
+    const listaGrupos = ordenarPor([...grupos.keys()], preferencias.grupos?.[nomeCategoria]).map((nomeGrupo) => {
+      const subgrupos = grupos.get(nomeGrupo);
+      let totalGrupo = 0n;
+      const chave = `${nomeCategoria}›${nomeGrupo}`;
+      const listaSub = ordenarPor([...subgrupos.keys()], preferencias.subgrupos?.[chave]).map((nomeSubgrupo) => {
+        const lista = subgrupos.get(nomeSubgrupo);
+        const total = lista.reduce((soma, i) => soma + (i.total_centavos ?? 0n), 0n);
+        totalGrupo += total;
+        return { subgrupo: nomeSubgrupo, total: reais(total), itens: lista.map(semCentavos) };
+      });
+      totalCategoria += totalGrupo;
+      return { grupo: nomeGrupo, total: reais(totalGrupo), subgrupos: listaSub };
+    });
+    totalGeral += totalCategoria;
+    return { categoria: nomeCategoria, total: reais(totalCategoria), grupos: listaGrupos };
+  });
+  return { arvore, total: reais(totalGeral) };
+}
+
+/** Itens do escopo formatados, com `total_centavos` para as somas. */
+async function itensComTotais(contratoId, escopo) {
+  const brutos = await qqpRepository.listarItens(contratoId, escopo);
+  return brutos.map((item) => ({ ...formatarItem(item), total_centavos: totalCentavosDoItem(item) }));
+}
+
+/**
+ * GET /api/contratos/:id/qqp?tac=0|<id>|todos
+ * `data` é a lista plana (compatível com as telas de recursos); `arvore` agrupa por
+ * Categoria › Grupo › Subgrupo com os totais. `qqp_revisao` deve voltar em toda gravação.
+ */
+async function listarItens(idParam, usuario, filtros = {}) {
+  validarUsuario(usuario);
+  const contratoId = validarId(idParam);
+  const contrato = await carregarEstado(contratoId);
+  const escopo = lerEscopo(filtros.tac);
+  garantirEscopoDoContrato(contrato, escopo);
+
+  const itens = await itensComTotais(contratoId, escopo);
+  const { arvore, total } = montarArvore(itens, contrato.qqp_ordem?.ordem);
+  return {
+    data: itens.map(({ total_centavos: _t, ...resto }) => resto),
+    total: itens.length,
+    valor_total: total,
+    arvore,
+    contrato: { id: contrato.id, id_vale: contrato.id_vale, descricao: contrato.descricao, numero_sap: contrato.numero_sap },
+    escopos: escoposDoContrato(contrato),
+    tac: escopo === undefined ? 'todos' : escopo,
+    ordem: contrato.qqp_ordem?.ordem || null,
+    qqp_revisao: contrato.qqp_revisao,
+  };
+}
+
+/** Campos editáveis do item (criação e edição). */
+function dadosDoPayload(payload, { parcial }) {
+  const dados = {};
+  const quer = (campo) => !parcial || temCampo(payload, campo);
+  if (quer('codigo')) dados.codigo = lerCodigo(payload.codigo);
+  if (quer('descricao')) {
+    if (estaVazio(payload.descricao)) throw new AppError(400, 'O campo "descricao" é obrigatório.');
+    dados.descricao = String(payload.descricao).trim();
+  }
+  if (quer('categoria')) dados.categoria = opcaoDe(payload.categoria, CATEGORIAS, 'categoria');
+  if (quer('unidade')) dados.unidade = opcaoDe(payload.unidade, UNIDADES, 'unidade');
+  if (quer('preco_unitario')) dados.preco_unitario = lerPreco(payload.preco_unitario);
+  if (temCampo(payload, 'quantidade')) dados.quantidade = estaVazio(payload.quantidade) ? null : lerQuantidade(payload.quantidade);
+  if (temCampo(payload, 'categoria_planilha')) dados.categoria_planilha = textoOpcional(payload.categoria_planilha, 'categoria_planilha', 200);
+  if (temCampo(payload, 'grupo')) dados.grupo = textoOpcional(payload.grupo, 'grupo', 200);
+  if (temCampo(payload, 'subgrupo')) dados.subgrupo = textoOpcional(payload.subgrupo, 'subgrupo', 200);
+  if (temCampo(payload, 'unidade_planilha')) dados.unidade_planilha = textoOpcional(payload.unidade_planilha, 'unidade_planilha', 30);
+  if (temCampo(payload, 'ativo')) dados.ativo = Boolean(payload.ativo);
+  return dados;
+}
+
+/** POST /api/contratos/:id/qqp — { codigo, descricao, categoria, unidade, preco_unitario, termo_aditivo_id?, ..., qqp_revisao } */
 async function criarItem(idParam, payload = {}, usuario) {
   exigirPerfil(usuario, PERFIS_QUE_GEREM_QQP, 'cadastrar itens do QQP');
-  const contratoId = await garantirContrato(idParam);
+  const contratoId = validarId(idParam);
+  const contrato = await carregarEstado(contratoId);
+  const escopo = lerEscopo(payload.termo_aditivo_id, { padraoTodos: false });
+  if (escopo === undefined) throw new AppError(400, 'Escolha o contrato original (TAC0) ou um TAC para o item.');
+  garantirEscopoDoContrato(contrato, escopo);
+  const dados = { ...dadosDoPayload(payload, { parcial: false }), ativo: payload.ativo === undefined ? true : Boolean(payload.ativo) };
 
-  if (estaVazio(payload.codigo)) throw new AppError(400, 'O campo "codigo" é obrigatório.');
-  if (estaVazio(payload.descricao)) throw new AppError(400, 'O campo "descricao" é obrigatório.');
-  const codigo = String(payload.codigo).trim().toUpperCase();
-  if (codigo.length > 120) throw new AppError(400, 'O campo "codigo" aceita no máximo 120 caracteres.');
-
-  const dados = {
-    codigo,
-    descricao: String(payload.descricao).trim(),
-    categoria: opcaoDe(payload.categoria, CATEGORIAS, 'categoria'),
-    unidade: opcaoDe(payload.unidade, UNIDADES, 'unidade'),
-    preco_unitario: numeroPositivo(payload.preco_unitario, 'preco_unitario', 8),
-    ativo: payload.ativo === undefined ? true : Boolean(payload.ativo),
-  };
-
-  if (await qqpRepository.buscarItemPorCodigo(contratoId, codigo)) {
-    throw new AppError(409, `Já existe um item do QQP com o código ${codigo} neste contrato.`);
-  }
-  return formatarItem(await qqpRepository.criarItem(contratoId, dados));
+  const { revisao, resultado } = await gravarComRevisao(contratoId, payload.qqp_revisao, async (tx) => {
+    if (await qqpRepository.buscarItemPorCodigo(contratoId, dados.codigo, escopo, tx)) {
+      throw new AppError(409, `Já existe um item do QQP com o código ${dados.codigo} neste contrato/TAC.`);
+    }
+    const posicao = (await qqpRepository.ultimaPosicao(contratoId, escopo, tx)) + 1;
+    return qqpRepository.criarItem(contratoId, { ...dados, termo_aditivo_id: escopo || null, escopo_tac: escopo, posicao }, tx);
+  });
+  return { ...formatarItem(resultado), qqp_revisao: revisao };
 }
 
-/** PUT /api/contratos/:id/qqp/:itemId */
+/** PUT /api/contratos/:id/qqp/:itemId — o item continua no mesmo contrato/TAC. */
 async function atualizarItem(idParam, itemIdParam, payload = {}, usuario) {
   exigirPerfil(usuario, PERFIS_QUE_GEREM_QQP, 'alterar itens do QQP');
   const contratoId = await garantirContrato(idParam);
   const itemId = validarId(itemIdParam, 'itemId');
-
-  const existente = await qqpRepository.buscarItem(contratoId, itemId);
-  if (!existente) throw new AppError(404, `Item ${itemId} do QQP não encontrado neste contrato.`);
-
-  const dados = {};
-  if (temCampo(payload, 'codigo')) {
-    if (estaVazio(payload.codigo)) throw new AppError(400, 'O campo "codigo" não pode ficar vazio.');
-    dados.codigo = String(payload.codigo).trim().toUpperCase();
-    if (dados.codigo.length > 120) throw new AppError(400, 'O campo "codigo" aceita no máximo 120 caracteres.');
-  }
-  if (temCampo(payload, 'descricao')) {
-    if (estaVazio(payload.descricao)) throw new AppError(400, 'O campo "descricao" não pode ficar vazio.');
-    dados.descricao = String(payload.descricao).trim();
-  }
-  if (temCampo(payload, 'categoria')) dados.categoria = opcaoDe(payload.categoria, CATEGORIAS, 'categoria');
-  if (temCampo(payload, 'unidade')) {
-    dados.unidade = opcaoDe(payload.unidade, UNIDADES, 'unidade');
-    if (dados.unidade !== existente.unidade && existente._count.recursos > 0) {
-      throw new AppError(409, 'A unidade não pode mudar enquanto houver recursos de obra usando este item.');
-    }
-  }
-  if (temCampo(payload, 'preco_unitario')) dados.preco_unitario = numeroPositivo(payload.preco_unitario, 'preco_unitario', 8);
-  if (temCampo(payload, 'ativo')) dados.ativo = Boolean(payload.ativo);
-
+  const dados = dadosDoPayload(payload, { parcial: true });
   if (Object.keys(dados).length === 0) throw new AppError(400, 'Informe ao menos um campo do item para alterar.');
 
-  if (dados.codigo && dados.codigo !== existente.codigo && (await qqpRepository.buscarItemPorCodigo(contratoId, dados.codigo))) {
-    throw new AppError(409, `Já existe um item do QQP com o código ${dados.codigo} neste contrato.`);
-  }
-  return formatarItem(await qqpRepository.atualizarItem(contratoId, itemId, dados));
+  const { revisao, resultado } = await gravarComRevisao(contratoId, payload.qqp_revisao, async (tx) => {
+    const existente = await qqpRepository.buscarItem(contratoId, itemId, tx);
+    if (!existente) throw new AppError(404, `Item ${itemId} do QQP não encontrado neste contrato.`);
+    if (dados.unidade && dados.unidade !== existente.unidade && existente._count.recursos > 0) {
+      throw new AppError(409, 'A unidade não pode mudar enquanto houver recursos de obra usando este item.');
+    }
+    if (dados.codigo && dados.codigo !== existente.codigo) {
+      if (await qqpRepository.buscarItemPorCodigo(contratoId, dados.codigo, existente.escopo_tac, tx)) {
+        throw new AppError(409, `Já existe um item do QQP com o código ${dados.codigo} neste contrato/TAC.`);
+      }
+    }
+    return qqpRepository.atualizarItem(contratoId, itemId, dados, tx);
+  });
+  return { ...formatarItem(resultado), qqp_revisao: revisao };
 }
 
-/** DELETE /api/contratos/:id/qqp/:itemId — só sem recursos de obra usando o item. */
-async function excluirItem(idParam, itemIdParam, usuario) {
+/** DELETE /api/contratos/:id/qqp/:itemId?qqp_revisao= — só sem recursos de obra nem projeções usando o item. */
+async function excluirItem(idParam, itemIdParam, usuario, revisaoParam) {
   exigirPerfil(usuario, PERFIS_QUE_GEREM_QQP, 'excluir itens do QQP');
   const contratoId = await garantirContrato(idParam);
   const itemId = validarId(itemIdParam, 'itemId');
 
-  const existente = await qqpRepository.buscarItem(contratoId, itemId);
-  if (!existente) throw new AppError(404, `Item ${itemId} do QQP não encontrado neste contrato.`);
-  if (existente._count.recursos > 0) {
-    throw new AppError(
-      409,
-      `O item ${existente.codigo} está em uso em ${existente._count.recursos} alocação(ões) de obra. Desative-o em vez de excluir.`
-    );
+  const { revisao } = await gravarComRevisao(contratoId, revisaoParam, async (tx) => {
+    const existente = await qqpRepository.buscarItem(contratoId, itemId, tx);
+    if (!existente) throw new AppError(404, `Item ${itemId} do QQP não encontrado neste contrato.`);
+    if (existente._count.recursos > 0) {
+      throw new AppError(
+        409,
+        `O item ${existente.codigo} está em uso em ${existente._count.recursos} alocação(ões) de obra. Desative-o em vez de excluir.`
+      );
+    }
+    if (existente._count.projecoes > 0) {
+      throw new AppError(
+        409,
+        `O item ${existente.codigo} está em uso em ${existente._count.projecoes} projeção(ões) de BMM. Desative-o em vez de excluir.`
+      );
+    }
+    await qqpRepository.excluirItem(contratoId, itemId, tx);
+  });
+  return { id: itemId, excluido: true, qqp_revisao: revisao };
+}
+
+/** Valida a ordem personalizada { categorias: [], grupos: {}, subgrupos: {} } (listas de textos). */
+function validarOrdem(ordem) {
+  const listaDeTextos = (lista) =>
+    Array.isArray(lista) && lista.length <= 2000 && lista.every((v) => typeof v === 'string' && v.length <= 500);
+  const mapaDeListas = (mapa) =>
+    Boolean(mapa) && typeof mapa === 'object' && !Array.isArray(mapa) && Object.keys(mapa).length <= 2000 && Object.values(mapa).every(listaDeTextos);
+  if (!ordem || typeof ordem !== 'object' || !listaDeTextos(ordem.categorias) || !mapaDeListas(ordem.grupos) || !mapaDeListas(ordem.subgrupos)) {
+    throw new AppError(400, 'Ordem de visualização inválida: informe { categorias: [], grupos: {}, subgrupos: {} }.');
   }
-  if (existente._count.projecoes > 0) {
-    throw new AppError(
-      409,
-      `O item ${existente.codigo} está em uso em ${existente._count.projecoes} projeção(ões) de BMM. Desative-o em vez de excluir.`
-    );
-  }
-  await qqpRepository.excluirItem(contratoId, itemId);
-  return { id: itemId, excluido: true };
+  return { categorias: ordem.categorias, grupos: ordem.grupos, subgrupos: ordem.subgrupos };
+}
+
+/** PUT /api/contratos/:id/qqp/ordem — { ordem, qqp_revisao } */
+async function salvarOrdem(idParam, payload = {}, usuario) {
+  exigirPerfil(usuario, PERFIS_QUE_GEREM_QQP, 'personalizar a visualização do QQP');
+  const contratoId = await garantirContrato(idParam);
+  const ordem = validarOrdem(payload.ordem);
+  const { revisao } = await gravarComRevisao(contratoId, payload.qqp_revisao, (tx) => qqpRepository.salvarOrdem(contratoId, ordem, tx));
+  return { ordem, qqp_revisao: revisao };
 }
 
 /* -------------------------------------------------------------------------- */
@@ -342,10 +601,27 @@ async function excluirRecurso(obraIdParam, recursoIdParam, usuario) {
 module.exports = {
   PERFIS_QUE_GEREM_QQP,
   PERFIS_QUE_PLANEJAM_RECURSOS,
+  CATEGORIAS,
+  UNIDADES,
   listarItens,
   criarItem,
   atualizarItem,
   excluirItem,
+  salvarOrdem,
+  montarArvore,
+  itensComTotais,
+  carregarEstado,
+  lerEscopo,
+  garantirEscopoDoContrato,
+  rotuloEscopo,
+  gravarComRevisao,
+  decimalExato,
+  textoOpcional,
+  lerCodigo,
+  formatarItem,
+  exigirPerfil,
+  validarUsuario,
+  validarId,
   listarRecursos,
   criarRecurso,
   atualizarRecurso,

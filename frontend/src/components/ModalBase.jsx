@@ -4,6 +4,7 @@ const TAMANHOS = {
   md: 'max-w-xl',
   lg: 'max-w-3xl',
   xl: 'max-w-5xl',
+  xxl: 'max-w-7xl',
 };
 
 /** Casca reutilizável de modal (overlay, cabeçalho e fechamento por ESC). */

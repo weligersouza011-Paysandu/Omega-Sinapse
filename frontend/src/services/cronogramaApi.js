@@ -77,7 +77,7 @@ export async function salvarRestricaoAtividade(obraId, dados) {
  * Baixa um arquivo gerado pela API (xlsx, pdf…) e dispara o download no
  * navegador. Erros chegam como Blob JSON: a mensagem da API é repassada.
  */
-async function baixarArquivo(caminho, params, { mensagemErro, nomePadrao }) {
+export async function baixarArquivo(caminho, params, { mensagemErro, nomePadrao }) {
   const resposta = await api.get(caminho, { params, responseType: 'blob', timeout: 120000, validateStatus: () => true });
   if (resposta.status !== 200) {
     let mensagem = mensagemErro;
