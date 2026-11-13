@@ -84,6 +84,7 @@ app.use('/api/cronogramas', autenticar, acessoCliente('obras', 'planejamento'), 
 app.use('/api/contratos', autenticar, acessoCliente('medicao'), contratoRoutes);
 app.use('/api/projecoes-bmm', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.projecoes);
 app.use('/api/feriados', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.feriados);
+app.use('/api/solicitacoes-exclusao', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.solicitacoes);
 app.use('/api/uploads', autenticar, acessoCliente(), uploadRoutes);
 
 // ---------------------------------------------------------------------------

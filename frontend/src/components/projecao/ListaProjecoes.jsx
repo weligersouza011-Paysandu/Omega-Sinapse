@@ -1,10 +1,10 @@
-import { Eye, Pencil, Trash2 } from 'lucide-react';
+import { Eye, MailQuestion, Pencil, Trash2 } from 'lucide-react';
 import Spinner from '../Spinner.jsx';
 import { rotuloReferencia } from '../../hooks/useProjecaoBmm.js';
 import { formatarDataHora, formatarMoeda } from '../../utils/formatters.js';
 
 /** Projeções de BMM do contrato, com filtros por obra, mês e contrato/TAC. */
-export default function ListaProjecoes({ lista, carregando, erro, filtros, onFiltrar, obras, escopos, podeEditar, podeExcluir, ocupadoId, onAbrir, onExcluir }) {
+export default function ListaProjecoes({ lista, carregando, erro, filtros, onFiltrar, obras, escopos, podeEditar, podeExcluir, podeSolicitar, ocupadoId, onAbrir, onExcluir, onSolicitar }) {
   const referencias = [...new Set(lista.map((p) => p.referencia))];
   const totalGeral = lista.reduce((soma, p) => soma + Math.round(p.total * 100), 0) / 100;
 
@@ -59,7 +59,17 @@ export default function ListaProjecoes({ lista, carregando, erro, filtros, onFil
             <tbody className="divide-y divide-slate-100 bg-white">
               {lista.map((p) => (
                 <tr key={p.id}>
-                  <td className="whitespace-nowrap px-3 py-2 font-semibold text-omega-700">{p.numero_bmm}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-semibold text-omega-700">
+                    {p.numero_bmm}
+                    {p.exclusao_pendente ? (
+                      <span
+                        className="ml-1.5 rounded bg-amber-50 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-amber-700 ring-1 ring-amber-200"
+                        title={`Exclusão solicitada por ${p.exclusao_pendente.solicitante_nome}: ${p.exclusao_pendente.motivo}`}
+                      >
+                        exclusão pedida
+                      </span>
+                    ) : null}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">{rotuloReferencia(p.referencia)}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">
                     {p.ciclo_inicio.split('-').reverse().join('/')} a {p.ciclo_fim.split('-').reverse().join('/')} · {p.dias_uteis} d.u.
@@ -84,6 +94,17 @@ export default function ListaProjecoes({ lista, carregando, erro, filtros, onFil
                           title="Excluir"
                         >
                           {ocupadoId === p.id ? <Spinner tamanho="sm" /> : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                        </button>
+                      ) : null}
+                      {podeSolicitar && !p.exclusao_pendente ? (
+                        <button
+                          type="button"
+                          className="btn-neutro !px-2 !py-1 hover:!border-amber-300 hover:!text-amber-700"
+                          onClick={() => onSolicitar(p)}
+                          aria-label={`Solicitar exclusão do BMM ${p.numero_bmm}`}
+                          title="Solicitar exclusão ao administrador"
+                        >
+                          <MailQuestion className="h-3.5 w-3.5" aria-hidden="true" />
                         </button>
                       ) : null}
                     </div>

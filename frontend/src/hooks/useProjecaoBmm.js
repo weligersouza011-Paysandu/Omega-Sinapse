@@ -113,3 +113,27 @@ export function referenciaAtual(hoje = new Date()) {
   }
   return `${ano}-${String(mes).padStart(2, '0')}`;
 }
+
+/* ------------------------- Solicitações de exclusão ------------------------- */
+
+/** Quem não é ADMIN pede a exclusão com o motivo; o ADMIN aprova ou recusa. */
+export async function solicitarExclusaoProjecao(id, motivo) {
+  const { data } = await api.post(`/projecoes-bmm/${id}/solicitar-exclusao`, { motivo });
+  return data;
+}
+
+export async function listarSolicitacoesExclusao(contratoId, status) {
+  const { data } = await api.get(`/contratos/${contratoId}/solicitacoes-exclusao`, { params: status ? { status } : {} });
+  return data;
+}
+
+export async function decidirSolicitacaoExclusao(id, aprovar, motivo) {
+  const { data } = await api.post(`/solicitacoes-exclusao/${id}/decidir`, { aprovar, motivo: motivo || undefined });
+  return data;
+}
+
+/** Por ciclo e obra: projetado (BMM) × medido (boletins) e margem sobre o custo dos recursos do QQP. */
+export async function obterComparativoProjecao(contratoId, obra) {
+  const { data } = await api.get(`/contratos/${contratoId}/projecoes-bmm/comparativo`, { params: obra ? { obra } : {} });
+  return data;
+}

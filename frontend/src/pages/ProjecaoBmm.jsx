@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, FilePlus2 } from 'lucide-react';
 import Spinner from '../components/Spinner.jsx';
+import ComparativoProjecao from '../components/projecao/ComparativoProjecao.jsx';
 import EditorProjecao from '../components/projecao/EditorProjecao.jsx';
 import ListaProjecoes from '../components/projecao/ListaProjecoes.jsx';
 import ModalCopiarProjecao from '../components/projecao/ModalCopiarProjecao.jsx';
+import ModalMotivo from '../components/projecao/ModalMotivo.jsx';
+import SolicitacoesExclusao from '../components/projecao/SolicitacoesExclusao.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import { obterQqp } from '../hooks/useMedicao.js';
@@ -11,7 +14,9 @@ import {
   PERFIS_QUE_EXCLUEM_PROJECAO,
   PERFIS_QUE_PROJETAM,
   excluirProjecaoBmm,
+  listarSolicitacoesExclusao,
   obterProjecaoBmm,
+  solicitarExclusaoProjecao,
   rotuloReferencia,
   useProjecoesBmm,
 } from '../hooks/useProjecaoBmm.js';
@@ -37,8 +42,25 @@ export default function ProjecaoBmm({ contrato, onCurvaAlterada }) {
   // 'lista' | { modo: 'novo' | 'editar' | 'ver', inicial }
   const [tela, setTela] = useState('lista');
   const [novaAberta, setNovaAberta] = useState(false);
+  // 'lista' | 'comparativo'
+  const [visao, setVisao] = useState('lista');
   const [abrindoId, setAbrindoId] = useState(null);
   const [excluindoId, setExcluindoId] = useState(null);
+  const [solicitacoes, setSolicitacoes] = useState([]);
+  const [pedirExclusao, setPedirExclusao] = useState(null);
+
+  async function carregarSolicitacoes() {
+    if (!contrato) return;
+    try {
+      setSolicitacoes(await listarSolicitacoesExclusao(contrato.id, podeExcluir ? 'PENDENTE' : undefined));
+    } catch {
+      setSolicitacoes([]);
+    }
+  }
+
+  useEffect(() => {
+    carregarSolicitacoes();
+  }, [contrato?.id, podeExcluir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setTela('lista');
@@ -135,19 +157,70 @@ export default function ProjecaoBmm({ contrato, onCurvaAlterada }) {
       </div>
       {!contrato.obras?.length ? <p className="text-sm text-slate-500">Vincule obras a este contrato para cadastrar projeções.</p> : null}
 
-      <ListaProjecoes
-        lista={lista}
-        carregando={carregando}
-        erro={erro}
-        filtros={filtros}
-        onFiltrar={setFiltros}
-        obras={contrato.obras || []}
-        escopos={escopos}
-        podeEditar={podeEditar}
-        podeExcluir={podeExcluir}
-        ocupadoId={excluindoId}
-        onAbrir={abrir}
-        onExcluir={excluir}
+      <div role="tablist" aria-label="Visão das projeções" className="inline-flex gap-1 rounded-lg bg-slate-100 p-1">
+        {[
+          ['lista', 'Projeções cadastradas'],
+          ['comparativo', 'Projetado × Medido e margem'],
+        ].map(([id, rotulo]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={visao === id}
+            onClick={() => setVisao(id)}
+            className={`rounded-md px-3 py-1.5 text-xs font-bold transition ${visao === id ? 'bg-white text-omega-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
+      {visao === 'comparativo' ? <ComparativoProjecao contrato={contrato} /> : null}
+
+      <SolicitacoesExclusao
+        solicitacoes={solicitacoes}
+        ehAdmin={podeExcluir}
+        onDecidido={() => {
+          carregarSolicitacoes();
+          recarregar();
+          todas.recarregar();
+          onCurvaAlterada?.();
+        }}
+      />
+
+      {visao === 'lista' ? (
+        <ListaProjecoes
+          lista={lista}
+          carregando={carregando}
+          erro={erro}
+          filtros={filtros}
+          onFiltrar={setFiltros}
+          obras={contrato.obras || []}
+          escopos={escopos}
+          podeEditar={podeEditar}
+          podeExcluir={podeExcluir}
+          podeSolicitar={podeEditar && !podeExcluir}
+          ocupadoId={excluindoId}
+          onAbrir={abrir}
+          onExcluir={excluir}
+          onSolicitar={setPedirExclusao}
+        />
+      ) : null}
+
+      <ModalMotivo
+        aberto={Boolean(pedirExclusao)}
+        titulo="Solicitar exclusão da projeção"
+        subtitulo={pedirExclusao ? `BMM ${pedirExclusao.numero_bmm} · ${rotuloReferencia(pedirExclusao.referencia)} · ${formatarMoeda(pedirExclusao.total)}` : ''}
+        rotulo="Motivo (vai para o administrador)"
+        textoBotao="Enviar solicitação"
+        onCancelar={() => setPedirExclusao(null)}
+        onConfirmar={async (motivo) => {
+          await solicitarExclusaoProjecao(pedirExclusao.id, motivo);
+          toast.sucesso('Solicitação enviada ao administrador.');
+          setPedirExclusao(null);
+          carregarSolicitacoes();
+          recarregar();
+        }}
       />
 
       <ModalCopiarProjecao

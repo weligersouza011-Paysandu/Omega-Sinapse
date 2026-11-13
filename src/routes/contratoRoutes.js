@@ -79,8 +79,12 @@ router.delete('/:id/qqp/:itemId', autorizar(...PERFIS_QUE_GEREM_QQP), obraMedica
 // GET  /api/contratos/:id/ciclos/:referencia/semanas -> semanas do ciclo e dias úteis
 router.get('/:id/projecoes-bmm', projecaoBmmController.listar);
 router.post('/:id/projecoes-bmm/calcular', projecaoBmmController.calcular);
+// GET  /api/contratos/:id/projecoes-bmm/comparativo?obra= -> por ciclo e obra: projetado × medido e margem sobre o custo dos recursos
+router.get('/:id/projecoes-bmm/comparativo', projecaoBmmController.comparativo);
 router.post('/:id/projecoes-bmm', autorizar(...PERFIS_QUE_PROJETAM), projecaoBmmController.criar);
 router.get('/:id/ciclos/:referencia/semanas', projecaoBmmController.semanasDoCiclo);
+// GET  /api/contratos/:id/solicitacoes-exclusao?status=PENDENTE|APROVADA|REJEITADA (ADMIN vê todas; demais, as suas)
+router.get('/:id/solicitacoes-exclusao', projecaoBmmController.listarSolicitacoes);
 
 // Boletins de Medição (BMM) do contrato.
 // POST   /api/contratos/:id/boletins -> { numero_bmm, mes_referencia | ciclo_inicio+ciclo_fim,

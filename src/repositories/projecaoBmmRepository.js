@@ -84,6 +84,10 @@ async function listar(filtro) {
       termo_aditivo: INCLUIR_COMPLETO.termo_aditivo,
       usuario: INCLUIR_COMPLETO.usuario,
       _count: { select: { itens: true } },
+      solicitacoes_exclusao: {
+        where: { status: 'PENDENTE' },
+        select: { id: true, solicitante_nome: true, motivo: true, created_at: true },
+      },
     },
   });
 }
@@ -152,9 +156,118 @@ async function substituir(id, cabecalho, itens) {
   );
 }
 
-async function excluir(id) {
-  const resultado = await prisma.projecaoBmm.deleteMany({ where: { id } });
-  return resultado.count > 0;
+/**
+ * Exclui a projeção (ADMIN). Pedidos de exclusão pendentes dela ficam APROVADOS.
+ * `decisor` = { id, nome }.
+ */
+async function excluir(id, decisor = {}) {
+  return prisma.$transaction(async (tx) => {
+    await tx.solicitacaoExclusaoProjecao.updateMany({
+      where: { projecao_id: id, status: 'PENDENTE' },
+      data: {
+        status: 'APROVADA',
+        decidido_por_id: decisor.id ?? null,
+        decidido_por_nome: decisor.nome ?? null,
+        decidido_em: new Date(),
+        motivo_decisao: 'Projeção excluída pelo administrador.',
+      },
+    });
+    const resultado = await tx.projecaoBmm.deleteMany({ where: { id } });
+    return resultado.count > 0;
+  });
+}
+
+/* ------------------------- Comparativo Projetado × Medido ------------------------- */
+
+/** Tudo o que o comparativo precisa do contrato (opcionalmente de uma obra só). */
+async function dadosDoComparativo(contratoId, obraId = null) {
+  const daObra = obraId ? { obra_id: obraId } : {};
+  const [obras, projecoes, medicoes, recursos] = await Promise.all([
+    prisma.obra.findMany({
+      where: { contrato_id: contratoId, ...(obraId ? { id: obraId } : {}) },
+      select: { id: true, orcamento: { select: { ss: true, descricao: true } } },
+    }),
+    prisma.projecaoBmm.groupBy({
+      by: ['obra_id', 'referencia'],
+      where: { contrato_id: contratoId, ...daObra },
+      _sum: { total: true },
+      _count: { _all: true },
+    }),
+    prisma.boletimMedicaoItem.findMany({
+      where: { boletim: { contrato_id: contratoId }, obra_id: obraId ? obraId : { not: null } },
+      select: { obra_id: true, valor: true, boletim: { select: { status: true, ciclo_fim: true, numero_bmm: true } } },
+    }),
+    prisma.recursoObraQqp.findMany({
+      where: { obra: { contrato_id: contratoId }, ...(obraId ? { obra_id: obraId } : {}) },
+      include: { item: true },
+    }),
+  ]);
+  return { obras, projecoes, medicoes, recursos };
+}
+
+/* ------------------------- Solicitações de exclusão ------------------------- */
+
+const INCLUIR_SOLICITACAO = {
+  projecao: {
+    select: { id: true, numero_bmm: true, referencia: true, total: true, obra_id: true, obra: { select: { orcamento: { select: { ss: true } } } } },
+  },
+};
+
+/**
+ * Registra o pedido travando a projeção (FOR UPDATE), para dois pedidos simultâneos
+ * não ficarem pendentes juntos. Devolve { naoEncontrada } | { duplicada } | { solicitacao }.
+ */
+async function criarSolicitacao(projecaoId, dados) {
+  return prisma.$transaction(async (tx) => {
+    const travada = await tx.$queryRaw`SELECT id FROM projecoes_bmm WHERE id = ${projecaoId} FOR UPDATE`;
+    if (!travada.length) return { naoEncontrada: true };
+    const pendente = await tx.solicitacaoExclusaoProjecao.findFirst({ where: { projecao_id: projecaoId, status: 'PENDENTE' }, select: { id: true } });
+    if (pendente) return { duplicada: true };
+    const solicitacao = await tx.solicitacaoExclusaoProjecao.create({ data: { projecao_id: projecaoId, ...dados }, include: INCLUIR_SOLICITACAO });
+    return { solicitacao };
+  });
+}
+
+async function listarSolicitacoes(filtro) {
+  return prisma.solicitacaoExclusaoProjecao.findMany({
+    where: filtro,
+    orderBy: [{ status: 'asc' }, { created_at: 'desc' }],
+    include: INCLUIR_SOLICITACAO,
+    take: 500,
+  });
+}
+
+async function buscarSolicitacao(id) {
+  return prisma.solicitacaoExclusaoProjecao.findUnique({ where: { id }, include: INCLUIR_SOLICITACAO });
+}
+
+/**
+ * Decide o pedido com o pedido e a projeção travados (o primeiro a decidir vence).
+ * Aprovar exclui a projeção. Devolve { jaDecidida } | { solicitacao, projecaoExcluida }.
+ */
+async function decidirSolicitacao(id, { aprovar, decisor, motivo }) {
+  return prisma.$transaction(async (tx) => {
+    const [linha] = await tx.$queryRaw`SELECT status::text AS status, projecao_id FROM solicitacoes_exclusao_projecao WHERE id = ${id} FOR UPDATE`;
+    if (!linha) return { naoEncontrada: true };
+    if (linha.status !== 'PENDENTE') return { jaDecidida: true };
+    const decisao = {
+      decidido_por_id: decisor.id ?? null,
+      decidido_por_nome: decisor.nome ?? null,
+      decidido_em: new Date(),
+    };
+    let projecaoExcluida = null;
+    if (aprovar && linha.projecao_id) {
+      await tx.$queryRaw`SELECT id FROM projecoes_bmm WHERE id = ${linha.projecao_id} FOR UPDATE`;
+      projecaoExcluida = await tx.projecaoBmm.findUnique({ where: { id: linha.projecao_id }, select: { id: true, contrato_id: true, referencia: true } });
+    }
+    const solicitacao = await tx.solicitacaoExclusaoProjecao.update({
+      where: { id },
+      data: { ...decisao, status: aprovar ? 'APROVADA' : 'REJEITADA', motivo_decisao: motivo || null },
+      include: INCLUIR_SOLICITACAO,
+    });
+    if (projecaoExcluida) await tx.projecaoBmm.delete({ where: { id: projecaoExcluida.id } });
+    return { solicitacao, projecaoExcluida };
+  });
 }
 
 /* ------------------------------ Feriados personalizados ------------------------------ */
@@ -210,6 +323,11 @@ module.exports = {
   criar,
   substituir,
   excluir,
+  criarSolicitacao,
+  dadosDoComparativo,
+  listarSolicitacoes,
+  buscarSolicitacao,
+  decidirSolicitacao,
   listarFeriados,
   buscarFeriado,
   existeFeriado,

@@ -16,6 +16,7 @@ function acao(metodo, status = 200) {
 /* ----------------------------- Projeções de BMM ----------------------------- */
 
 const listar = acao((req) => service.listar(req.params.id, req.query || {}, req.user));
+const comparativo = acao((req) => service.comparativo(req.params.id, req.query || {}, req.user));
 const calcular = acao((req) => service.calcular(req.params.id, req.body || {}, req.user));
 const criar = acao((req) => service.criar(req.params.id, req.body || {}, req.user), 201);
 const semanasDoCiclo = acao((req) => service.semanasDoCiclo(req.params.id, req.params.referencia, req.user));
@@ -23,6 +24,9 @@ const obter = acao((req) => service.obter(req.params.id, req.user));
 const atualizar = acao((req) => service.atualizar(req.params.id, req.body || {}, req.user));
 const excluir = acao((req) => service.excluir(req.params.id, req.user));
 const copiar = acao((req) => service.copiarDe(req.params.id, req.body || {}, req.user));
+const solicitarExclusao = acao((req) => service.solicitarExclusao(req.params.id, req.body || {}, req.user), 201);
+const listarSolicitacoes = acao((req) => service.listarSolicitacoes(req.params.id, req.query || {}, req.user));
+const decidirSolicitacao = acao((req) => service.decidirSolicitacao(req.params.id, req.body || {}, req.user));
 
 /* ------------------------------ Feriados personalizados ------------------------------ */
 
@@ -34,12 +38,16 @@ const excluirFeriado = acao((req) => service.excluirFeriado(req.params.id, req.u
 module.exports = {
   listar,
   calcular,
+  comparativo,
   criar,
   semanasDoCiclo,
   obter,
   atualizar,
   excluir,
   copiar,
+  solicitarExclusao,
+  listarSolicitacoes,
+  decidirSolicitacao,
   listarFeriados,
   criarFeriado,
   atualizarFeriado,

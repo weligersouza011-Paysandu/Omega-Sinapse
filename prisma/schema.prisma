@@ -68,6 +68,13 @@ enum CategoriaQqp {
   OUTROS
 }
 
+/// Situação da solicitação de exclusão de uma Projeção de BMM.
+enum StatusSolicitacaoExclusao {
+  PENDENTE
+  APROVADA
+  REJEITADA
+}
+
 enum UnidadeQqp {
   /// Preço por hora: custo diário = quantidade x horas por dia x preço.
   HORA
@@ -243,6 +250,8 @@ model Usuario {
   boletins_registrados    BoletimMedicao[]                @relation("BoletimAutor")
   feriados_cadastrados    FeriadoPersonalizado[]          @relation("FeriadoAutor")
   projecoes_bmm           ProjecaoBmm[]                   @relation("ProjecaoBmmAutor")
+  exclusoes_solicitadas   SolicitacaoExclusaoProjecao[]   @relation("ExclusaoSolicitante")
+  exclusoes_decididas     SolicitacaoExclusaoProjecao[]   @relation("ExclusaoDecisor")
 
   @@map("usuarios")
 }
@@ -869,19 +878,21 @@ model Contrato {
   created_at      DateTime @default(now()) @db.Timestamptz(6)
   updated_at      DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  aditivos         TermoAditivo[]
-  obras            Obra[]
-  boletins         BoletimMedicao[]
-  itens_qqp        ItemQqp[]
+  aditivos           TermoAditivo[]
+  obras              Obra[]
+  boletins           BoletimMedicao[]
+  itens_qqp          ItemQqp[]
   /// Ordem personalizada de categorias, grupos e subgrupos na tela do QQP.
-  qqp_ordem        QqpOrdemVisualizacao?
+  qqp_ordem          QqpOrdemVisualizacao?
   /// Feriados cadastrados só para este contrato (os globais têm `contrato_id` vazio).
-  feriados         FeriadoPersonalizado[]
+  feriados           FeriadoPersonalizado[]
   /// Projeções de BMM (receita prevista por ciclo) das obras do contrato.
-  projecoes_bmm    ProjecaoBmm[]
+  projecoes_bmm      ProjecaoBmm[]
+  /// Pedidos de exclusão de projeções (aprovados/rejeitados pelo ADMIN).
+  exclusoes_projecao SolicitacaoExclusaoProjecao[]
   /// Previsto e tendência financeiros do contrato por ciclo (planilha de acompanhamento).
-  curva_financeira CurvaFinanceiraContrato[]
-  historico_curva  HistoricoCurvaFinanceira[]
+  curva_financeira   CurvaFinanceiraContrato[]
+  historico_curva    HistoricoCurvaFinanceira[]
 
   @@map("contratos")
 }
@@ -1093,16 +1104,46 @@ model ProjecaoBmm {
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   updated_at       DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  contrato      Contrato          @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
-  termo_aditivo TermoAditivo?     @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
-  obra          Obra              @relation(fields: [obra_id], references: [id], onDelete: Cascade)
-  usuario       Usuario?          @relation("ProjecaoBmmAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
-  itens         ProjecaoBmmItem[]
+  contrato              Contrato                      @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  termo_aditivo         TermoAditivo?                 @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
+  obra                  Obra                          @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  usuario               Usuario?                      @relation("ProjecaoBmmAutor", fields: [usuario_id], references: [id], onDelete: SetNull)
+  itens                 ProjecaoBmmItem[]
+  solicitacoes_exclusao SolicitacaoExclusaoProjecao[]
 
   @@unique([obra_id, numero_bmm, referencia], name: "uq_projecao_bmm_por_obra")
   @@index([contrato_id, referencia])
   @@index([obra_id])
   @@map("projecoes_bmm")
+}
+
+/// Pedido de exclusão de uma Projeção de BMM feito por quem não é ADMIN. O ADMIN aprova
+/// (a projeção é excluída) ou rejeita com motivo. A cópia da projeção fica guardada em
+/// `projecao_json`, inclusive depois da exclusão (`projecao_id` fica vazio).
+/// Só pode haver um pedido PENDENTE por projeção (conferido no serviço, dentro da transação).
+model SolicitacaoExclusaoProjecao {
+  id                Int                       @id @default(autoincrement())
+  contrato_id       Int
+  projecao_id       Int?
+  projecao_json     Json
+  motivo            String
+  status            StatusSolicitacaoExclusao @default(PENDENTE)
+  solicitante_id    Int?
+  solicitante_nome  String                    @db.VarChar(255)
+  decidido_por_id   Int?
+  decidido_por_nome String?                   @db.VarChar(255)
+  decidido_em       DateTime?                 @db.Timestamptz(6)
+  motivo_decisao    String?
+  created_at        DateTime                  @default(now()) @db.Timestamptz(6)
+
+  contrato     Contrato     @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  projecao     ProjecaoBmm? @relation(fields: [projecao_id], references: [id], onDelete: SetNull)
+  solicitante  Usuario?     @relation("ExclusaoSolicitante", fields: [solicitante_id], references: [id], onDelete: SetNull)
+  decidido_por Usuario?     @relation("ExclusaoDecisor", fields: [decidido_por_id], references: [id], onDelete: SetNull)
+
+  @@index([contrato_id, status])
+  @@index([projecao_id])
+  @@map("solicitacoes_exclusao_projecao")
 }
 
 model ProjecaoBmmItem {
