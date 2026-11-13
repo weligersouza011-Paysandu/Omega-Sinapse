@@ -14,3 +14,6 @@ vendor/
 
 # Connection string da branch de teste do Neon (scripts/testarFase1QqpNeon.js)
 .env.neon-teste
+
+# Relatórios gerados pelos scripts de importação/conferência
+scripts/saida/

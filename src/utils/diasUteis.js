@@ -46,7 +46,11 @@ const cacheFeriados = new Map();
 function feriadosNacionais(ano) {
   if (cacheFeriados.has(ano)) return cacheFeriados.get(ano);
 
-  const sextaSanta = new Date(pascoa(ano).getTime() - 2 * DIA_MS);
+  const domingoPascoa = pascoa(ano).getTime();
+  const sextaSanta = new Date(domingoPascoa - 2 * DIA_MS);
+  // Mesmo calendário do sistema Projeção Financeira (BrasilAPI): Carnaval (segunda e terça)
+  // e Corpus Christi também contam como feriado nacional.
+  const moveis = [-48, -47, 60].map((dias) => iso(new Date(domingoPascoa + dias * DIA_MS)));
   const fixos = [
     [0, 1], // Confraternização Universal
     [3, 21], // Tiradentes
@@ -61,7 +65,7 @@ function feriadosNacionais(ano) {
   // Dia Nacional de Zumbi e da Consciência Negra: feriado nacional desde 2024 (Lei 14.759/2023).
   if (ano >= 2024) fixos.push(iso(new Date(Date.UTC(ano, 10, 20))));
 
-  const conjunto = new Set([...fixos, iso(sextaSanta)]);
+  const conjunto = new Set([...fixos, iso(sextaSanta), ...moveis]);
   cacheFeriados.set(ano, conjunto);
   return conjunto;
 }

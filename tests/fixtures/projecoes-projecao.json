@@ -1,0 +1,3271 @@
+[
+ {
+  "referencia": "2026-01",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "95",
+   "IT-02": "15000",
+   "IT-03": "15000.282856",
+   "IT-04": "1.6233346",
+   "IT-05": "95",
+   "IT-06": "123456.764"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Janeiro",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "95",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 2,
+       "people": 1,
+       "value": 9.05
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 4,
+       "people": 3,
+       "value": 54.29
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 4,
+       "people": 2,
+       "value": 36.19
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 2,
+       "people": 0.3333,
+       "value": 476.14
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 0,
+       "people": 7,
+       "value": 0.0
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 3,
+       "people": 2.5,
+       "value": 5357.14
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 2,
+       "people": 3,
+       "value": 4285.71
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "15000.282856",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 2,
+       "people": 1,
+       "value": 1428.6
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 3,
+       "people": 2.5,
+       "value": 5357.24
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 1,
+       "people": 3,
+       "value": 2142.9
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "1.6233346",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 4,
+       "people": 0.5,
+       "value": 0.15
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 1,
+       "people": 0.5,
+       "value": 0.04
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 1,
+       "people": 0.5,
+       "value": 0.04
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 3,
+       "people": 2,
+       "value": 0.46
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "95",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 4,
+       "people": 1,
+       "value": 18.1
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 1,
+       "people": 0.3333,
+       "value": 1.51
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 1,
+       "people": 0.5,
+       "value": 2.26
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 2,
+       "people": 1,
+       "value": 9.05
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 2,
+       "people": 1,
+       "value": 9.05
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "123456.764",
+     "weeklyQuantities": {
+      "2026-01:2025-12-15": {
+       "friday": "19/12/2025",
+       "days": 2,
+       "people": 2.5,
+       "value": 29394.47
+      },
+      "2026-01:2025-12-22": {
+       "friday": "26/12/2025",
+       "days": 4,
+       "people": 1.25,
+       "value": 29394.47
+      },
+      "2026-01:2025-12-29": {
+       "friday": "02/01/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-01:2026-01-05": {
+       "friday": "09/01/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-01:2026-01-12": {
+       "friday": "16/01/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 14697.23
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Janeiro de 2026",
+   "startMonth": "2026-01",
+   "endMonth": "2026-01",
+   "startPeriod": "16/12/2025 a 15/01/2026",
+   "endPeriod": "16/12/2025 a 15/01/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-01 / 16–15",
+     "periodRange": "16/12/2025 a 15/01/2026",
+     "week": "16/12/2025 a 21/12/2025",
+     "businessDays": 4,
+     "total": 31326.51
+    },
+    {
+     "period": "2026-01 / 16–15",
+     "periodRange": "16/12/2025 a 15/01/2026",
+     "week": "22/12/2025 a 28/12/2025",
+     "businessDays": 4,
+     "total": 34807.55
+    },
+    {
+     "period": "2026-01 / 16–15",
+     "periodRange": "16/12/2025 a 15/01/2026",
+     "week": "29/12/2025 a 04/01/2026",
+     "businessDays": 4,
+     "total": 5359.4
+    },
+    {
+     "period": "2026-01 / 16–15",
+     "periodRange": "16/12/2025 a 15/01/2026",
+     "week": "05/01/2026 a 11/01/2026",
+     "businessDays": 5,
+     "total": 4330.99
+    },
+    {
+     "period": "2026-01 / 16–15",
+     "periodRange": "16/12/2025 a 15/01/2026",
+     "week": "12/01/2026 a 15/01/2026",
+     "businessDays": 4,
+     "total": 16849.64
+    }
+   ],
+   "total": 92674.09
+  }
+ },
+ {
+  "referencia": "2026-03",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "95",
+   "IT-02": "15000.020",
+   "IT-03": "123456.42483568",
+   "IT-04": "123456.8349121",
+   "IT-05": "95.130125",
+   "IT-06": "123456.4961"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Março",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "95",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 1,
+       "people": 2,
+       "value": 10.56
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 1,
+       "people": 3,
+       "value": 15.83
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 3,
+       "people": 3,
+       "value": 47.5
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 2,
+       "people": 2,
+       "value": 21.11
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000.02",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 2,
+       "people": 2.5,
+       "value": 4166.67
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 1,
+       "people": 3,
+       "value": 2500.0
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 3,
+       "people": 1,
+       "value": 2500.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "123456.42483568",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 1,
+       "people": 3,
+       "value": 20576.07
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 5,
+       "people": 2,
+       "value": 68586.9
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 2,
+       "people": 0.3333,
+       "value": 4572.0
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 1,
+       "people": 1,
+       "value": 6858.69
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "123456.8349121",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 1,
+       "people": 1.25,
+       "value": 8573.39
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "95.130125",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 13.21
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 4,
+       "people": 2,
+       "value": 42.28
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "123456.4961",
+     "weeklyQuantities": {
+      "2026-03:2026-02-16": {
+       "friday": "20/02/2026",
+       "days": 1,
+       "people": 0.5,
+       "value": 3429.35
+      },
+      "2026-03:2026-02-23": {
+       "friday": "27/02/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 2286.0
+      },
+      "2026-03:2026-03-02": {
+       "friday": "06/03/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 17146.74
+      },
+      "2026-03:2026-03-09": {
+       "friday": "13/03/2026",
+       "days": 3,
+       "people": 2,
+       "value": 41152.17
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Março de 2026",
+   "startMonth": "2026-03",
+   "endMonth": "2026-03",
+   "startPeriod": "16/02/2026 a 15/03/2026",
+   "endPeriod": "16/02/2026 a 15/03/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-03 / 16–15",
+     "periodRange": "16/02/2026 a 15/03/2026",
+     "week": "16/02/2026 a 22/02/2026",
+     "businessDays": 3,
+     "total": 24029.19
+    },
+    {
+     "period": "2026-03 / 16–15",
+     "periodRange": "16/02/2026 a 15/03/2026",
+     "week": "23/02/2026 a 01/03/2026",
+     "businessDays": 5,
+     "total": 75097.68
+    },
+    {
+     "period": "2026-03 / 16–15",
+     "periodRange": "16/02/2026 a 15/03/2026",
+     "week": "02/03/2026 a 08/03/2026",
+     "businessDays": 5,
+     "total": 24266.24
+    },
+    {
+     "period": "2026-03 / 16–15",
+     "periodRange": "16/02/2026 a 15/03/2026",
+     "week": "09/03/2026 a 15/03/2026",
+     "businessDays": 5,
+     "total": 59105.36
+    }
+   ],
+   "total": 182498.47
+  }
+ },
+ {
+  "referencia": "2026-06",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "123456.2430754",
+   "IT-02": "1800.543",
+   "IT-03": "1.75570",
+   "IT-04": "1800",
+   "IT-05": "123456.82433",
+   "IT-06": "1.04480"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Junho",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "123456.2430754",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 2,
+       "people": 2,
+       "value": 24691.25
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 5,
+       "people": 0.5,
+       "value": 15432.03
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 2057.4
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "1800.543",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 4,
+       "people": 1.25,
+       "value": 450.14
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 3,
+       "people": 2.5,
+       "value": 675.2
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "1.7557",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 5,
+       "people": 2,
+       "value": 0.88
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 3,
+       "people": 2.5,
+       "value": 0.66
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "1800",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 2,
+       "people": 3,
+       "value": 540.0
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 5,
+       "people": 2,
+       "value": 900.0
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 5,
+       "people": 0.5,
+       "value": 225.0
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "123456.82433",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 2,
+       "people": 3,
+       "value": 37037.05
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 3,
+       "people": 0.3333,
+       "value": 6172.22
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "1.0448",
+     "weeklyQuantities": {
+      "2026-06:2026-05-11": {
+       "friday": "15/05/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-06:2026-05-18": {
+       "friday": "22/05/2026",
+       "days": 2,
+       "people": 2.5,
+       "value": 0.26
+      },
+      "2026-06:2026-05-25": {
+       "friday": "29/05/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 0.13
+      },
+      "2026-06:2026-06-01": {
+       "friday": "05/06/2026",
+       "days": 1,
+       "people": 7,
+       "value": 0.37
+      },
+      "2026-06:2026-06-08": {
+       "friday": "12/06/2026",
+       "days": 5,
+       "people": 1,
+       "value": 0.26
+      },
+      "2026-06:2026-06-15": {
+       "friday": "19/06/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Junho de 2026",
+   "startMonth": "2026-06",
+   "endMonth": "2026-06",
+   "startPeriod": "16/05/2026 a 15/06/2026",
+   "endPeriod": "16/05/2026 a 15/06/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "16/05/2026 a 17/05/2026",
+     "businessDays": 0,
+     "total": 0.0
+    },
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "18/05/2026 a 24/05/2026",
+     "businessDays": 5,
+     "total": 62718.7
+    },
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "25/05/2026 a 31/05/2026",
+     "businessDays": 5,
+     "total": 22505.26
+    },
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "01/06/2026 a 07/06/2026",
+     "businessDays": 4,
+     "total": 675.57
+    },
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "08/06/2026 a 14/06/2026",
+     "businessDays": 5,
+     "total": 2283.32
+    },
+    {
+     "period": "2026-06 / 16–15",
+     "periodRange": "16/05/2026 a 15/06/2026",
+     "week": "15/06/2026 a 15/06/2026",
+     "businessDays": 1,
+     "total": 0.0
+    }
+   ],
+   "total": 88182.85
+  }
+ },
+ {
+  "referencia": "2026-08",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "1800.5209520",
+   "IT-02": "15000.8839607",
+   "IT-03": "15000.69576546",
+   "IT-04": "1.54",
+   "IT-05": "95.596",
+   "IT-06": "123456.67713"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Agosto",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "1800.520952",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 2,
+       "people": 7,
+       "value": 1145.79
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 4,
+       "people": 3,
+       "value": 982.1
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 5,
+       "people": 1.25,
+       "value": 511.51
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000.8839607",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 2,
+       "people": 2.5,
+       "value": 3409.29
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 4,
+       "people": 7,
+       "value": 19092.03
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 681.86
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 4,
+       "people": 2,
+       "value": 5454.87
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "15000.69576546",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 1,
+       "people": 7,
+       "value": 4772.95
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 1,
+       "people": 2,
+       "value": 1363.7
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 5,
+       "people": 3,
+       "value": 10227.75
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 5,
+       "people": 0.3333,
+       "value": 1136.3
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "1.54",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 2,
+       "people": 1.25,
+       "value": 0.18
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 4,
+       "people": 1.25,
+       "value": 0.35
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 0.02
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 1,
+       "people": 1.25,
+       "value": 0.09
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "95.596",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 5,
+       "people": 1,
+       "value": 21.73
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 1,
+       "people": 3,
+       "value": 13.04
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "123456.67713",
+     "weeklyQuantities": {
+      "2026-08:2026-07-13": {
+       "friday": "17/07/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 5611.67
+      },
+      "2026-08:2026-07-20": {
+       "friday": "24/07/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      },
+      "2026-08:2026-07-27": {
+       "friday": "31/07/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 21043.75
+      },
+      "2026-08:2026-08-03": {
+       "friday": "07/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-08:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Agosto de 2026",
+   "startMonth": "2026-08",
+   "endMonth": "2026-08",
+   "startPeriod": "16/07/2026 a 15/08/2026",
+   "endPeriod": "16/07/2026 a 15/08/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-08 / 16–15",
+     "periodRange": "16/07/2026 a 15/08/2026",
+     "week": "16/07/2026 a 19/07/2026",
+     "businessDays": 2,
+     "total": 10384.8
+    },
+    {
+     "period": "2026-08 / 16–15",
+     "periodRange": "16/07/2026 a 15/08/2026",
+     "week": "20/07/2026 a 26/07/2026",
+     "businessDays": 5,
+     "total": 5940.51
+    },
+    {
+     "period": "2026-08 / 16–15",
+     "periodRange": "16/07/2026 a 15/08/2026",
+     "week": "27/07/2026 a 02/08/2026",
+     "businessDays": 5,
+     "total": 41118.23
+    },
+    {
+     "period": "2026-08 / 16–15",
+     "periodRange": "16/07/2026 a 15/08/2026",
+     "week": "03/08/2026 a 09/08/2026",
+     "businessDays": 5,
+     "total": 11421.14
+    },
+    {
+     "period": "2026-08 / 16–15",
+     "periodRange": "16/07/2026 a 15/08/2026",
+     "week": "10/08/2026 a 15/08/2026",
+     "businessDays": 5,
+     "total": 6604.3
+    }
+   ],
+   "total": 75468.98
+  }
+ },
+ {
+  "referencia": "2026-09",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "1800.8",
+   "IT-02": "15000.0",
+   "IT-03": "95.055855",
+   "IT-04": "1",
+   "IT-05": "123456.848173",
+   "IT-06": "15000.4"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Setembro",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "1800.8",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 4,
+       "people": 7,
+       "value": 2401.07
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 3,
+       "people": 0.3333,
+       "value": 714.21
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 4,
+       "people": 1,
+       "value": 2857.14
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 2,
+       "people": 0.3333,
+       "value": 476.14
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 1785.71
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "95.055855",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 2,
+       "people": 2.5,
+       "value": 22.63
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 4,
+       "people": 2.5,
+       "value": 45.26
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 1,
+       "people": 1,
+       "value": 4.53
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 3,
+       "people": 0.3333,
+       "value": 4.53
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "1",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 5,
+       "people": 7,
+       "value": 1.67
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 5,
+       "people": 0.5,
+       "value": 0.12
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 0.18
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 0.05
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 0.05
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "123456.848173",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 5,
+       "people": 1.25,
+       "value": 36743.11
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 2,
+       "people": 0.3333,
+       "value": 3918.87
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 1,
+       "people": 3,
+       "value": 17636.69
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "15000.4",
+     "weeklyQuantities": {
+      "2026-09:2026-08-10": {
+       "friday": "14/08/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-09:2026-08-17": {
+       "friday": "21/08/2026",
+       "days": 4,
+       "people": 2,
+       "value": 5714.44
+      },
+      "2026-09:2026-08-24": {
+       "friday": "28/08/2026",
+       "days": 5,
+       "people": 0.5,
+       "value": 1785.76
+      },
+      "2026-09:2026-08-31": {
+       "friday": "04/09/2026",
+       "days": 1,
+       "people": 7,
+       "value": 5000.13
+      },
+      "2026-09:2026-09-07": {
+       "friday": "11/09/2026",
+       "days": 4,
+       "people": 0.3333,
+       "value": 952.31
+      },
+      "2026-09:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 714.3
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Setembro de 2026",
+   "startMonth": "2026-09",
+   "endMonth": "2026-09",
+   "startPeriod": "16/08/2026 a 15/09/2026",
+   "endPeriod": "16/08/2026 a 15/09/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "16/08/2026 a 16/08/2026",
+     "businessDays": 0,
+     "total": 0.0
+    },
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "17/08/2026 a 23/08/2026",
+     "businessDays": 5,
+     "total": 45597.13
+    },
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "24/08/2026 a 30/08/2026",
+     "businessDays": 5,
+     "total": 5750.01
+    },
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "31/08/2026 a 06/09/2026",
+     "businessDays": 5,
+     "total": 25498.67
+    },
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "07/09/2026 a 13/09/2026",
+     "businessDays": 4,
+     "total": 1433.03
+    },
+    {
+     "period": "2026-09 / 16–15",
+     "periodRange": "16/08/2026 a 15/09/2026",
+     "week": "14/09/2026 a 15/09/2026",
+     "businessDays": 2,
+     "total": 2500.06
+    }
+   ],
+   "total": 80778.9
+  }
+ },
+ {
+  "referencia": "2026-11",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "95",
+   "IT-02": "95.068971",
+   "IT-03": "1.6",
+   "IT-04": "123456.7",
+   "IT-05": "1800.06846",
+   "IT-06": "45000.0846"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Novembro",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "95",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 1,
+       "people": 1,
+       "value": 4.75
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 0,
+       "people": 7,
+       "value": 0.0
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 2,
+       "people": 1,
+       "value": 9.5
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "95.068971",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 3,
+       "people": 7,
+       "value": 99.82
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 5,
+       "people": 2.5,
+       "value": 59.42
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 1,
+       "people": 1.25,
+       "value": 5.94
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 3,
+       "people": 3,
+       "value": 42.78
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "1.6",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 0.2
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 5,
+       "people": 3,
+       "value": 1.2
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 1,
+       "people": 7,
+       "value": 0.56
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 1,
+       "people": 2,
+       "value": 0.16
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "123456.7",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 23148.13
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 2057.41
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "1800.06846",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 3,
+       "people": 3,
+       "value": 810.03
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 4,
+       "people": 7,
+       "value": 2520.1
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 4,
+       "people": 1,
+       "value": 360.01
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 4,
+       "people": 2.5,
+       "value": 900.03
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "45000.0846",
+     "weeklyQuantities": {
+      "2026-11:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 1,
+       "people": 3,
+       "value": 6750.01
+      },
+      "2026-11:2026-10-19": {
+       "friday": "23/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-11:2026-10-26": {
+       "friday": "30/10/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 2250.0
+      },
+      "2026-11:2026-11-02": {
+       "friday": "06/11/2026",
+       "days": 3,
+       "people": 7,
+       "value": 47250.09
+      },
+      "2026-11:2026-11-09": {
+       "friday": "13/11/2026",
+       "days": 2,
+       "people": 1.25,
+       "value": 5625.01
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Novembro de 2026",
+   "startMonth": "2026-11",
+   "endMonth": "2026-11",
+   "startPeriod": "16/10/2026 a 15/11/2026",
+   "endPeriod": "16/10/2026 a 15/11/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-11 / 16–15",
+     "periodRange": "16/10/2026 a 15/11/2026",
+     "week": "16/10/2026 a 18/10/2026",
+     "businessDays": 1,
+     "total": 6750.21
+    },
+    {
+     "period": "2026-11 / 16–15",
+     "periodRange": "16/10/2026 a 15/11/2026",
+     "week": "19/10/2026 a 25/10/2026",
+     "businessDays": 5,
+     "total": 24062.73
+    },
+    {
+     "period": "2026-11 / 16–15",
+     "periodRange": "16/10/2026 a 15/11/2026",
+     "week": "26/10/2026 a 01/11/2026",
+     "businessDays": 5,
+     "total": 4830.72
+    },
+    {
+     "period": "2026-11 / 16–15",
+     "periodRange": "16/10/2026 a 15/11/2026",
+     "week": "02/11/2026 a 08/11/2026",
+     "businessDays": 4,
+     "total": 49674.01
+    },
+    {
+     "period": "2026-11 / 16–15",
+     "periodRange": "16/10/2026 a 15/11/2026",
+     "week": "09/11/2026 a 15/11/2026",
+     "businessDays": 5,
+     "total": 6577.48
+    }
+   ],
+   "total": 91895.15
+  }
+ },
+ {
+  "referencia": "2026-12",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "123456.965",
+   "IT-02": "15000.8318",
+   "IT-03": "15000.059",
+   "IT-04": "15000.88199599",
+   "IT-05": "95.818962",
+   "IT-06": "15000.2654071"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Dezembro",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "123456.965",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 22045.89
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 2,
+       "people": 1,
+       "value": 11757.81
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 4,
+       "people": 3,
+       "value": 70546.84
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000.8318",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 2678.72
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 1,
+       "people": 3,
+       "value": 2142.98
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "15000.059",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "15000.88199599",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 4,
+       "people": 0.5,
+       "value": 1428.66
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 2678.73
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 0,
+       "people": 2,
+       "value": 0.0
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 1,
+       "people": 1.25,
+       "value": 892.91
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "95.818962",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 2,
+       "people": 0.3333,
+       "value": 3.04
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 5,
+       "people": 2.5,
+       "value": 57.04
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 4,
+       "people": 3,
+       "value": 54.75
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "15000.2654071",
+     "weeklyQuantities": {
+      "2026-12:2026-11-16": {
+       "friday": "20/11/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-12:2026-11-23": {
+       "friday": "27/11/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-12:2026-11-30": {
+       "friday": "04/12/2026",
+       "days": 4,
+       "people": 2,
+       "value": 5714.39
+      },
+      "2026-12:2026-12-07": {
+       "friday": "11/12/2026",
+       "days": 3,
+       "people": 3,
+       "value": 6428.69
+      },
+      "2026-12:2026-12-14": {
+       "friday": "18/12/2026",
+       "days": 1,
+       "people": 2,
+       "value": 1428.6
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Dezembro de 2026",
+   "startMonth": "2026-12",
+   "endMonth": "2026-12",
+   "startPeriod": "16/11/2026 a 15/12/2026",
+   "endPeriod": "16/11/2026 a 15/12/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-12 / 16–15",
+     "periodRange": "16/11/2026 a 15/12/2026",
+     "week": "16/11/2026 a 22/11/2026",
+     "businessDays": 4,
+     "total": 22048.93
+    },
+    {
+     "period": "2026-12 / 16–15",
+     "periodRange": "16/11/2026 a 15/12/2026",
+     "week": "23/11/2026 a 29/11/2026",
+     "businessDays": 5,
+     "total": 4164.42
+    },
+    {
+     "period": "2026-12 / 16–15",
+     "periodRange": "16/11/2026 a 15/12/2026",
+     "week": "30/11/2026 a 06/12/2026",
+     "businessDays": 5,
+     "total": 20205.68
+    },
+    {
+     "period": "2026-12 / 16–15",
+     "periodRange": "16/11/2026 a 15/12/2026",
+     "week": "07/12/2026 a 13/12/2026",
+     "businessDays": 5,
+     "total": 79118.51
+    },
+    {
+     "period": "2026-12 / 16–15",
+     "periodRange": "16/11/2026 a 15/12/2026",
+     "week": "14/12/2026 a 15/12/2026",
+     "businessDays": 2,
+     "total": 2321.51
+    }
+   ],
+   "total": 127859.05
+  }
+ },
+ {
+  "referencia": "2027-03",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "95.51543206",
+   "IT-02": "15000.15634455",
+   "IT-03": "15000.6",
+   "IT-04": "45000",
+   "IT-05": "123456.749",
+   "IT-06": "1.567"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Março",
+   "referenceYear": 2027,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "95.51543206",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 5,
+       "people": 2,
+       "value": 47.76
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 2,
+       "people": 1.25,
+       "value": 11.94
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 0,
+       "people": 7,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "15000.15634455",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 2,
+       "people": 3,
+       "value": 4500.05
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 3,
+       "people": 3,
+       "value": 6750.07
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 5,
+       "people": 7,
+       "value": 26250.27
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 1,
+       "people": 7,
+       "value": 5250.05
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 1,
+       "people": 1.25,
+       "value": 937.51
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "15000.6",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 4,
+       "people": 1.25,
+       "value": 3750.15
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 1,
+       "people": 1,
+       "value": 750.03
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "45000",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 2,
+       "people": 0.3333,
+       "value": 1499.85
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 4,
+       "people": 0.5,
+       "value": 4500.0
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 1,
+       "people": 3,
+       "value": 6750.0
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 1,
+       "people": 0.5,
+       "value": 1125.0
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "123456.749",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 2,
+       "people": 7,
+       "value": 86419.72
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 5,
+       "people": 2,
+       "value": 61728.37
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 5,
+       "people": 0.5,
+       "value": 15432.09
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "1.567",
+     "weeklyQuantities": {
+      "2027-03:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 1,
+       "people": 3,
+       "value": 0.24
+      },
+      "2027-03:2027-02-22": {
+       "friday": "26/02/2027",
+       "days": 5,
+       "people": 7,
+       "value": 2.74
+      },
+      "2027-03:2027-03-01": {
+       "friday": "05/03/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-03:2027-03-08": {
+       "friday": "12/03/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-03:2027-03-15": {
+       "friday": "19/03/2027",
+       "days": 1,
+       "people": 3,
+       "value": 0.24
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Março de 2027",
+   "startMonth": "2027-03",
+   "endMonth": "2027-03",
+   "startPeriod": "16/02/2027 a 15/03/2027",
+   "endPeriod": "16/02/2027 a 15/03/2027",
+   "weeklyTotals": [
+    {
+     "period": "2027-03 / 16–15",
+     "periodRange": "16/02/2027 a 15/03/2027",
+     "week": "16/02/2027 a 21/02/2027",
+     "businessDays": 4,
+     "total": 90920.01
+    },
+    {
+     "period": "2027-03 / 16–15",
+     "periodRange": "16/02/2027 a 15/03/2027",
+     "week": "22/02/2027 a 28/02/2027",
+     "businessDays": 5,
+     "total": 73731.18
+    },
+    {
+     "period": "2027-03 / 16–15",
+     "periodRange": "16/02/2027 a 15/03/2027",
+     "week": "01/03/2027 a 07/03/2027",
+     "businessDays": 5,
+     "total": 30798.03
+    },
+    {
+     "period": "2027-03 / 16–15",
+     "periodRange": "16/02/2027 a 15/03/2027",
+     "week": "08/03/2027 a 14/03/2027",
+     "businessDays": 5,
+     "total": 27444.08
+    },
+    {
+     "period": "2027-03 / 16–15",
+     "periodRange": "16/02/2027 a 15/03/2027",
+     "week": "15/03/2027 a 15/03/2027",
+     "businessDays": 1,
+     "total": 2812.78
+    }
+   ],
+   "total": 225706.08
+  }
+ },
+ {
+  "referencia": "2026-10",
+  "feriados_personalizados": [
+   "2026-09-21",
+   "2026-10-05"
+  ],
+  "precos": {
+   "IT-01": "15000.87140479",
+   "IT-02": "1800.054",
+   "IT-03": "45000.46752",
+   "IT-04": "45000.4241",
+   "IT-05": "45000.6034",
+   "IT-06": "15000.2"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Outubro",
+   "referenceYear": 2026,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "15000.87140479",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 263.15
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 1,
+       "people": 2,
+       "value": 1579.04
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "1800.054",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 94.74
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 1,
+       "people": 1,
+       "value": 94.74
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 1,
+       "people": 0.3333,
+       "value": 31.58
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "45000.46752",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 1,
+       "people": 2.5,
+       "value": 5921.11
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 3,
+       "people": 1.25,
+       "value": 8881.67
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 4,
+       "people": 0.3333,
+       "value": 3157.61
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 1,
+       "people": 1.25,
+       "value": 2960.56
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "45000.4241",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 1,
+       "people": 1,
+       "value": 2368.44
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 3,
+       "people": 2.5,
+       "value": 17763.33
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 3,
+       "people": 7,
+       "value": 49737.31
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 1.25,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "45000.6034",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 3,
+       "people": 2.5,
+       "value": 17763.4
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 4,
+       "people": 1.25,
+       "value": 11842.26
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 1,
+       "people": 2,
+       "value": 4736.91
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 0,
+       "people": 7,
+       "value": 0.0
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 2,
+       "people": 2.5,
+       "value": 11842.26
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "15000.2",
+     "weeklyQuantities": {
+      "2026-10:2026-09-14": {
+       "friday": "18/09/2026",
+       "days": 2,
+       "people": 0.5,
+       "value": 789.48
+      },
+      "2026-10:2026-09-21": {
+       "friday": "25/09/2026",
+       "days": 4,
+       "people": 0.3333,
+       "value": 1052.54
+      },
+      "2026-10:2026-09-28": {
+       "friday": "02/10/2026",
+       "days": 3,
+       "people": 1,
+       "value": 2368.45
+      },
+      "2026-10:2026-10-05": {
+       "friday": "09/10/2026",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2026-10:2026-10-12": {
+       "friday": "16/10/2026",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Outubro de 2026",
+   "startMonth": "2026-10",
+   "endMonth": "2026-10",
+   "startPeriod": "16/09/2026 a 15/10/2026",
+   "endPeriod": "16/09/2026 a 15/10/2026",
+   "weeklyTotals": [
+    {
+     "period": "2026-10 / 16–15",
+     "periodRange": "16/09/2026 a 15/10/2026",
+     "week": "16/09/2026 a 20/09/2026",
+     "businessDays": 3,
+     "total": 24473.99
+    },
+    {
+     "period": "2026-10 / 16–15",
+     "periodRange": "16/09/2026 a 15/10/2026",
+     "week": "21/09/2026 a 27/09/2026",
+     "businessDays": 4,
+     "total": 15357.98
+    },
+    {
+     "period": "2026-10 / 16–15",
+     "periodRange": "16/09/2026 a 15/10/2026",
+     "week": "28/09/2026 a 04/10/2026",
+     "businessDays": 5,
+     "total": 33845.1
+    },
+    {
+     "period": "2026-10 / 16–15",
+     "periodRange": "16/09/2026 a 15/10/2026",
+     "week": "05/10/2026 a 11/10/2026",
+     "businessDays": 4,
+     "total": 53189.65
+    },
+    {
+     "period": "2026-10 / 16–15",
+     "periodRange": "16/09/2026 a 15/10/2026",
+     "week": "12/10/2026 a 15/10/2026",
+     "businessDays": 3,
+     "total": 16381.86
+    }
+   ],
+   "total": 143248.58
+  }
+ },
+ {
+  "referencia": "2027-02",
+  "feriados_personalizados": [],
+  "precos": {
+   "IT-01": "1.1348402",
+   "IT-02": "123456.91317678",
+   "IT-03": "123456.90",
+   "IT-04": "15000.782",
+   "IT-05": "1800.9331",
+   "IT-06": "123456.65987",
+   "IT-07": "123456.7534",
+   "IT-08": "1.20748037",
+   "IT-09": "123456.8404970",
+   "IT-10": "1800.9665",
+   "IT-11": "95.51090795",
+   "IT-12": "123456.8"
+  },
+  "data_json": {
+   "code": "1",
+   "referenceMonth": "Fevereiro",
+   "referenceYear": 2027,
+   "items": [
+    {
+     "code": "IT-01",
+     "description": "Item 1",
+     "unit": "mês",
+     "unitValue": "1.1348402",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 5,
+       "people": 0.3333,
+       "value": 0.1
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 3,
+       "people": 3,
+       "value": 0.54
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 2,
+       "people": 0.3333,
+       "value": 0.04
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 2,
+       "people": 1,
+       "value": 0.12
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-02",
+     "description": "Item 2",
+     "unit": "mês",
+     "unitValue": "123456.91317678",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 3,
+       "people": 0.5,
+       "value": 9746.6
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 1,
+       "people": 2.5,
+       "value": 16244.33
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 3,
+       "people": 1,
+       "value": 19493.2
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 7,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-03",
+     "description": "Item 3",
+     "unit": "mês",
+     "unitValue": "123456.9",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 2,
+       "people": 2.5,
+       "value": 32488.66
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 1,
+       "people": 3,
+       "value": 19493.19
+      }
+     }
+    },
+    {
+     "code": "IT-04",
+     "description": "Item 4",
+     "unit": "mês",
+     "unitValue": "15000.782",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 2.5,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 4,
+       "people": 3,
+       "value": 9474.18
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 2,
+       "people": 3,
+       "value": 4737.09
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-05",
+     "description": "Item 5",
+     "unit": "mês",
+     "unitValue": "1800.9331",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 3,
+       "people": 2,
+       "value": 568.72
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-06",
+     "description": "Item 6",
+     "unit": "mês",
+     "unitValue": "123456.65987",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 2,
+       "people": 1.25,
+       "value": 16244.3
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 1,
+       "people": 3,
+       "value": 19493.16
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 3,
+       "people": 1,
+       "value": 19493.16
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 1,
+       "people": 1.25,
+       "value": 8122.15
+      }
+     }
+    },
+    {
+     "code": "IT-07",
+     "description": "Item 7",
+     "unit": "mês",
+     "unitValue": "123456.7534",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 3,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 5,
+       "people": 7,
+       "value": 227420.34
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 3,
+       "people": 2.5,
+       "value": 48732.93
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-08",
+     "description": "Item 8",
+     "unit": "mês",
+     "unitValue": "1.20748037",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 2,
+       "people": 2.5,
+       "value": 0.32
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 1,
+       "people": 2.5,
+       "value": 0.16
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 2,
+       "people": 0.3333,
+       "value": 0.04
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 1,
+       "people": 1,
+       "value": 0.06
+      }
+     }
+    },
+    {
+     "code": "IT-09",
+     "description": "Item 9",
+     "unit": "mês",
+     "unitValue": "123456.840497",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 4,
+       "people": 0.3333,
+       "value": 8662.77
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 1,
+       "people": 7,
+       "value": 45484.1
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 3,
+       "people": 0.5,
+       "value": 9746.59
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0.5,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-10",
+     "description": "Item 10",
+     "unit": "mês",
+     "unitValue": "1800.9665",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 1,
+       "people": 0.3333,
+       "value": 31.59
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-11",
+     "description": "Item 11",
+     "unit": "mês",
+     "unitValue": "95.51090795",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 4,
+       "people": 0.3333,
+       "value": 6.7
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 5,
+       "people": 7,
+       "value": 175.94
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 0,
+       "people": 0.3333,
+       "value": 0.0
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 0,
+       "people": 1,
+       "value": 0.0
+      }
+     }
+    },
+    {
+     "code": "IT-12",
+     "description": "Item 12",
+     "unit": "mês",
+     "unitValue": "123456.8",
+     "weeklyQuantities": {
+      "2027-02:2027-01-11": {
+       "friday": "15/01/2027",
+       "days": 0,
+       "people": 0,
+       "value": 0.0
+      },
+      "2027-02:2027-01-18": {
+       "friday": "22/01/2027",
+       "days": 4,
+       "people": 7,
+       "value": 181936.34
+      },
+      "2027-02:2027-01-25": {
+       "friday": "29/01/2027",
+       "days": 4,
+       "people": 3,
+       "value": 77972.72
+      },
+      "2027-02:2027-02-01": {
+       "friday": "05/02/2027",
+       "days": 4,
+       "people": 0.5,
+       "value": 12995.45
+      },
+      "2027-02:2027-02-08": {
+       "friday": "12/02/2027",
+       "days": 2,
+       "people": 2.5,
+       "value": 32488.63
+      },
+      "2027-02:2027-02-15": {
+       "friday": "19/02/2027",
+       "days": 1,
+       "people": 3,
+       "value": 19493.18
+      }
+     }
+    }
+   ],
+   "bmmNumber": "1",
+   "description": "Fevereiro de 2027",
+   "startMonth": "2027-02",
+   "endMonth": "2027-02",
+   "startPeriod": "16/01/2027 a 15/02/2027",
+   "endPeriod": "16/01/2027 a 15/02/2027",
+   "weeklyTotals": [
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "16/01/2027 a 17/01/2027",
+     "businessDays": 0,
+     "total": 0.0
+    },
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "18/01/2027 a 24/01/2027",
+     "businessDays": 5,
+     "total": 476227.01
+    },
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "25/01/2027 a 31/01/2027",
+     "businessDays": 5,
+     "total": 206173.84
+    },
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "01/02/2027 a 07/02/2027",
+     "businessDays": 5,
+     "total": 39731.23
+    },
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "08/02/2027 a 14/02/2027",
+     "businessDays": 3,
+     "total": 71506.74
+    },
+    {
+     "period": "2027-02 / 16–15",
+     "periodRange": "16/01/2027 a 15/02/2027",
+     "week": "15/02/2027 a 15/02/2027",
+     "businessDays": 1,
+     "total": 47108.58
+    }
+   ],
+   "total": 840747.4
+  }
+ }
+]
