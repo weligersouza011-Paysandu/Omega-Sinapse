@@ -95,17 +95,23 @@ async function autenticar(req, res, next) {
     return next(new AppError(401, 'Token inválido ou corrompido.'));
   }
 
-  // Cliente: as páginas liberadas vêm sempre do banco (mudanças valem na hora, sem novo login).
-  if (req.user.perfil === 'CLIENTE') {
-    try {
-      const registro = await usuarioRepository.findById(req.user.id);
+  try {
+    const registro = await usuarioRepository.findById(req.user.id);
+
+    // Usuário excluído: o token ainda válido deixa de valer na hora.
+    if (registro?.excluido_em) {
+      return next(new AppError(401, 'Usuário excluído. Procure um administrador.'));
+    }
+
+    // Cliente: as páginas liberadas vêm sempre do banco (mudanças valem na hora, sem novo login).
+    if (req.user.perfil === 'CLIENTE') {
       if (!registro || registro.ativo === false || registro.perfil !== 'CLIENTE') {
         return next(new AppError(401, 'Acesso do cliente desativado ou alterado. Faça login novamente.'));
       }
       req.user.paginas_permitidas = registro.paginas_permitidas || [];
-    } catch (err) {
-      return next(err);
     }
+  } catch (err) {
+    return next(err);
   }
   return next();
 }

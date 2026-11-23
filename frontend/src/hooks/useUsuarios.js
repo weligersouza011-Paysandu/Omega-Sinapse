@@ -34,6 +34,12 @@ export async function atualizarUsuario(id, dados) {
   return data;
 }
 
+/** Exclui um colaborador (exclusão lógica: o histórico dele é preservado). */
+export async function excluirUsuario(id) {
+  const { data } = await api.delete(`/usuarios/${id}`);
+  return data;
+}
+
 /** Redefine a senha de um colaborador. */
 export async function atualizarSenha(id, senha) {
   const { data } = await api.put(`/usuarios/${id}/senha`, { senha });

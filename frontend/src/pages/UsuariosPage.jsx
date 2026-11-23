@@ -5,6 +5,7 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
+  Trash2,
   UserCheck,
   UserPlus,
   Users,
@@ -14,7 +15,7 @@ import ModalSenhaUsuario from '../components/ModalSenhaUsuario.jsx';
 import ModalUsuario from '../components/ModalUsuario.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
-import { useUsuarios } from '../hooks/useUsuarios.js';
+import { excluirUsuario, useUsuarios } from '../hooks/useUsuarios.js';
 import { formatarData } from '../utils/formatters.js';
 import { obterPerfil, OPCOES_PERFIL } from '../utils/perfis.js';
 import { PAGINAS_CLIENTE } from '../config/modulos.js';
@@ -82,6 +83,8 @@ export default function UsuariosPage() {
   const [modalUsuarioAberto, setModalUsuarioAberto] = useState(false);
   const [usuarioEdicao, setUsuarioEdicao] = useState(null);
   const [usuarioSenha, setUsuarioSenha] = useState(null);
+  const [excluindoId, setExcluindoId] = useState(null);
+  const [erroExclusao, setErroExclusao] = useState('');
 
   const { itens, total, totalPaginas, carregando, erro, recarregar, atualizarItemLocal } =
     useUsuarios({ busca: buscaAplicada, perfil, ativo: status, pagina, limit: LIMITE });
@@ -113,6 +116,26 @@ export default function UsuariosPage() {
     setUsuarioEdicao(null);
   }
 
+  /** Exclusão lógica: o colaborador perde o acesso, mas tarefas, obras e relatórios continuam com o nome dele. */
+  async function excluir(usuario) {
+    const confirmado = window.confirm(
+      `Excluir ${usuario.nome}?\n\nEle perde o acesso ao sistema e sai desta lista. ` +
+        'Todo o histórico dele (tarefas, obras, relatórios) é mantido.'
+    );
+    if (!confirmado) return;
+
+    setErroExclusao('');
+    setExcluindoId(usuario.id);
+    try {
+      await excluirUsuario(usuario.id);
+      await recarregar();
+    } catch (err) {
+      setErroExclusao(err.message || 'Não foi possível excluir o usuário.');
+    } finally {
+      setExcluindoId(null);
+    }
+  }
+
   function aoSalvarUsuario(salvo, { criacao } = {}) {
     if (criacao) {
       setPagina(1);
@@ -138,6 +161,15 @@ export default function UsuariosPage() {
             Novo usuário
           </button>
         </div>
+
+        {erroExclusao ? (
+          <div
+            role="alert"
+            className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700"
+          >
+            {erroExclusao}
+          </div>
+        ) : null}
 
         {/* ------------------------------------------------------- Indicadores */}
         <section className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
@@ -338,6 +370,18 @@ export default function UsuariosPage() {
                               >
                                 <KeyRound className="h-3.5 w-3.5" aria-hidden="true" />
                               </button>
+                              {!ehUsuarioAtual ? (
+                                <button
+                                  type="button"
+                                  onClick={() => excluir(usuario)}
+                                  disabled={excluindoId === usuario.id}
+                                  title={`Excluir ${usuario.nome} (o histórico é mantido)`}
+                                  aria-label={`Excluir ${usuario.nome}`}
+                                  className="flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-400/30 disabled:opacity-50"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                                </button>
+                              ) : null}
                             </div>
                           </td>
                         </tr>

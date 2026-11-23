@@ -26,4 +26,7 @@ router.put('/:id', autorizar('ADMIN'), usuarioController.atualizarUsuario);
 // PUT    /api/usuarios/:id/senha -> redefine a senha do colaborador
 router.put('/:id/senha', autorizar('ADMIN'), usuarioController.atualizarSenha);
 
+// DELETE /api/usuarios/:id    -> exclusão lógica: encerra o acesso e mantém o histórico
+router.delete('/:id', autorizar('ADMIN'), usuarioController.excluirUsuario);
+
 module.exports = router;

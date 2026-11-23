@@ -45,7 +45,18 @@ async function atualizarSenha(req, res, next) {
   }
 }
 
+/** DELETE /api/usuarios/:id — exclusão lógica (histórico preservado). */
+async function excluirUsuario(req, res, next) {
+  try {
+    const usuario = await usuarioService.excluirUsuario(req.params.id, req.user);
+    return res.status(200).json(usuario);
+  } catch (err) {
+    return next(err);
+  }
+}
+
 module.exports = {
+  excluirUsuario,
   listarUsuarios,
   criarUsuario,
   atualizarUsuario,
