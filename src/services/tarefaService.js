@@ -4,12 +4,24 @@ const AppError = require('../errors/AppError');
 const tarefaRepository = require('../repositories/tarefaRepository');
 const usuarioRepository = require('../repositories/usuarioRepository');
 const obraRepository = require('../repositories/obraRepository');
+const { calcularAderencia } = require('../utils/aderenciaDemanda');
+const { calcularMetricas } = require('../utils/metricasAderencia');
+const pendenciasDiariasService = require('./pendenciasDiariasService');
+const notificacaoTarefaService = require('./notificacaoTarefaService');
 
 /* -------------------------------------------------------------------------- */
 /* Domínio                                                                    */
 /* -------------------------------------------------------------------------- */
 
 const TIPOS = ['FIXA_RECORRENTE', 'AVULSA'];
+const CATEGORIAS_JUSTIFICATIVA = [
+  'SOLICITACAO_EXTRA',
+  'DEMANDA_FORA_ROTINA',
+  'DEPENDENCIA_EXTERNA',
+  'MUDANCA_ESCOPO',
+  'PROBLEMA_TECNICO',
+  'OUTROS',
+];
 const STATUS = ['A_FAZER', 'EM_ANDAMENTO', 'CONCLUIDO', 'CANCELADO'];
 const STATUS_ATIVOS = ['A_FAZER', 'EM_ANDAMENTO'];
 const PRIORIDADES = ['BAIXA', 'MEDIA', 'ALTA', 'CRITICA'];
@@ -42,6 +54,13 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 
 /** Antecedência em que uma tarefa ativa passa ao farol amarelo (vence hoje / < 24h). */
 const JANELA_ALERTA_MS = 24 * 60 * 60 * 1000;
+
+/** Campos que só existem quando a entrega é feita fora do prazo. */
+const CAMPOS_JUSTIFICATIVA = [
+  'justificativa_atraso',
+  'justificativa_categoria',
+  'justificativa_tarefa_id',
+];
 
 const LIMITE_PADRAO = 100;
 const LIMITE_MAXIMO = 500;
@@ -106,6 +125,23 @@ function fimDoDia(data) {
   return new Date(`${data}T23:59:59.999${FUSO}`);
 }
 
+const REGEX_HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Vencimento de um dia local: no horário "HH:mm" informado ou, sem ele, no fim do dia. */
+function vencimentoDoDia(data, hora) {
+  return hora ? new Date(`${data}T${hora}:00.000${FUSO}`) : fimDoDia(data);
+}
+
+/** Valida "HH:mm" (24h). Vazio vira null (vence no fim do dia). */
+function lerHora(valor) {
+  if (estaVazio(valor)) return null;
+  const texto = String(valor).trim();
+  if (!REGEX_HORA.test(texto)) {
+    throw new AppError(400, 'Horário de vencimento inválido: use o formato HH:mm (ex.: 18:00).');
+  }
+  return texto;
+}
+
 /**
  * Converte o vencimento informado. Datas puras ("2026-11-07") vencem às
  * 23:59:59.999 do dia no fuso operacional; datas com hora são respeitadas.
@@ -137,17 +173,31 @@ function lerDataFiltro(valor, campo, limite) {
 }
 
 /**
- * Próximo vencimento de uma rotina semanal: o dia da semana escolhido, no fim
- * do dia local. Com `estrita`, a data nunca é o próprio dia de referência
- * (usado ao agendar a ocorrência seguinte de uma rotina concluída).
+ * Próximo vencimento de uma rotina semanal: o dia da semana escolhido, no
+ * horário "HH:mm" da rotina (sem horário, no fim do dia local). Com `estrita`,
+ * a data nunca é o próprio dia de referência (usado ao agendar a ocorrência
+ * seguinte de uma rotina concluída). Sem `estrita`, se o horário de hoje já
+ * passou, o vencimento vai para a semana seguinte (não nasce vencida).
  */
-function proximoVencimento(diaRecorrencia, referencia, { estrita = false } = {}) {
+function proximoVencimento(diaRecorrencia, referencia, { estrita = false, hora = null } = {}) {
   const hoje = hojeLocal(referencia);
   const diaAtual = new Date(`${hoje}T00:00:00.000Z`).getUTCDay();
   let delta = (DIAS_SEMANA[diaRecorrencia] - diaAtual + 7) % 7;
   if (estrita && delta === 0) delta = 7;
-  const alvo = new Date(new Date(`${hoje}T00:00:00.000Z`).getTime() + delta * DIA_MS);
-  return fimDoDia(alvo.toISOString().slice(0, 10));
+
+  const montar = (dias) =>
+    vencimentoDoDia(
+      new Date(new Date(`${hoje}T00:00:00.000Z`).getTime() + dias * DIA_MS)
+        .toISOString()
+        .slice(0, 10),
+      hora
+    );
+
+  let vencimento = montar(delta);
+  if (!estrita && delta === 0 && vencimento.getTime() <= referencia.getTime()) {
+    vencimento = montar(7);
+  }
+  return vencimento;
 }
 
 /** Fim (domingo 23:59:59.999 local) da semana corrente. */
@@ -185,7 +235,13 @@ function avaliarPrazo(tarefa, agora) {
 
   const restante = vencimento - agora.getTime();
   if (restante < 0) {
-    return { situacao_prazo: 'VENCIDA', farol: 'VERMELHO', em_atraso: true };
+    return {
+      situacao_prazo: 'VENCIDA',
+      farol: 'VERMELHO',
+      em_atraso: true,
+      // Aderência que a entrega teria se acontecesse agora (cai a cada 30 min).
+      aderencia_projetada: calcularAderencia(vencimento, agora),
+    };
   }
   if (restante <= JANELA_ALERTA_MS) {
     return { situacao_prazo: 'PROXIMO_DO_VENCIMENTO', farol: 'AMARELO', em_atraso: false };
@@ -219,6 +275,27 @@ function exigirPermissaoSobre(tarefa, usuario) {
       `Apenas o responsável pela tarefa ou perfis ${PERFIS_GESTORES.join(', ')} podem alterá-la.`
     );
   }
+}
+
+/** Não-Master só acessa dados do próprio usuário. */
+function exigirVisibilidade(donoId, usuario) {
+  if (!ehGestor(usuario) && donoId !== usuario.id) {
+    throw new AppError(
+      403,
+      `Você só pode consultar as suas próprias demandas e indicadores (visão da equipe: ${PERFIS_GESTORES.join(', ')}).`
+    );
+  }
+}
+
+/**
+ * Colaborador consultado numa listagem/indicador: Master escolhe qualquer um
+ * (ou toda a equipe, quando vazio); os demais ficam presos ao próprio id.
+ */
+function resolverUsuarioDaConsulta(valor, usuario) {
+  const pedido = estaVazio(valor) ? undefined : validarId(valor, 'usuario_id');
+  if (ehGestor(usuario)) return pedido;
+  if (pedido !== undefined) exigirVisibilidade(pedido, usuario);
+  return usuario.id;
 }
 
 async function garantirResponsavel(usuarioId, solicitante) {
@@ -278,6 +355,9 @@ function normalizarPayload(payload = {}) {
       : validarEnum(dia.valor, Object.keys(DIAS_SEMANA), 'Dia de recorrência');
   }
 
+  const hora = lerCampo(payload, 'hora_recorrencia', 'horaRecorrencia');
+  if (hora.presente) dados.hora_recorrencia = lerHora(hora.valor);
+
   const vencimento = lerCampo(payload, 'data_vencimento', 'dataVencimento');
   if (vencimento.presente) dados.data_vencimento = lerDataVencimento(vencimento.valor);
 
@@ -297,8 +377,31 @@ function normalizarPayload(payload = {}) {
     dados.obra_id = estaVazio(obraId.valor) ? null : validarId(obraId.valor, 'obra_id');
   }
 
-  const justificativa = lerCampo(payload, 'justificativa_atraso', 'justificativaAtraso');
-  if (justificativa.presente) dados.justificativa_atraso = limparTexto(justificativa.valor);
+  Object.assign(dados, normalizarJustificativa(payload));
+
+  return dados;
+}
+
+/** Campos da justificativa de atraso (texto, categoria e atividade vinculada). */
+function normalizarJustificativa(payload) {
+  const dados = {};
+
+  const texto = lerCampo(payload, 'justificativa_atraso', 'justificativaAtraso');
+  if (texto.presente) dados.justificativa_atraso = limparTexto(texto.valor);
+
+  const categoria = lerCampo(payload, 'justificativa_categoria', 'justificativaCategoria');
+  if (categoria.presente) {
+    dados.justificativa_categoria = estaVazio(categoria.valor)
+      ? null
+      : validarEnum(categoria.valor, CATEGORIAS_JUSTIFICATIVA, 'Categoria da justificativa');
+  }
+
+  const vinculo = lerCampo(payload, 'justificativa_tarefa_id', 'justificativaTarefaId');
+  if (vinculo.presente) {
+    dados.justificativa_tarefa_id = estaVazio(vinculo.valor)
+      ? null
+      : validarId(vinculo.valor, 'justificativa_tarefa_id');
+  }
 
   return dados;
 }
@@ -313,6 +416,7 @@ function aplicarRecorrencia(dados, atual, agora) {
 
   if (tipo === 'AVULSA') {
     dados.dia_recorrencia = null;
+    dados.hora_recorrencia = null;
     if (!atual && !dados.data_vencimento) {
       throw new AppError(400, 'Campos obrigatórios: data_vencimento.');
     }
@@ -327,12 +431,19 @@ function aplicarRecorrencia(dados, atual, agora) {
     );
   }
 
-  // Na criação, ou quando a rotina muda de tipo/dia sem vencimento explícito,
-  // o vencimento passa a ser o próximo dia da semana configurado.
+  const hora =
+    dados.hora_recorrencia !== undefined ? dados.hora_recorrencia : atual?.hora_recorrencia ?? null;
+  dados.hora_recorrencia = hora;
+
+  // Na criação, ou quando a rotina muda de tipo/dia/horário sem vencimento
+  // explícito, o vencimento passa a ser o próximo dia/horário configurado.
   const mudouRecorrencia =
-    !atual || atual.tipo !== tipo || atual.dia_recorrencia !== dia;
+    !atual ||
+    atual.tipo !== tipo ||
+    atual.dia_recorrencia !== dia ||
+    (atual.hora_recorrencia ?? null) !== hora;
   if (!atual || (mudouRecorrencia && !dados.data_vencimento)) {
-    dados.data_vencimento = proximoVencimento(dia, agora);
+    dados.data_vencimento = proximoVencimento(dia, agora, { hora });
   }
 }
 
@@ -349,7 +460,10 @@ function aplicarStatus(dados, atual, agora) {
     } else if (atual.status === 'CONCLUIDO') {
       // Reabertura: a conclusão anterior deixa de valer.
       dados.concluido_em = null;
-      if (dados.justificativa_atraso === undefined) dados.justificativa_atraso = null;
+      dados.aderencia = null;
+      for (const campo of CAMPOS_JUSTIFICATIVA) {
+        if (dados[campo] === undefined) dados[campo] = null;
+      }
     }
   }
 
@@ -357,21 +471,52 @@ function aplicarStatus(dados, atual, agora) {
 
   const concluidoEm = dados.concluido_em !== undefined ? dados.concluido_em : atual.concluido_em;
   const vencimento = dados.data_vencimento ?? atual.data_vencimento;
-  const justificativa =
-    dados.justificativa_atraso !== undefined ? dados.justificativa_atraso : atual.justificativa_atraso;
+  const valorFinal = (campo) => (dados[campo] !== undefined ? dados[campo] : atual[campo]);
 
   const foraDoPrazo =
     concluidoEm && new Date(concluidoEm).getTime() > new Date(vencimento).getTime();
 
-  if (foraDoPrazo && !justificativa) {
-    throw new AppError(
-      400,
-      'Tarefa concluída fora do prazo: informe a justificativa_atraso.',
-      { campo: 'justificativa_atraso', data_vencimento: new Date(vencimento).toISOString() }
-    );
+  if (foraDoPrazo) {
+    const detalhes = { data_vencimento: new Date(vencimento).toISOString() };
+    if (!valorFinal('justificativa_atraso')) {
+      throw new AppError(
+        400,
+        'Tarefa concluída fora do prazo: informe a justificativa_atraso.',
+        { campo: 'justificativa_atraso', ...detalhes }
+      );
+    }
+    if (!valorFinal('justificativa_categoria')) {
+      throw new AppError(
+        400,
+        `Tarefa concluída fora do prazo: informe a justificativa_categoria (${CATEGORIAS_JUSTIFICATIVA.join(', ')}).`,
+        { campo: 'justificativa_categoria', ...detalhes }
+      );
+    }
+  } else {
+    // Entrega no prazo: não há justificativa a guardar.
+    for (const campo of CAMPOS_JUSTIFICATIVA) dados[campo] = null;
   }
-  if (!foraDoPrazo && justificativa) {
-    dados.justificativa_atraso = null;
+
+  if (concluidoEm) {
+    dados.aderencia = calcularAderencia(vencimento, concluidoEm);
+  }
+}
+
+/** Atividade citada na justificativa deve existir e não pode ser a própria. */
+async function validarVinculoJustificativa(dados, atual) {
+  const vinculoId = dados.justificativa_tarefa_id;
+  if (vinculoId === undefined || vinculoId === null) return;
+  if (vinculoId === atual.id) {
+    throw new AppError(400, 'A atividade vinculada à justificativa não pode ser a própria demanda.');
+  }
+  const vinculada = await tarefaRepository.findById(vinculoId);
+  if (!vinculada) {
+    throw new AppError(404, `Atividade vinculada ${vinculoId} não encontrada.`);
+  }
+  // Privacidade: o vínculo só aponta para atividades do mesmo responsável, para
+  // que o título de uma demanda alheia nunca apareça no registro de outra pessoa.
+  if (vinculada.usuario_id !== (dados.usuario_id ?? atual.usuario_id)) {
+    throw new AppError(403, 'A atividade vinculada deve pertencer ao mesmo responsável pela demanda.');
   }
 }
 
@@ -384,7 +529,11 @@ function montarProximaOcorrencia(tarefa, agora) {
     descricao: tarefa.descricao,
     tipo: 'FIXA_RECORRENTE',
     dia_recorrencia: tarefa.dia_recorrencia,
-    data_vencimento: proximoVencimento(tarefa.dia_recorrencia, referencia, { estrita: true }),
+    hora_recorrencia: tarefa.hora_recorrencia ?? null,
+    data_vencimento: proximoVencimento(tarefa.dia_recorrencia, referencia, {
+      estrita: true,
+      hora: tarefa.hora_recorrencia ?? null,
+    }),
     prioridade: tarefa.prioridade,
     usuario_id: tarefa.usuario_id,
     obra_id: tarefa.obra_id,
@@ -420,7 +569,8 @@ async function persistirAtualizacao(atual, dados, agora) {
  * GET /api/tarefas
  * ?usuario_id=&status=A_FAZER,EM_ANDAMENTO&tipo=&obra_id=&de=&ate=&page=&limit=
  */
-async function listarTarefas(query = {}) {
+async function listarTarefas(query = {}, usuario) {
+  exigirUsuario(usuario);
   const page = estaVazio(query.page) ? 1 : Number(query.page);
   const limit = estaVazio(query.limit) ? LIMITE_PADRAO : Number(query.limit);
 
@@ -437,7 +587,8 @@ async function listarTarefas(query = {}) {
   const filtros = {
     page,
     limit,
-    usuarioId: estaVazio(usuarioId) ? undefined : validarId(usuarioId, 'usuario_id'),
+    // Não-Master: sempre o próprio usuário (pedir outro é recusado, não ignorado).
+    usuarioId: resolverUsuarioDaConsulta(usuarioId, usuario),
     obraId: estaVazio(obraId) ? undefined : validarId(obraId, 'obra_id'),
     tipo: estaVazio(query.tipo) ? undefined : validarEnum(query.tipo, TIPOS, 'Tipo de tarefa'),
     // Aceita vários status separados por vírgula (ex.: A_FAZER,EM_ANDAMENTO).
@@ -460,9 +611,12 @@ async function listarTarefas(query = {}) {
   return { ...resultado, data: resultado.data.map((tarefa) => mapearTarefa(tarefa, agora)) };
 }
 
-/** GET /api/tarefas/:id */
-async function obterTarefa(idParam) {
-  return mapearTarefa(await buscarTarefa(idParam));
+/** GET /api/tarefas/:id — não-Master só enxerga as próprias demandas. */
+async function obterTarefa(idParam, usuario) {
+  exigirUsuario(usuario);
+  const tarefa = await buscarTarefa(idParam);
+  exigirVisibilidade(tarefa.usuario_id, usuario);
+  return mapearTarefa(tarefa);
 }
 
 /** POST /api/tarefas */
@@ -483,7 +637,7 @@ async function criarTarefa(payload, usuario) {
     );
   }
   // Justificativa só faz sentido ao concluir fora do prazo.
-  delete dados.justificativa_atraso;
+  for (const campo of CAMPOS_JUSTIFICATIVA) delete dados[campo];
 
   dados.usuario_id = dados.usuario_id ?? usuario.id;
   aplicarRecorrencia(dados, null, agora);
@@ -491,7 +645,13 @@ async function criarTarefa(payload, usuario) {
   await garantirResponsavel(dados.usuario_id, usuario);
   await garantirObra(dados.obra_id);
 
-  return mapearTarefa(await tarefaRepository.create(dados), agora);
+  const criada = await tarefaRepository.create(dados);
+
+  // Aviso por e-mail ao responsável, em segundo plano: a criação não espera o
+  // envio nem falha por causa dele (a função já trata e registra os erros).
+  notificacaoTarefaService.notificarNovaAtividade({ tarefa: criada, criador: usuario });
+
+  return mapearTarefa(criada, agora);
 }
 
 /**
@@ -518,6 +678,7 @@ async function atualizarTarefa(idParam, payload, usuario) {
 
   aplicarRecorrencia(dados, atual, agora);
   aplicarStatus(dados, atual, agora);
+  await validarVinculoJustificativa(dados, atual);
 
   return persistirAtualizacao(atual, dados, agora);
 }
@@ -534,13 +695,13 @@ async function alterarStatus(idParam, payload = {}, usuario) {
     throw new AppError(400, 'Campos obrigatórios: status.');
   }
 
-  const dados = { status: validarEnum(status.valor, STATUS, 'Status da tarefa') };
-  const justificativa = lerCampo(payload, 'justificativa_atraso', 'justificativaAtraso');
-  if (justificativa.presente) {
-    dados.justificativa_atraso = limparTexto(justificativa.valor);
-  }
+  const dados = {
+    status: validarEnum(status.valor, STATUS, 'Status da tarefa'),
+    ...normalizarJustificativa(payload),
+  };
 
   aplicarStatus(dados, atual, agora);
+  await validarVinculoJustificativa(dados, atual);
   return persistirAtualizacao(atual, dados, agora);
 }
 
@@ -556,9 +717,14 @@ async function removerTarefa(idParam, usuario) {
   return true;
 }
 
-/** GET /api/tarefas/equipe — colaboradores ativos que podem receber tarefas. */
-async function listarEquipe() {
-  return tarefaRepository.listarResponsaveis();
+/**
+ * GET /api/tarefas/equipe — colaboradores que podem receber tarefas. Não-Master
+ * só vê a si mesmo (a lista da equipe não é exposta).
+ */
+async function listarEquipe(usuario) {
+  exigirUsuario(usuario);
+  const equipe = await tarefaRepository.listarResponsaveis();
+  return ehGestor(usuario) ? equipe : equipe.filter((pessoa) => pessoa.id === usuario.id);
 }
 
 /**
@@ -566,7 +732,11 @@ async function listarEquipe() {
  * Resumo por colaborador: tarefas ativas, concluídas e vencidas. Lista a
  * equipe de planejamento ativa mesmo sem tarefas (carga zero).
  */
-async function cargaEquipe(query = {}) {
+async function cargaEquipe(query = {}, usuario) {
+  exigirUsuario(usuario);
+  if (!ehGestor(usuario)) {
+    throw new AppError(403, `O painel de carga da equipe é restrito aos perfis ${PERFIS_GESTORES.join(', ')}.`);
+  }
   const agora = new Date();
   const de = lerDataFiltro(query.de, 'de', 'inicio');
   const ate = lerDataFiltro(query.ate, 'ate', 'fim');
@@ -652,7 +822,64 @@ async function cargaEquipe(query = {}) {
   };
 }
 
+/**
+ * GET /api/tarefas/aderencia?de=&ate=&usuario_id=&categoria=
+ * Indicadores de aderência sobre as entregas concluídas no período.
+ * - Master (SUPERVISOR/ADMIN): visão da equipe, com filtro por planejador e ranking.
+ * - Demais perfis: só os próprios indicadores; sem ranking e sem dados de terceiros.
+ */
+async function aderenciaEquipe(query = {}, usuario) {
+  exigirUsuario(usuario);
+  const master = ehGestor(usuario);
+
+  const de = lerDataFiltro(query.de, 'de', 'inicio');
+  const ate = lerDataFiltro(query.ate, 'ate', 'fim');
+  if (de && ate && de > ate) {
+    throw new AppError(400, 'Período inválido: "de" deve ser anterior ou igual a "ate".');
+  }
+  const categoria = estaVazio(query.categoria)
+    ? undefined
+    : validarEnum(query.categoria, CATEGORIAS_JUSTIFICATIVA, 'Categoria da justificativa');
+  const usuarioId = resolverUsuarioDaConsulta(query.usuario_id ?? query.usuarioId, usuario);
+
+  const tarefas = await tarefaRepository.findConcluidas({ usuarioId, de, ate, categoria });
+  const metricas = calcularMetricas(tarefas, {
+    // O comparativo entre pessoas nunca é montado para quem não é Master.
+    incluirRanking: master && usuarioId === undefined,
+  });
+
+  return {
+    gerado_em: new Date().toISOString(),
+    escopo: master && usuarioId === undefined ? 'EQUIPE' : 'INDIVIDUAL',
+    usuario_id: usuarioId ?? null,
+    periodo: { de: de ? de.toISOString() : null, ate: ate ? ate.toISOString() : null },
+    filtros: { categoria: categoria ?? null },
+    ...metricas,
+  };
+}
+
+/**
+ * POST /api/tarefas/email-diario/teste — dispara o e-mail de pendências sob
+ * demanda (Master). Por padrão envia só para quem chamou; `todos: true` envia
+ * para toda a equipe e `simular: true` apenas monta sem enviar.
+ */
+async function dispararEmailDiario(payload = {}, usuario) {
+  exigirUsuario(usuario);
+  if (!ehGestor(usuario)) {
+    throw new AppError(403, `Apenas perfis ${PERFIS_GESTORES.join(', ')} podem disparar o e-mail de pendências.`);
+  }
+  const todos = payload.todos === true || payload.todos === 'true';
+  const simular = payload.simular === true || payload.simular === 'true';
+  return pendenciasDiariasService.enviarPendenciasDiarias({
+    apenasUsuarioId: todos ? undefined : usuario.id,
+    enviarVazio: !todos,
+    simular,
+  });
+}
+
 module.exports = {
+  aderenciaEquipe,
+  dispararEmailDiario,
   listarTarefas,
   obterTarefa,
   criarTarefa,
@@ -665,6 +892,10 @@ module.exports = {
   proximoVencimento,
   fimDaSemana,
   avaliarPrazo,
+  aplicarStatus,
+  normalizarPayload,
+  montarProximaOcorrencia,
+  CATEGORIAS_JUSTIFICATIVA,
   TIPOS,
   STATUS,
   PRIORIDADES,

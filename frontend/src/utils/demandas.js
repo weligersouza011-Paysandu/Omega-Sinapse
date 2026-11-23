@@ -77,13 +77,44 @@ export function obterPrioridade(valor) {
   return PRIORIDADES.find((prioridade) => prioridade.value === valor) || PRIORIDADES[1];
 }
 
-/** "Fixa · Toda segunda" ou "Avulsa". */
+/** "Fixa · Toda segunda às 18:00" (rotina semanal) ou "Avulsa" (demanda extra pontual). */
 export function rotuloTipo(tarefa) {
   if (tarefa?.tipo !== 'FIXA_RECORRENTE') return 'Avulsa';
   const dia = DIAS_SEMANA.find((item) => item.value === tarefa.dia_recorrencia);
   if (!dia) return 'Fixa';
   const artigo = ['SABADO', 'DOMINGO'].includes(dia.value) ? 'Todo' : 'Toda';
-  return `Fixa · ${artigo} ${dia.curto}`;
+  const hora = tarefa.hora_recorrencia ? ` às ${tarefa.hora_recorrencia}` : '';
+  return `Fixa · ${artigo} ${dia.curto}${hora}`;
+}
+
+/** Motivos padronizados de atraso (espelha CategoriaJustificativa do back-end). */
+export const CATEGORIAS_JUSTIFICATIVA = [
+  { value: 'SOLICITACAO_EXTRA', label: 'Solicitação extra' },
+  { value: 'DEMANDA_FORA_ROTINA', label: 'Demanda fora da rotina' },
+  { value: 'DEPENDENCIA_EXTERNA', label: 'Dependência externa (cliente, campo, outras áreas)' },
+  { value: 'MUDANCA_ESCOPO', label: 'Mudança de escopo ou prioridade' },
+  { value: 'PROBLEMA_TECNICO', label: 'Problema técnico / indisponibilidade de dados' },
+  { value: 'OUTROS', label: 'Outros' },
+];
+
+export function rotuloCategoria(valor) {
+  return CATEGORIAS_JUSTIFICATIVA.find((item) => item.value === valor)?.label || valor || '';
+}
+
+/**
+ * Aderência por pontualidade (espelha src/utils/aderenciaDemanda.js): 100% no
+ * prazo e -0,5 ponto a cada 30 minutos completos de atraso, com piso em 0%.
+ */
+export function calcularAderencia(vencimento, entrega = new Date()) {
+  const atrasoMs = new Date(entrega).getTime() - new Date(vencimento).getTime();
+  const blocos = atrasoMs > 0 ? Math.floor(Math.floor(atrasoMs / 60000) / 30) : 0;
+  return Math.max(0, 100 - blocos * 0.5);
+}
+
+/** "99,5%" / "100%". */
+export function formatarAderencia(valor) {
+  if (valor === null || valor === undefined) return '—';
+  return `${Number(valor).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`;
 }
 
 /** Referência curta da obra vinculada (OSI, SS ou PEP). */

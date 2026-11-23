@@ -10,7 +10,9 @@ import {
   PRIORIDADES,
   dataHoraInputLocal,
   dataInputLocal,
+  formatarAderencia,
   obterStatusDemanda,
+  rotuloCategoria,
 } from '../../utils/demandas.js';
 import { formatarDataHora } from '../../utils/formatters.js';
 
@@ -29,6 +31,7 @@ function formularioInicial(tarefa, usuario) {
       descricao: tarefa.descricao || '',
       tipo: tarefa.tipo,
       dia_recorrencia: tarefa.dia_recorrencia || 'SEGUNDA',
+      hora_recorrencia: tarefa.hora_recorrencia || HORA_PADRAO,
       data_vencimento: dataHoraInputLocal(tarefa.data_vencimento),
       prioridade: tarefa.prioridade,
       usuario_id: String(tarefa.usuario_id),
@@ -40,6 +43,7 @@ function formularioInicial(tarefa, usuario) {
     descricao: '',
     tipo: 'AVULSA',
     dia_recorrencia: 'SEGUNDA',
+    hora_recorrencia: HORA_PADRAO,
     data_vencimento: `${dataInputLocal(new Date())}T${HORA_PADRAO}`,
     prioridade: 'MEDIA',
     usuario_id: usuario?.id ? String(usuario.id) : '',
@@ -131,7 +135,12 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
       obra_id: form.obra_id ? Number(form.obra_id) : null,
     };
     if (form.tipo === 'FIXA_RECORRENTE') {
+      if (!form.hora_recorrencia) {
+        setErro('Informe o horário de vencimento da rotina.');
+        return;
+      }
       dados.dia_recorrencia = form.dia_recorrencia;
+      dados.hora_recorrencia = form.hora_recorrencia;
     } else {
       dados.data_vencimento = vencimento.toISOString();
     }
@@ -244,8 +253,19 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
                     </option>
                   ))}
                 </select>
+                <label className="rotulo mt-3" htmlFor="demanda-hora">
+                  Horário de vencimento *
+                </label>
+                <input
+                  id="demanda-hora"
+                  type="time"
+                  className="campo"
+                  value={form.hora_recorrencia}
+                  onChange={(evento) => alterar('hora_recorrencia', evento.target.value)}
+                />
                 <p className="mt-1 text-[11px] text-slate-400">
-                  O próximo vencimento é calculado automaticamente; ao concluir, a rotina da semana seguinte é criada.
+                  O prazo se repete toda semana neste dia e horário; ao concluir, a rotina da semana seguinte é criada.
+                  Para uma entrega extra e pontual, use o tipo Avulsa.
                 </p>
               </div>
             ) : (
@@ -340,10 +360,18 @@ export default function ModalDemanda({ aberto, tarefa, equipe, usuario, onFechar
             >
               <p className="text-[11px] font-bold uppercase tracking-wide">
                 {tarefa.justificativa_atraso ? 'Concluída em atraso' : 'Concluída no prazo'} ·{' '}
-                {formatarDataHora(tarefa.concluido_em)}
+                {formatarDataHora(tarefa.concluido_em)} · Aderência {formatarAderencia(tarefa.aderencia)}
               </p>
               {tarefa.justificativa_atraso ? (
-                <p className="mt-0.5 whitespace-pre-line">{tarefa.justificativa_atraso}</p>
+                <>
+                  {tarefa.justificativa_categoria ? (
+                    <p className="mt-0.5 text-xs font-semibold">{rotuloCategoria(tarefa.justificativa_categoria)}</p>
+                  ) : null}
+                  <p className="mt-0.5 whitespace-pre-line">{tarefa.justificativa_atraso}</p>
+                  {tarefa.justificativa_tarefa ? (
+                    <p className="mt-1 text-xs">Atividade que impactou: {tarefa.justificativa_tarefa.titulo}</p>
+                  ) : null}
+                </>
               ) : null}
             </div>
           ) : null}

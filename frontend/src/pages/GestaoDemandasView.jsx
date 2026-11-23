@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { Columns3, Plus, RefreshCw, Table, TriangleAlert } from 'lucide-react';
+import { Columns3, Gauge, Plus, RefreshCw, Table, TriangleAlert } from 'lucide-react';
+import DashboardAderencia from '../components/demandas/DashboardAderencia.jsx';
 import KanbanDemandas from '../components/demandas/KanbanDemandas.jsx';
 import ListaDemandas from '../components/demandas/ListaDemandas.jsx';
 import ModalDemanda from '../components/demandas/ModalDemanda.jsx';
@@ -18,8 +19,10 @@ import {
 } from '../hooks/useTarefas.js';
 import {
   FILTROS_TIPO,
+  PERFIS_GESTORES,
   exigeJustificativa,
   farolDaTarefa,
+  formatarAderencia,
   obterStatusDemanda,
 } from '../utils/demandas.js';
 import { formatarDataHora } from '../utils/formatters.js';
@@ -27,6 +30,7 @@ import { formatarDataHora } from '../utils/formatters.js';
 const VISOES = [
   { id: 'kanban', label: 'Kanban', Icone: Columns3 },
   { id: 'lista', label: 'Lista', Icone: Table },
+  { id: 'aderencia', label: 'Aderência', Icone: Gauge },
 ];
 
 /** Indicadores rápidos do recorte filtrado. */
@@ -61,14 +65,20 @@ export default function GestaoDemandasView() {
   const { usuario } = useAuth();
   const toast = useToast();
 
+  // Master = Supervisor/Admin: visão da equipe. Os demais veem só o que é seu
+  // (a API também impõe isso; aqui só se omitem os controles que não se aplicam).
+  const master = PERFIS_GESTORES.includes(usuario?.perfil);
+
   const [visao, setVisao] = useState('kanban');
-  const [usuarioId, setUsuarioId] = useState('');
+  const [usuarioIdEscolhido, setUsuarioId] = useState('');
   const [tipo, setTipo] = useState('');
+  const usuarioId = master ? usuarioIdEscolhido : '';
+  const emAderencia = visao === 'aderencia';
 
   const { itens, setItens, carregando, erro, recarregar } = useTarefas({ usuarioId, tipo });
   const { equipe } = useEquipe();
-  // O resumo de carga acompanha qualquer mudança nas demandas carregadas.
-  const cargaEquipe = useCargaEquipe(itens);
+  // O resumo de carga acompanha qualquer mudança nas demandas carregadas (só Master).
+  const cargaEquipe = useCargaEquipe(itens, master);
 
   const [movendoId, setMovendoId] = useState(null);
   const [pendenteJustificativa, setPendenteJustificativa] = useState(null);
@@ -101,7 +111,7 @@ export default function GestaoDemandasView() {
       });
       const mensagens = [
         justificativa
-          ? `Concluída com atraso em ${formatarDataHora(atualizada.concluido_em)}. Justificativa registrada.`
+          ? `Concluída com atraso em ${formatarDataHora(atualizada.concluido_em)}. Aderência ${formatarAderencia(atualizada.aderencia)}. Justificativa registrada.`
           : `Status alterado para "${obterStatusDemanda(novoStatus).label}".`,
       ];
       if (proxima) {
@@ -199,15 +209,23 @@ export default function GestaoDemandasView() {
         </div>
       </div>
 
-      <PainelCargaEquipe
-        carga={cargaEquipe.carga}
-        carregando={cargaEquipe.carregando}
-        erro={cargaEquipe.erro}
-        usuarioSelecionado={usuarioId}
-        onSelecionar={setUsuarioId}
-      />
+      {emAderencia ? (
+        <DashboardAderencia usuario={usuario} equipe={equipe} master={master} />
+      ) : null}
 
+      {master && !emAderencia ? (
+        <PainelCargaEquipe
+          carga={cargaEquipe.carga}
+          carregando={cargaEquipe.carregando}
+          erro={cargaEquipe.erro}
+          usuarioSelecionado={usuarioId}
+          onSelecionar={setUsuarioId}
+        />
+      ) : null}
+
+      {!emAderencia ? (
       <section className="card mb-4 flex flex-col gap-3 p-4 lg:flex-row lg:items-center">
+        {master ? (
         <div className="lg:w-72">
           <label className="rotulo" htmlFor="filtro-colaborador">
             Colaborador
@@ -230,6 +248,9 @@ export default function GestaoDemandasView() {
             ))}
           </select>
         </div>
+        ) : (
+          <p className="text-sm font-semibold text-slate-600">Minhas demandas</p>
+        )}
 
         <div>
           <span className="rotulo">Tipo de demanda</span>
@@ -256,7 +277,9 @@ export default function GestaoDemandasView() {
           Atualizar
         </button>
       </section>
+      ) : null}
 
+      {!emAderencia ? (
       <div className="mb-4 flex flex-wrap gap-3">
         <Kpi rotulo="Ativas" valor={kpis.ativas} />
         <Kpi
@@ -271,8 +294,9 @@ export default function GestaoDemandasView() {
         />
         <Kpi rotulo="Entregas no prazo" valor={kpis.pontualidade === null ? '—' : `${kpis.pontualidade}%`} />
       </div>
+      ) : null}
 
-      {erro ? (
+      {emAderencia ? null : erro ? (
         <div
           role="alert"
           className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
@@ -319,6 +343,7 @@ export default function GestaoDemandasView() {
 
       <ModalJustificativa
         tarefa={pendenteJustificativa}
+        tarefas={itens}
         onCancelar={() => setPendenteJustificativa(null)}
         onConfirmar={(tarefa, justificativa) => {
           setPendenteJustificativa(null);

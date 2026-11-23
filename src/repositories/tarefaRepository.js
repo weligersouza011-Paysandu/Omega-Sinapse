@@ -9,6 +9,7 @@ const prisma = require('../config/prisma');
 
 const INCLUDE_TAREFA = {
   usuario: { select: { id: true, nome: true, perfil: true } },
+  justificativa_tarefa: { select: { id: true, titulo: true, tipo: true, status: true } },
   obra: {
     select: {
       id: true,
@@ -136,6 +137,67 @@ async function contarCargaEquipe({ de, ate, agora, fimSemana, statusAtivos }) {
   return { porStatus, vencidas, concluidasComAtraso, fixas, semana };
 }
 
+/**
+ * Entregas concluídas para os indicadores de aderência (período sobre a data
+ * de conclusão). Só traz o necessário para o cálculo, sem descrição/obra.
+ */
+function findConcluidas({ usuarioId, de, ate, categoria } = {}) {
+  const where = { status: 'CONCLUIDO', concluido_em: { not: null } };
+  if (de) where.concluido_em.gte = de;
+  if (ate) where.concluido_em.lte = ate;
+  if (usuarioId) where.usuario_id = usuarioId;
+  if (categoria) where.justificativa_categoria = categoria;
+
+  return prisma.tarefa.findMany({
+    where,
+    select: {
+      id: true,
+      usuario_id: true,
+      aderencia: true,
+      data_vencimento: true,
+      concluido_em: true,
+      justificativa_categoria: true,
+      usuario: { select: { nome: true } },
+    },
+    orderBy: [{ concluido_em: 'asc' }, { id: 'asc' }],
+  });
+}
+
+/**
+ * Tarefas ativas que vencem até `ate` (inclui as já vencidas) de colaboradores
+ * ativos dos perfis informados — base do e-mail diário de pendências.
+ */
+function listarPendentesParaEmail({ ate, statusAtivos, perfis, usuarioId }) {
+  return prisma.tarefa.findMany({
+    where: {
+      status: { in: statusAtivos },
+      data_vencimento: { lte: ate },
+      usuario: { ativo: true, perfil: { in: perfis } },
+      ...(usuarioId ? { usuario_id: usuarioId } : {}),
+    },
+    select: {
+      id: true,
+      titulo: true,
+      tipo: true,
+      dia_recorrencia: true,
+      hora_recorrencia: true,
+      data_vencimento: true,
+      status: true,
+      prioridade: true,
+      usuario: { select: { id: true, nome: true, email: true, perfil: true } },
+    },
+    orderBy: [{ data_vencimento: 'asc' }, { id: 'asc' }],
+  });
+}
+
+/** Dados mínimos de um usuário (destinatário do e-mail de teste). */
+function buscarUsuario(id) {
+  return prisma.usuario.findUnique({
+    where: { id },
+    select: { id: true, nome: true, email: true, perfil: true },
+  });
+}
+
 /** Usuários ativos de uma lista de perfis + os ids informados (mesmo inativos). */
 function listarColaboradores(perfis, idsExtras = []) {
   return prisma.usuario.findMany({
@@ -164,6 +226,9 @@ module.exports = {
   concluirRecorrente,
   remove,
   contarCargaEquipe,
+  findConcluidas,
+  listarPendentesParaEmail,
+  buscarUsuario,
   listarColaboradores,
   listarResponsaveis,
 };

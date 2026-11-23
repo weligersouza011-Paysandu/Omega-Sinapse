@@ -20,6 +20,13 @@ router.get('/', tarefaController.listarTarefas);
 router.get('/equipe', tarefaController.listarEquipe);
 router.get('/carga-equipe', tarefaController.cargaEquipe);
 
+// GET    /api/tarefas/aderencia?de=&ate=&usuario_id=&categoria=
+//   Master: equipe (com ranking) ou um planejador; demais perfis: só o próprio.
+router.get('/aderencia', tarefaController.aderencia);
+
+// POST   /api/tarefas/email-diario/teste  { todos?, simular? }  (somente Master)
+router.post('/email-diario/teste', tarefaController.dispararEmailDiario);
+
 // POST   /api/tarefas          -> cria (rotinas fixas calculam o próximo vencimento)
 router.post('/', tarefaController.criarTarefa);
 

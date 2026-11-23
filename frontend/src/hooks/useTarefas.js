@@ -30,11 +30,16 @@ export async function atualizarTarefa(id, dados) {
   return data;
 }
 
-/** Troca de status; `justificativa_atraso` é exigida ao concluir após o vencimento. */
-export async function alterarStatusTarefa(id, status, justificativaAtraso) {
+/**
+ * Troca de status. Ao concluir após o vencimento a API exige a justificativa:
+ * `{ texto, categoria, tarefaId? }` (tarefaId = atividade que impactou o prazo).
+ */
+export async function alterarStatusTarefa(id, status, justificativa) {
   const { data } = await api.patch(`/tarefas/${id}/status`, {
     status,
-    justificativa_atraso: justificativaAtraso || undefined,
+    justificativa_atraso: justificativa?.texto || undefined,
+    justificativa_categoria: justificativa?.categoria || undefined,
+    justificativa_tarefa_id: justificativa?.tarefaId || undefined,
   });
   return data;
 }
@@ -46,6 +51,53 @@ export async function removerTarefa(id) {
 export async function obterCargaEquipe() {
   const { data } = await api.get('/tarefas/carga-equipe');
   return data;
+}
+
+/**
+ * Indicadores de aderência. A API já limita o escopo ao perfil: quem não é
+ * Master recebe só os próprios números, sem ranking.
+ */
+export async function obterAderencia(filtros = {}) {
+  const { data } = await api.get('/tarefas/aderencia', {
+    params: {
+      de: filtros.de || undefined,
+      ate: filtros.ate || undefined,
+      usuario_id: filtros.usuarioId || undefined,
+      categoria: filtros.categoria || undefined,
+    },
+  });
+  return data;
+}
+
+export function useAderencia(filtros) {
+  const [dados, setDados] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState('');
+  const [versao, setVersao] = useState(0);
+
+  const { de, ate, usuarioId, categoria } = filtros;
+  const recarregar = useCallback(() => setVersao((atual) => atual + 1), []);
+
+  useEffect(() => {
+    let ativo = true;
+    setCarregando(true);
+    setErro('');
+    obterAderencia({ de, ate, usuarioId, categoria })
+      .then((resultado) => {
+        if (ativo) setDados(resultado);
+      })
+      .catch((falha) => {
+        if (ativo) setErro(falha.message || 'Não foi possível carregar os indicadores de aderência.');
+      })
+      .finally(() => {
+        if (ativo) setCarregando(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [de, ate, usuarioId, categoria, versao]);
+
+  return { dados, carregando, erro, recarregar };
 }
 
 export async function listarEquipe() {
@@ -124,12 +176,17 @@ export function useEquipe() {
  * Resumo de carga por colaborador. `atualizacao` é qualquer valor que mude
  * quando as demandas mudam (ex.: a lista carregada), disparando um novo resumo.
  */
-export function useCargaEquipe(atualizacao) {
+export function useCargaEquipe(atualizacao, habilitado = true) {
   const [carga, setCarga] = useState(null);
-  const [carregando, setCarregando] = useState(true);
+  const [carregando, setCarregando] = useState(habilitado);
   const [erro, setErro] = useState('');
 
   useEffect(() => {
+    // O painel de carga é restrito ao Master: os demais perfis nem chamam a API.
+    if (!habilitado) {
+      setCarregando(false);
+      return undefined;
+    }
     let ativo = true;
     setCarregando(true);
     obterCargaEquipe()
@@ -147,7 +204,7 @@ export function useCargaEquipe(atualizacao) {
     return () => {
       ativo = false;
     };
-  }, [atualizacao]);
+  }, [atualizacao, habilitado]);
 
   return { carga, carregando, erro };
 }

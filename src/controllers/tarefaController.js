@@ -16,16 +16,22 @@ function acao(metodo, status = 200) {
 }
 
 /** GET /api/tarefas — lista com filtros e paginação. */
-const listarTarefas = acao((req) => tarefaService.listarTarefas(req.query || {}));
+const listarTarefas = acao((req) => tarefaService.listarTarefas(req.query || {}, req.user));
 
 /** GET /api/tarefas/equipe — colaboradores ativos para filtro/atribuição. */
-const listarEquipe = acao(async () => ({ data: await tarefaService.listarEquipe() }));
+const listarEquipe = acao(async (req) => ({ data: await tarefaService.listarEquipe(req.user) }));
 
-/** GET /api/tarefas/carga-equipe — resumo de carga por colaborador. */
-const cargaEquipe = acao((req) => tarefaService.cargaEquipe(req.query || {}));
+/** GET /api/tarefas/carga-equipe — resumo de carga por colaborador (Master). */
+const cargaEquipe = acao((req) => tarefaService.cargaEquipe(req.query || {}, req.user));
+
+/** GET /api/tarefas/aderencia — indicadores de aderência (escopo conforme o perfil). */
+const aderencia = acao((req) => tarefaService.aderenciaEquipe(req.query || {}, req.user));
+
+/** POST /api/tarefas/email-diario/teste — disparo manual do e-mail de pendências (Master). */
+const dispararEmailDiario = acao((req) => tarefaService.dispararEmailDiario(req.body || {}, req.user));
 
 /** GET /api/tarefas/:id */
-const obterTarefa = acao((req) => tarefaService.obterTarefa(req.params.id));
+const obterTarefa = acao((req) => tarefaService.obterTarefa(req.params.id, req.user));
 
 /** POST /api/tarefas */
 const criarTarefa = acao((req) => tarefaService.criarTarefa(req.body || {}, req.user), 201);
@@ -47,6 +53,8 @@ module.exports = {
   listarTarefas,
   listarEquipe,
   cargaEquipe,
+  aderencia,
+  dispararEmailDiario,
   obterTarefa,
   criarTarefa,
   atualizarTarefa,
