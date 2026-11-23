@@ -53,6 +53,8 @@ app.get('/health', async (req, res) => {
       banco: 'conectado',
       // Diagnóstico sem segredos: indica se o Cloudinary está utilizável.
       armazenamento: estadoCloudinary.configurado ? 'configurado' : 'indisponivel',
+      // Provedor de e-mail ativo ("brevo", "smtp" ou "nao_configurado"), sem expor segredos.
+      email: require('./services/emailService').provedor() || 'nao_configurado',
       ...(estadoCloudinary.configurado ? {} : { armazenamento_problemas: estadoCloudinary.problemas }),
       // Leitor de cronogramas do MS Project (Java + MPXJ instalados no build).
       leitor_mpp: disponibilidadeMpxj().situacao,
