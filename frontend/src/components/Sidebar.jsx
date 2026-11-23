@@ -75,7 +75,7 @@ export default function Sidebar({ recolhido = false, onToggle }) {
         ].join(' ')}
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-omega-600 ring-1 ring-white/20">
-          <span className="text-sm font-black tracking-tight text-white">OS</span>
+          <img src="/brand/emblema-branco.png" alt="Omega Service" className="h-7 w-7 object-contain" />
         </div>
 
         {recolhido ? null : (
@@ -83,7 +83,7 @@ export default function Sidebar({ recolhido = false, onToggle }) {
             <p className="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-omega-100/60">
               Omega Service
             </p>
-            <p className="truncate text-base font-bold tracking-tight text-white">Synapse</p>
+            <p className="truncate text-base font-bold tracking-tight text-white">Sinapse</p>
           </div>
         )}
       </div>

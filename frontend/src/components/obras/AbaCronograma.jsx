@@ -450,7 +450,7 @@ function CaminhoCritico({ critico, prazo, onPrazo, carregando }) {
         critico
           ? `${resumo.atividades_criticas} atividade(s) crítica(s) de ${resumo.atividades_na_rede} na rede · término projetado ${formatarData(
               resumo.termino_projeto
-            )} · ${resumo.metodo === 'ms_project' ? 'calculado pelo MS Project' : 'calculado pela Synapse'}${
+            )} · ${resumo.metodo === 'ms_project' ? 'calculado pelo MS Project' : 'calculado pela Sinapse'}${
               resumo.calendario ? ` · ${resumo.calendario}` : ''
             }`
           : 'Atividades com folga total menor ou igual a zero.'

@@ -44,7 +44,7 @@ export default function DocumentoOsi({ obra, geradoEm }) {
           <div className="leading-tight">
             <p className="text-[13px] font-black uppercase tracking-[0.16em]">Omega Service</p>
             <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-500">
-              Synapse · Gestão de Orçamentos e Obras
+              Sinapse · Gestão de Orçamentos e Obras
             </p>
             <p className="text-[9px] font-medium text-slate-500">
               Sistema de governança de engenharia — ISO 9001
@@ -184,7 +184,7 @@ export default function DocumentoOsi({ obra, geradoEm }) {
       </div>
 
       <footer className="mt-8 border-t border-slate-300 pt-2 text-[8px] font-medium uppercase tracking-[0.1em] text-slate-500">
-        Documento gerado pelo Synapse em {formatarDataHora(geradoEm)} · Obra #{obra.id} · Orçamento #
+        Documento gerado pelo Sinapse em {formatarDataHora(geradoEm)} · Obra #{obra.id} · Orçamento #
         {obra.orcamento_id}
       </footer>
     </div>

@@ -20,7 +20,7 @@ export function TemaProvider({ children }) {
   useEffect(() => {
     const raiz = document.documentElement;
     raiz.classList.toggle('dark', tema === 'escuro');
-    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tema === 'escuro' ? '#0c1321' : '#0a2138');
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', tema === 'escuro' ? '#0c1321' : '#9f132e');
     try {
       window.localStorage.setItem(CHAVE, tema);
     } catch {

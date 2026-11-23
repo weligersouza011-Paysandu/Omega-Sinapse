@@ -99,7 +99,7 @@ function AppLayoutConteudo() {
           ) : (
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-                Synapse
+                Sinapse
               </p>
               <h1 className="truncate text-lg font-bold tracking-tight text-slate-800">
                 {moduloAtual.label}
@@ -144,7 +144,7 @@ function SemAcesso() {
     <div className="mx-auto mt-16 max-w-md rounded-lg border border-slate-200 bg-white p-6 text-center shadow-sm">
       <h2 className="text-base font-bold text-slate-800">Nenhuma página liberada</h2>
       <p className="mt-2 text-sm text-slate-500">
-        Seu usuário ainda não tem páginas liberadas. Peça ao administrador do Synapse para liberar o acesso.
+        Seu usuário ainda não tem páginas liberadas. Peça ao administrador do Sinapse para liberar o acesso.
       </p>
     </div>
   );

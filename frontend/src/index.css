@@ -14,6 +14,16 @@
   }
 }
 
+/* Tela de login: as duas fotos de campo alternam com transição suave e um leve zoom.
+   A segunda foto roda defasada em meio ciclo; o zoom reinicia enquanto a foto está invisível. */
+@keyframes login-foto {
+  0% { opacity: 1; transform: scale(1); }
+  45% { opacity: 1; transform: scale(1.07); }
+  50% { opacity: 0; transform: scale(1.07); }
+  95% { opacity: 0; transform: scale(1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
 @layer base {
   html,
   body,
@@ -119,6 +129,24 @@
 
   .animar-kanban {
     animation: kanban-entrada 220ms ease-out;
+  }
+
+  .foto-login {
+    animation: login-foto 16s ease-in-out infinite;
+    will-change: opacity, transform;
+  }
+
+  .foto-login-b {
+    animation-delay: -8s;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .foto-login {
+      animation: none;
+    }
+    .foto-login-b {
+      opacity: 0;
+    }
   }
 }
 
