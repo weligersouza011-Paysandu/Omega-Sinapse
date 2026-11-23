@@ -5,7 +5,7 @@ import ExecutiveDashboard from '../components/dashboard/ExecutiveDashboard.jsx';
 export default function DashboardPlanejamento() {
   useEffect(() => {
     const anterior = document.title;
-    document.title = 'Dashboard de Planejamento · Synapse';
+    document.title = 'Dashboard de Planejamento · Sinapse';
     return () => {
       document.title = anterior;
     };

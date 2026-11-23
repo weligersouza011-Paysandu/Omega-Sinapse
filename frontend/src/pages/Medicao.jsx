@@ -66,7 +66,7 @@ export default function Medicao() {
 
   useEffect(() => {
     const anterior = document.title;
-    document.title = 'Medição · Synapse';
+    document.title = 'Medição · Sinapse';
     return () => {
       document.title = anterior;
     };

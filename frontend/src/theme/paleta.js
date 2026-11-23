@@ -1,5 +1,5 @@
 /**
- * Paleta do Synapse nos temas claro e escuro — fonte única das cores.
+ * Paleta do Sinapse (identidade Omega Service) nos temas claro e escuro — fonte única das cores.
  *
  * O Tailwind lê estas escalas como variáveis CSS (`rgb(var(--c-slate-500) / <alpha-value>)`),
  * então toda classe existente (`text-slate-500`, `bg-red-50`, `border-emerald-200`…) troca de
@@ -39,24 +39,25 @@ const mistura = (cor, base, peso) => {
     .join('')}`;
 };
 
-/* ------------------------------- Azul da marca (omega) ------------------------------- */
+/* --------------------- Vinho da marca Omega Service (escala "omega") --------------------- */
+// O tom 600 é o vinho oficial do logotipo (#9f132e), usado no botão primário e nos destaques.
 
 const OMEGA_CLARO = {
-  50: '#f2f7fb', 100: '#e3eef7', 200: '#c8ddee', 300: '#9fc2e0', 400: '#5f9ccd',
-  500: '#1c5d99', 600: '#164b7d', 700: '#123c65', 800: '#0e2f4f', 900: '#0a2138',
+  50: '#fdf3f5', 100: '#fbe4e8', 200: '#f5c6ce', 300: '#ea96a5', 400: '#d9566d',
+  500: '#c0213f', 600: '#9f132e', 700: '#820f26', 800: '#650b1d', 900: '#480814',
 };
 
 const OMEGA_ESCURO = {
-  50: mistura('#3b8fd9', SUPERFICIE_ESCURA, 0.12),
-  100: mistura('#3b8fd9', SUPERFICIE_ESCURA, 0.19),
-  200: mistura('#3b8fd9', SUPERFICIE_ESCURA, 0.3),
-  300: mistura('#3b8fd9', SUPERFICIE_ESCURA, 0.45),
-  400: '#5aa9e6', 500: '#62abe6', 600: '#7ab8ea', 700: '#9acbf0', 800: '#bddcf6', 900: '#dcecfa',
+  50: mistura('#d9435f', SUPERFICIE_ESCURA, 0.12),
+  100: mistura('#d9435f', SUPERFICIE_ESCURA, 0.19),
+  200: mistura('#d9435f', SUPERFICIE_ESCURA, 0.3),
+  300: mistura('#d9435f', SUPERFICIE_ESCURA, 0.45),
+  400: '#e8738a', 500: '#ec8197', 600: '#f1a0b0', 700: '#f6bcc7', 800: '#fad6dc', 900: '#fdeaed',
 };
 
-/** Fundos sólidos do azul da marca (botão primário etc.): no escuro, um degrau mais claro. */
-export const OMEGA_FUNDO_CLARO = { 500: '#1c5d99', 600: '#164b7d', 700: '#123c65', 800: '#0e2f4f', 900: '#0a2138' };
-const OMEGA_FUNDO_ESCURO = { 500: '#3a86c9', 600: '#2c73b4', 700: '#25629c', 800: '#0e2f4f', 900: '#0a2138' };
+/** Fundos sólidos do vinho da marca (botão primário etc.): no escuro, um degrau mais claro. */
+export const OMEGA_FUNDO_CLARO = { 500: '#c0213f', 600: '#9f132e', 700: '#820f26', 800: '#650b1d', 900: '#480814' };
+const OMEGA_FUNDO_ESCURO = { 500: '#c8344f', 600: '#b02642', 700: '#951d37', 800: '#650b1d', 900: '#480814' };
 
 /* ------------------------------------ Cinzas (slate) ------------------------------------ */
 

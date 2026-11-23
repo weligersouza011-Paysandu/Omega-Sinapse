@@ -31,7 +31,7 @@ function LinhaSs({ item, podeGerir, onEditar, onRemover }) {
             </Link>
           ) : (
             // SS do histórico que ainda não é uma obra do Synapse: só identifica, sem link.
-            <span title="SS sem obra cadastrada no Synapse">{item.ss || 'SS sem código'}</span>
+            <span title="SS sem obra cadastrada no Sinapse">{item.ss || 'SS sem código'}</span>
           )}
           {item.osi && item.ss ? <span className="font-normal text-slate-400"> · {item.osi}</span> : null}
         </p>

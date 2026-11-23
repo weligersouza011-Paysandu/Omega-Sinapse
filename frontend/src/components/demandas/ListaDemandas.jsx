@@ -16,7 +16,7 @@ const AGRUPAMENTOS = [
 ];
 
 /** Paleta das faixas de grupo por responsável (cicla quando há mais pessoas). */
-const CORES_GRUPO = ['#164b7d', '#7c3aed', '#0891b2', '#ea580c', '#16a34a', '#db2777', '#ca8a04'];
+const CORES_GRUPO = ['#9f132e','#7c3aed', '#0891b2', '#ea580c', '#16a34a', '#db2777', '#ca8a04'];
 
 const ORDEM_STATUS = Object.fromEntries(STATUS_DEMANDA.map((status, indice) => [status.value, indice]));
 

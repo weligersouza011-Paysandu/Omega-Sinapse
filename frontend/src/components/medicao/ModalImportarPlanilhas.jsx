@@ -151,7 +151,7 @@ export default function ModalImportarPlanilhas({ aberto, onFechar, onImportado }
                   Contrato <strong>{plano.contrato.id_vale}</strong> · {formatarMoeda(plano.contrato.valor_inicial)} · vigência{' '}
                   {formatarData(plano.contrato.data_inicio)} a {formatarData(plano.contrato.data_fim)}.{' '}
                   <strong>{plano.codigos.com_obra}</strong> de {plano.codigos.total} códigos de SS casam com obras do
-                  Synapse ({plano.vinculos.length} obra(s) serão vinculadas ao contrato); os outros{' '}
+                  Sinapse ({plano.vinculos.length} obra(s) serão vinculadas ao contrato); os outros{' '}
                   {plano.codigos.sem_obra.length} entram só como código da SS.
                 </p>
 

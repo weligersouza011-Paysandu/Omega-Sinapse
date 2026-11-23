@@ -25,7 +25,8 @@
     "prisma:studio": "prisma studio",
     "importar:medicao": "node scripts/importarMedicaoPasta13.js",
     "email:diario": "node scripts/enviarEmailDiario.js",
-    "email:teste": "node scripts/testarEmail.js"
+    "email:teste": "node scripts/testarEmail.js",
+    "email:diagnostico": "node scripts/diagnosticarBrevo.js"
   },
   "engines": {
     "node": ">=18"

@@ -42,7 +42,7 @@ const ICONE_SELECIONADO = L.divIcon({
   className: 'mapa-pin',
   html: `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="30" height="45" aria-hidden="true">
-      <path fill="#164b7d" stroke="#ffffff" stroke-width="1.4" d="M12 0C5.37 0 0 5.37 0 12c0 9.1 12 24 12 24s12-14.9 12-24C24 5.37 18.63 0 12 0z"/>
+      <path fill="#9f132e" stroke="#ffffff" stroke-width="1.4" d="M12 0C5.37 0 0 5.37 0 12c0 9.1 12 24 12 24s12-14.9 12-24C24 5.37 18.63 0 12 0z"/>
       <circle cx="12" cy="12" r="4.6" fill="#ffffff"/>
     </svg>
   `,
@@ -243,7 +243,7 @@ export default function MapaLocalizacoes({
             pathOptions={{
               // Contorno branco para o ponto se destacar sobre a imagem de satélite.
               color: '#ffffff',
-              fillColor: ehTrecho ? '#8b5cf6' : '#1c5d99',
+              fillColor: ehTrecho ? '#8b5cf6' : '#9f132e',
               fillOpacity: 0.78,
               weight: 2,
             }}

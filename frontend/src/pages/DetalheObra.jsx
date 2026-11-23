@@ -171,7 +171,7 @@ export default function DetalheObra() {
   useEffect(() => {
     if (!obra) return undefined;
     const anterior = document.title;
-    document.title = `${obra.ss || obra.pep || `Obra ${obra.id}`} · Synapse`;
+    document.title = `${obra.ss || obra.pep || `Obra ${obra.id}`} · Sinapse`;
     return () => {
       document.title = anterior;
     };
