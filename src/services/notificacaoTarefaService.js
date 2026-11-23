@@ -83,6 +83,7 @@ async function notificarNovaAtividade({
   try {
     const responsavel = await repositorio.buscarUsuario(tarefa.usuario_id);
     if (!responsavel || !responsavel.email) {
+      console.warn(`[notificacao] Atividade #${tarefa.id}: responsável sem e-mail cadastrado; aviso não enviado.`);
       return { enviado: false, motivo: 'SEM_EMAIL' };
     }
     const conteudo = montarEmailNovaAtividade({ tarefa, responsavel, criador });

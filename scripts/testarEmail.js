@@ -10,22 +10,23 @@
 
 require('dotenv').config();
 
-const { enviar, configurado } = require('../src/services/emailService');
+const { enviar, configurado, provedor, lerRemetente } = require('../src/services/emailService');
 
 async function main() {
   if (!configurado()) {
-    console.error('SMTP não configurado: preencha SMTP_HOST, SMTP_USER e SMTP_PASS no arquivo .env.');
+    console.error('Nenhum provedor de e-mail configurado: defina BREVO_API_KEY (Brevo) ou SMTP_HOST/SMTP_USER/SMTP_PASS no .env.');
     process.exitCode = 1;
     return;
   }
-  if (!process.env.SMTP_PASS) {
+  if (provedor() === 'smtp' && !process.env.SMTP_PASS) {
     console.error('Falta a senha: preencha SMTP_PASS no arquivo .env (senha de app do Gmail).');
     process.exitCode = 1;
     return;
   }
 
-  const para = process.argv[2] || process.env.SMTP_USER;
-  console.log(`Enviando e-mail de teste para ${para}...`);
+  const padrao = lerRemetente(process.env.EMAIL_FROM || process.env.SMTP_USER).email;
+  const para = process.argv[2] || padrao;
+  console.log(`Enviando e-mail de teste via ${provedor()} para ${para}...`);
 
   const resultado = await enviar({
     para,
