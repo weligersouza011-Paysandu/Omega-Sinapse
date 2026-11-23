@@ -8,7 +8,7 @@ import {
   podeEditar,
   rotuloTipo,
 } from '../../utils/demandas.js';
-import { formatarData, formatarDataHora } from '../../utils/formatters.js';
+import { formatarDataHora } from '../../utils/formatters.js';
 
 const AGRUPAMENTOS = [
   { id: 'status', label: 'Status' },
@@ -57,7 +57,7 @@ function FrequenciaPrazo({ tarefa }) {
     return (
       <div className="leading-tight">
         <p className="text-xs font-semibold text-slate-700">{rotuloTipo(tarefa).replace('Fixa · ', '')}</p>
-        <p className="text-[11px] text-slate-400">Próx.: {formatarData(tarefa.data_vencimento)}</p>
+        <p className="text-[11px] text-slate-400">Próx.: {formatarDataHora(tarefa.data_vencimento)}</p>
       </div>
     );
   }

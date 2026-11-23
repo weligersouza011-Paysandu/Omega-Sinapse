@@ -13,6 +13,8 @@ if (!process.env.JWT_SECRET) {
   );
 }
 
+let agendador = null;
+
 const server = app.listen(PORT, () => {
   console.log(`[synapse] API de Orçamentos ouvindo em http://localhost:${PORT}`);
 
@@ -21,6 +23,9 @@ const server = app.listen(PORT, () => {
     const { garantirInstalacao, disponibilidade } = require('./services/mpxjConversor');
     if (!disponibilidade().disponivel) garantirInstalacao();
   }
+
+  // E-mail diário (07:30, America/Sao_Paulo) com as pendências dos planejadores.
+  agendador = require('./services/agendadorService').iniciar();
 });
 
 // Prazo máximo para concluir as requisições em andamento antes de forçar a saída.
@@ -32,6 +37,7 @@ function encerrar(sinal) {
   if (encerrando) return;
   encerrando = true;
   console.log(`[synapse] Recebido ${sinal}, encerrando...`);
+  if (agendador) agendador.parar();
 
   setTimeout(() => {
     console.error('[synapse] Encerramento excedeu o prazo; forçando saída.');

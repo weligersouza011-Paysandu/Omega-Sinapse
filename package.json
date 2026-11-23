@@ -23,7 +23,9 @@
     "prisma:status": "prisma migrate status",
     "prisma:format": "prisma format",
     "prisma:studio": "prisma studio",
-    "importar:medicao": "node scripts/importarMedicaoPasta13.js"
+    "importar:medicao": "node scripts/importarMedicaoPasta13.js",
+    "email:diario": "node scripts/enviarEmailDiario.js",
+    "email:teste": "node scripts/testarEmail.js"
   },
   "engines": {
     "node": ">=18"
@@ -36,6 +38,7 @@
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.5.0",
+    "nodemailer": "^6.10.1",
     "pdfkit": "^0.17.2",
     "sharp": "^0.35.5",
     "xlsx": "^0.18.5"
