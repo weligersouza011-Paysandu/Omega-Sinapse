@@ -1,5 +1,7 @@
+import { cloneElement } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
+import { useValoresOcultos } from '../context/ValoresOcultosContext.jsx';
 import { MODULOS, moduloLiberado, rotaInicial } from '../config/modulos.js';
 
 /**
@@ -9,10 +11,12 @@ import { MODULOS, moduloLiberado, rotaInicial } from '../config/modulos.js';
  */
 export default function RotaPorPagina({ pagina, children }) {
   const { usuario } = useAuth();
+  useValoresOcultos(); // re-renderiza a página quando o olho muda
   const modulo = MODULOS.find((item) => item.id === pagina);
 
   if (usuario?.perfil === 'CLIENTE' && !moduloLiberado(usuario, modulo)) {
     return <Navigate to={rotaInicial(usuario)} replace />;
   }
-  return children;
+  // Elemento novo a cada render: a página (e tudo dentro dela) reformata os valores sem perder o estado.
+  return cloneElement(children);
 }

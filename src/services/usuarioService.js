@@ -1,5 +1,6 @@
 'use strict';
 
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const AppError = require('../errors/AppError');
 const usuarioRepository = require('../repositories/usuarioRepository');
@@ -105,7 +106,7 @@ async function atualizarUsuario(idParam, payload) {
   const id = validarId(idParam);
 
   const existente = await usuarioRepository.findById(id);
-  if (!existente) {
+  if (!existente || existente.excluido_em) {
     throw new AppError(404, `Usuário ${id} não encontrado.`);
   }
 
@@ -166,7 +167,7 @@ async function atualizarSenha(idParam, payload = {}) {
   const id = validarId(idParam);
 
   const existente = await usuarioRepository.findById(id);
-  if (!existente) {
+  if (!existente || existente.excluido_em) {
     throw new AppError(404, `Usuário ${id} não encontrado.`);
   }
 
@@ -182,7 +183,38 @@ async function atualizarSenha(idParam, payload = {}) {
   return usuarioRepository.updateSenha(id, senha_hash);
 }
 
+/**
+ * DELETE /api/usuarios/:id — exclusão lógica (preserva todo o histórico).
+ *
+ * O registro permanece (o nome continua aparecendo em tarefas, obras, relatórios etc.), mas o
+ * usuário some da gestão, perde o acesso e tem e-mail/matrícula liberados para novo cadastro.
+ */
+async function excluirUsuario(idParam, solicitante = {}) {
+  const id = validarId(idParam);
+
+  const existente = await usuarioRepository.findById(id);
+  if (!existente || existente.excluido_em) {
+    throw new AppError(404, `Usuário ${id} não encontrado.`);
+  }
+  if (solicitante.id === id) {
+    throw new AppError(400, 'Você não pode excluir o seu próprio usuário.');
+  }
+  if (existente.perfil === 'ADMIN' && existente.ativo && (await usuarioRepository.contarAdminsAtivos()) <= 1) {
+    throw new AppError(400, 'Não é possível excluir o único administrador ativo.');
+  }
+
+  // Senha aleatória descartada: mesmo que o e-mail antigo volte a ser usado, nada autentica nesta linha.
+  const senha_hash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), SALT_ROUNDS);
+
+  return usuarioRepository.excluirLogicamente(id, {
+    email_original: existente.email,
+    email: `excluido-${id}@excluido.invalid`,
+    senha_hash,
+  });
+}
+
 module.exports = {
+  excluirUsuario,
   PERFIS_VALIDOS,
   ROTULOS_PERFIL,
   SENHA_MIN_CARACTERES,

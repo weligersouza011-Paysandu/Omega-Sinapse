@@ -15,6 +15,7 @@ const CAMPOS_PUBLICOS = {
   telefone: true,
   cargo: true,
   setor: true,
+  excluido_em: true,
   created_at: true,
   updated_at: true,
 };
@@ -112,7 +113,8 @@ async function findAll(filtros = {}) {
   const page = filtros.page && filtros.page > 0 ? filtros.page : 1;
   const limit = filtros.limit && filtros.limit > 0 ? filtros.limit : 20;
 
-  const where = {};
+  // Usuários excluídos (exclusão lógica) não aparecem na gestão.
+  const where = { excluido_em: null };
 
   if (perfil) {
     where.perfil = perfil;
@@ -201,7 +203,36 @@ async function updateSenha(id, senha_hash) {
   });
 }
 
+/** Quantos ADMIN ativos (não excluídos) existem, para nunca ficar sem administrador. */
+async function contarAdminsAtivos() {
+  return prisma.usuario.count({ where: { perfil: 'ADMIN', ativo: true, excluido_em: null } });
+}
+
+/**
+ * Exclusão lógica: encerra o acesso e libera e-mail/matrícula, mantendo a linha (e o nome)
+ * para que todo o histórico continue apontando para a pessoa.
+ * @param {number} id
+ * @param {{email_original:string, email:string, senha_hash:string}} dados
+ */
+async function excluirLogicamente(id, dados) {
+  return prisma.usuario.update({
+    where: { id },
+    data: {
+      ativo: false,
+      excluido_em: new Date(),
+      email_original: dados.email_original,
+      email: dados.email,
+      matricula: null,
+      senha_hash: dados.senha_hash,
+      paginas_permitidas: [],
+    },
+    select: CAMPOS_PUBLICOS,
+  });
+}
+
 module.exports = {
+  contarAdminsAtivos,
+  excluirLogicamente,
   findByLogin,
   findByEmail,
   findByMatricula,

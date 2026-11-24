@@ -5,6 +5,7 @@ import RotaPorPerfil from './components/RotaPorPerfil.jsx';
 import RotaPorPagina from './components/RotaPorPagina.jsx';
 import { useAuth } from './context/AuthContext.jsx';
 import BotaoTema from './components/BotaoTema.jsx';
+import BotaoValoresOcultos from './components/BotaoValoresOcultos.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Spinner from './components/Spinner.jsx';
 import { CabecalhoProvider, useConteudoCabecalho } from './context/CabecalhoContext.jsx';
@@ -118,6 +119,7 @@ function AppLayoutConteudo() {
             >
               {AMBIENTE.texto}
             </span>
+            <BotaoValoresOcultos />
             <BotaoTema />
           </div>
         </header>
