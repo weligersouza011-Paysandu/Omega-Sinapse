@@ -7,7 +7,7 @@ const { obterJwtSecret } = require('../config/jwtSecret');
 const usuarioRepository = require('../repositories/usuarioRepository');
 const { normalizarPaginas } = require('../config/paginas');
 
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE', 'ENCARREGADO'];
 const SALT_ROUNDS = 10;
 const SENHA_MIN_CARACTERES = 4;
 

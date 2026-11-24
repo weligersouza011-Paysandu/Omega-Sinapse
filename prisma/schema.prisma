@@ -24,6 +24,8 @@ enum PerfilUsuario {
   ADMIN
   /// Usuário externo, somente consulta, nas páginas liberadas em `paginas_permitidas`.
   CLIENTE
+  /// Campo: preenche o RDO das obras a que está vinculado (`encarregados_obra`).
+  ENCARREGADO
 }
 
 /// Fluxo operacional do orçamento (validado pelo processo de engenharia).
@@ -272,6 +274,10 @@ model Usuario {
   projecoes_bmm           ProjecaoBmm[]                   @relation("ProjecaoBmmAutor")
   exclusoes_solicitadas   SolicitacaoExclusaoProjecao[]   @relation("ExclusaoSolicitante")
   exclusoes_decididas     SolicitacaoExclusaoProjecao[]   @relation("ExclusaoDecisor")
+  rdos_encarregado        Rdo[]                           @relation("RdoEncarregado")
+  rdos_decididos          Rdo[]                           @relation("RdoDecisor")
+  obras_encarregado       EncarregadoObra[]
+  rdo_historico           RdoHistoricoStatus[]
 
   @@map("usuarios")
 }
@@ -455,6 +461,10 @@ model Obra {
   recursos_qqp          RecursoObraQqp[]
   /// Projeções de BMM (receita prevista) da obra por ciclo.
   projecoes_bmm         ProjecaoBmm[]
+  /// RDO: encarregados vinculados, atividades lançadas e avanço aprovado.
+  encarregados          EncarregadoObra[]
+  rdo_atividades        RdoAtividade[]
+  avancos_atividade     AvancoAtividadeAprovado[]
 
   @@index([status])
   @@index([planejador_id])
@@ -913,6 +923,7 @@ model Contrato {
 
   aditivos           TermoAditivo[]
   obras              Obra[]
+  rdos               Rdo[]
   boletins           BoletimMedicao[]
   itens_qqp          ItemQqp[]
   /// Ordem personalizada de categorias, grupos e subgrupos na tela do QQP.
@@ -1059,11 +1070,13 @@ model ItemQqp {
   created_at         DateTime     @default(now()) @db.Timestamptz(6)
   updated_at         DateTime     @default(now()) @updatedAt @db.Timestamptz(6)
 
-  contrato      Contrato          @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
-  termo_aditivo TermoAditivo?     @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
-  recursos      RecursoObraQqp[]
+  contrato         Contrato              @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  termo_aditivo    TermoAditivo?         @relation(fields: [termo_aditivo_id], references: [id], onDelete: NoAction)
+  recursos         RecursoObraQqp[]
   /// Linhas de Projeção de BMM que usam o item (NoAction: o item em uso só pode ser desativado).
-  projecoes     ProjecaoBmmItem[]
+  projecoes        ProjecaoBmmItem[]
+  funcoes_rdo      FuncaoMaoObra[]
+  equipamentos_rdo EquipamentoCadastro[]
 
   @@unique([contrato_id, escopo_tac, codigo], name: "uq_qqp_codigo_por_escopo")
   @@index([contrato_id])
@@ -1293,4 +1306,281 @@ model HistoricoCurvaFinanceira {
 
   @@index([contrato_id, created_at])
   @@map("historico_curva_financeira")
+}
+
+// =============================================================================
+// RDO — Relatório Diário de Obra (módulo de campo)
+//
+// 1 RDO por encarregado por dia, com várias atividades do cronograma (de uma ou
+// mais obras/SS do mesmo contrato). Fluxo: RASCUNHO → FINALIZADO (encarregado
+// assina) → APROVADO ou DEVOLVIDO. Só ao APROVAR o avanço entra em
+// `avanco_atividade_aprovado`, que o cronograma consulta ("o mais recente vale").
+//
+// A atividade é referenciada por (obra_id, codigo_atividade/EDT) e não pelo UUID
+// de `atividades_cronograma`: o UUID muda a cada revisão importada do MS Project.
+// =============================================================================
+
+enum StatusRdo {
+  RASCUNHO
+  FINALIZADO
+  APROVADO
+  DEVOLVIDO
+}
+
+enum TipoLancamentoMaoObra {
+  /// Por função (quantidade de pessoas × horas).
+  FUNCAO
+  /// Nominal (um colaborador cadastrado).
+  NOMINAL
+}
+
+/// Função de mão de obra (cadastro manual). Pode apontar para o item de HH do QQP (custo).
+model FuncaoMaoObra {
+  id          Int      @id @default(autoincrement())
+  nome        String   @unique @db.VarChar(120)
+  item_qqp_id Int?
+  ativo       Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  item_qqp      ItemQqp?      @relation(fields: [item_qqp_id], references: [id], onDelete: SetNull)
+  colaboradores Colaborador[]
+  lancamentos   RdoMaoObra[]
+
+  @@map("funcoes_mao_obra")
+}
+
+/// Colaborador de campo (cadastro manual; não é usuário do sistema).
+model Colaborador {
+  id         Int      @id @default(autoincrement())
+  nome       String   @db.VarChar(255)
+  matricula  String?  @unique @db.VarChar(30)
+  funcao_id  Int?
+  ativo      Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  funcao      FuncaoMaoObra? @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
+  lancamentos RdoMaoObra[]
+
+  @@index([funcao_id])
+  @@map("colaboradores")
+}
+
+/// Equipamento (cadastro manual). Pode apontar para o item do QQP (custo).
+model EquipamentoCadastro {
+  id          Int      @id @default(autoincrement())
+  nome        String   @db.VarChar(160)
+  codigo      String?  @unique @db.VarChar(60)
+  item_qqp_id Int?
+  ativo       Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+
+  item_qqp    ItemQqp?         @relation(fields: [item_qqp_id], references: [id], onDelete: SetNull)
+  lancamentos RdoEquipamento[]
+
+  @@map("equipamentos")
+}
+
+/// Catálogo de motivos de desvio/improdutividade.
+model MotivoDesvio {
+  id         Int      @id @default(autoincrement())
+  descricao  String   @unique @db.VarChar(160)
+  ativo      Boolean  @default(true)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  desvios RdoDesvio[]
+
+  @@map("motivos_desvio")
+}
+
+/// Escopo do encarregado: as obras (SS) em que ele pode lançar RDO.
+model EncarregadoObra {
+  usuario_id Int
+  obra_id    Int
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuario_id], references: [id], onDelete: Cascade)
+  obra    Obra    @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+
+  @@id([usuario_id, obra_id])
+  @@index([obra_id])
+  @@map("encarregados_obra")
+}
+
+model Rdo {
+  id                Int       @id @default(autoincrement())
+  /// Contrato das obras lançadas (todas as obras do RDO pertencem a ele).
+  contrato_id       Int?
+  encarregado_id    Int
+  data              DateTime  @db.Date
+  status            StatusRdo @default(RASCUNHO)
+  clima_manha       String?   @db.VarChar(40)
+  clima_tarde       String?   @db.VarChar(40)
+  clima_noite       String?   @db.VarChar(40)
+  /// DSS (Diálogo de Segurança).
+  dss_tema          String?   @db.VarChar(200)
+  dss_participantes Int?
+  comentario_geral  String?
+  /// Assinatura do encarregado ao finalizar.
+  assinado_em       DateTime? @db.Timestamptz(6)
+  decidido_por_id   Int?
+  decidido_em       DateTime? @db.Timestamptz(6)
+  motivo_devolucao  String?
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  contrato     Contrato? @relation(fields: [contrato_id], references: [id], onDelete: SetNull)
+  encarregado  Usuario   @relation("RdoEncarregado", fields: [encarregado_id], references: [id], onDelete: Restrict)
+  decidido_por Usuario?  @relation("RdoDecisor", fields: [decidido_por_id], references: [id], onDelete: SetNull)
+
+  atividades   RdoAtividade[]
+  equipamentos RdoEquipamento[]
+  pts          RdoPts[]
+  desvios      RdoDesvio[]
+  historico    RdoHistoricoStatus[]
+
+  @@unique([encarregado_id, data], name: "uq_rdo_encarregado_dia")
+  @@index([status, data])
+  @@index([contrato_id])
+  @@map("rdos")
+}
+
+model RdoAtividade {
+  id                   Int      @id @default(autoincrement())
+  rdo_id               Int
+  obra_id              Int
+  /// EDT da atividade (chave estável entre revisões). Nulo = atividade fora de escopo.
+  codigo_atividade     String?  @db.VarChar(60)
+  /// Descrição no momento do lançamento (sobrevive à reimportação do cronograma).
+  descricao_snapshot   String
+  fora_de_escopo       Boolean  @default(false)
+  /// Último % vigente (aprovado ou do cronograma) quando o RDO foi salvo; refeito na aprovação.
+  percentual_anterior  Decimal  @default(0) @db.Decimal(5, 2)
+  percentual_declarado Decimal  @default(0) @db.Decimal(5, 2)
+  /// Definido pelo planejador na aprovação.
+  percentual_validado  Decimal? @db.Decimal(5, 2)
+  observacao           String?
+  created_at           DateTime @default(now()) @db.Timestamptz(6)
+
+  rdo      Rdo                      @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+  obra     Obra                     @relation(fields: [obra_id], references: [id], onDelete: Restrict)
+  fotos    RdoFoto[]
+  mao_obra RdoMaoObra[]
+  avanco   AvancoAtividadeAprovado?
+
+  @@index([rdo_id])
+  @@index([obra_id, codigo_atividade])
+  @@map("rdo_atividades")
+}
+
+model RdoFoto {
+  id               Int      @id @default(autoincrement())
+  rdo_atividade_id Int
+  url              String
+  /// Id no Cloudinary (permite apagar a imagem).
+  public_id        String?
+  legenda          String?  @db.VarChar(255)
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  atividade RdoAtividade @relation(fields: [rdo_atividade_id], references: [id], onDelete: Cascade)
+
+  @@index([rdo_atividade_id])
+  @@map("rdo_fotos")
+}
+
+/// Mão de obra lançada por atividade. HH = quantidade × horas.
+model RdoMaoObra {
+  id               Int                   @id @default(autoincrement())
+  rdo_atividade_id Int
+  tipo             TipoLancamentoMaoObra
+  funcao_id        Int?
+  colaborador_id   Int?
+  quantidade       Decimal               @default(1) @db.Decimal(6, 2)
+  horas            Decimal               @db.Decimal(5, 2)
+
+  atividade   RdoAtividade   @relation(fields: [rdo_atividade_id], references: [id], onDelete: Cascade)
+  funcao      FuncaoMaoObra? @relation(fields: [funcao_id], references: [id], onDelete: Restrict)
+  colaborador Colaborador?   @relation(fields: [colaborador_id], references: [id], onDelete: Restrict)
+
+  @@index([rdo_atividade_id])
+  @@map("rdo_mao_obra")
+}
+
+model RdoEquipamento {
+  id                Int     @id @default(autoincrement())
+  rdo_id            Int
+  equipamento_id    Int
+  horas_trabalhadas Decimal @default(0) @db.Decimal(5, 2)
+  horas_paradas     Decimal @default(0) @db.Decimal(5, 2)
+  observacao        String?
+
+  rdo         Rdo                 @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+  equipamento EquipamentoCadastro @relation(fields: [equipamento_id], references: [id], onDelete: Restrict)
+
+  @@index([rdo_id])
+  @@map("rdo_equipamentos")
+}
+
+/// Permissão de Trabalho (PTS): a espera é liberado_em − solicitado_em (calculada).
+model RdoPts {
+  id            Int       @id @default(autoincrement())
+  rdo_id        Int
+  numero        String?   @db.VarChar(60)
+  solicitado_em DateTime  @db.Timestamptz(6)
+  liberado_em   DateTime? @db.Timestamptz(6)
+
+  rdo Rdo @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+
+  @@index([rdo_id])
+  @@map("rdo_pts")
+}
+
+model RdoDesvio {
+  id         Int     @id @default(autoincrement())
+  rdo_id     Int
+  motivo_id  Int
+  horas      Decimal @db.Decimal(5, 2)
+  observacao String?
+
+  rdo    Rdo          @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+  motivo MotivoDesvio @relation(fields: [motivo_id], references: [id], onDelete: Restrict)
+
+  @@index([rdo_id])
+  @@map("rdo_desvios")
+}
+
+model RdoHistoricoStatus {
+  id         Int        @id @default(autoincrement())
+  rdo_id     Int
+  de         StatusRdo?
+  para       StatusRdo
+  usuario_id Int?
+  motivo     String?
+  created_at DateTime   @default(now()) @db.Timestamptz(6)
+
+  rdo     Rdo      @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+  usuario Usuario? @relation(fields: [usuario_id], references: [id], onDelete: SetNull)
+
+  @@index([rdo_id])
+  @@map("rdo_historico_status")
+}
+
+/// Avanço de uma atividade aprovado em RDO. O "% vigente" da atividade é o mais recente entre
+/// este histórico e a última revisão do cronograma (ver src/utils/avancoAtividade.js).
+model AvancoAtividadeAprovado {
+  id               Int      @id @default(autoincrement())
+  obra_id          Int
+  codigo_atividade String   @db.VarChar(60)
+  data             DateTime @db.Date
+  percentual       Decimal  @db.Decimal(5, 2)
+  rdo_atividade_id Int      @unique
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  obra          Obra         @relation(fields: [obra_id], references: [id], onDelete: Cascade)
+  rdo_atividade RdoAtividade @relation(fields: [rdo_atividade_id], references: [id], onDelete: Cascade)
+
+  @@index([obra_id, codigo_atividade, data])
+  @@map("avanco_atividade_aprovado")
 }

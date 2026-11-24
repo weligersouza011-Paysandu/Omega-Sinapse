@@ -15,8 +15,12 @@ const tarefaRoutes = require('./routes/tarefaRoutes');
 const cronogramaRoutes = require('./routes/cronogramaRoutes');
 const contratoRoutes = require('./routes/contratoRoutes');
 const projecaoBmmRoutes = require('./routes/projecaoBmmRoutes');
-const { autenticar, acessoCliente } = require('./middlewares/auth');
+const { autenticar, acessoCliente, bloquearPerfis } = require('./middlewares/auth');
+const rdoRoutes = require('./routes/rdoRoutes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
+
+// O encarregado (campo) só acessa o RDO: as demais APIs lhe respondem 403.
+const semEncarregado = bloquearPerfis('ENCARREGADO');
 
 const app = express();
 
@@ -71,23 +75,26 @@ app.use('/api/auth', authRoutes);
 
 // Rotas protegidas por JWT
 // Perfil CLIENTE: só consulta e só nas APIs das páginas liberadas (acessoCliente).
-app.use('/api/orcamentos', autenticar, acessoCliente('orcamentos'), orcamentoRoutes);
+app.use('/api/orcamentos', autenticar, semEncarregado, acessoCliente('orcamentos'), orcamentoRoutes);
 // Governança ISO 9001: gestão de usuários (RBAC ADMIN aplicado nas rotas internas).
-app.use('/api/usuarios', autenticar, acessoCliente(), usuarioRoutes);
+app.use('/api/usuarios', autenticar, semEncarregado, acessoCliente(), usuarioRoutes);
 // Ciclo operacional de execução (obras): status, planejador, OSI e Ata de Partida.
-app.use('/api/obras', autenticar, acessoCliente('obras', 'planejamento', 'medicao'), obraRoutes);
+app.use('/api/obras', autenticar, semEncarregado, acessoCliente('obras', 'planejamento', 'medicao'), obraRoutes);
 // Dashboard executivo de planejamento (obras, mapa, Curva S e restrições 6WLA).
-app.use('/api/dashboard', autenticar, acessoCliente('planejamento'), dashboardRoutes);
+app.use('/api/dashboard', autenticar, semEncarregado, acessoCliente('planejamento'), dashboardRoutes);
 // Gestão de demandas e carga da equipe de planejamento.
-app.use('/api/tarefas', autenticar, acessoCliente('demandas'), tarefaRoutes);
+app.use('/api/tarefas', autenticar, semEncarregado, acessoCliente('demandas'), tarefaRoutes);
 // Ingestão e versionamento de cronogramas (base da Curva S, CPM e 6WLA).
-app.use('/api/cronogramas', autenticar, acessoCliente('obras', 'planejamento'), cronogramaRoutes);
+app.use('/api/cronogramas', autenticar, semEncarregado, acessoCliente('obras', 'planejamento'), cronogramaRoutes);
 // Contratos com a Vale e Termos Aditivos (base da medição e projeção financeira).
-app.use('/api/contratos', autenticar, acessoCliente('medicao'), contratoRoutes);
-app.use('/api/projecoes-bmm', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.projecoes);
-app.use('/api/feriados', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.feriados);
-app.use('/api/solicitacoes-exclusao', autenticar, acessoCliente('medicao'), projecaoBmmRoutes.solicitacoes);
-app.use('/api/uploads', autenticar, acessoCliente(), uploadRoutes);
+app.use('/api/contratos', autenticar, semEncarregado, acessoCliente('medicao'), contratoRoutes);
+app.use('/api/projecoes-bmm', autenticar, semEncarregado, acessoCliente('medicao'), projecaoBmmRoutes.projecoes);
+app.use('/api/feriados', autenticar, semEncarregado, acessoCliente('medicao'), projecaoBmmRoutes.feriados);
+app.use('/api/solicitacoes-exclusao', autenticar, semEncarregado, acessoCliente('medicao'), projecaoBmmRoutes.solicitacoes);
+app.use('/api/uploads', autenticar, semEncarregado, acessoCliente(), uploadRoutes);
+// RDO (Relatório Diário de Obra): encarregado lança, planejador valida. Cliente não acessa.
+app.use('/api/rdos', autenticar, acessoCliente(), rdoRoutes.rdos);
+app.use('/api/rdo-cadastros', autenticar, acessoCliente(), rdoRoutes.cadastros);
 
 // ---------------------------------------------------------------------------
 // Front-end (build do Vite) — deploy unificado
