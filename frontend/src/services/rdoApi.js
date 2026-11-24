@@ -27,6 +27,10 @@ export async function baixarPdfRdo(id) {
   return resposta.data;
 }
 
+export const obterResumoObraRdo = async (obraId, params = {}) => (await api.get(`/rdos/obras/${obraId}/resumo`, { params })).data;
+export const listarFotosRdo = async (params = {}) => (await api.get('/rdos/fotos', { params })).data;
+export const listarSupervisores = async () => (await api.get('/rdo-cadastros/supervisores')).data;
+
 export const obterAvancoRdoObra = async (obraId) => (await api.get(`/obras/${obraId}/avanco-rdo`)).data;
 
 /* Cadastros */

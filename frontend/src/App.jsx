@@ -24,6 +24,7 @@ const GestaoDemandasView = lazy(() => import('./pages/GestaoDemandasView.jsx'));
 const MeuPerfil = lazy(() => import('./pages/MeuPerfil.jsx'));
 const RdoLista = lazy(() => import('./pages/RdoLista.jsx'));
 const RdoDetalhe = lazy(() => import('./pages/RdoDetalhe.jsx'));
+const RdoObra = lazy(() => import('./pages/RdoObra.jsx'));
 
 /** Fallback exibido enquanto o código de uma página é baixado. */
 function PaginaCarregando() {
@@ -193,6 +194,7 @@ export default function App() {
         <Route path="/demandas" element={<RotaPorPagina pagina="demandas"><GestaoDemandasView /></RotaPorPagina>} />
         <Route path="/medicao" element={<RotaPorPagina pagina="medicao"><Medicao /></RotaPorPagina>} />
         <Route path="/rdo" element={<RotaPorPagina pagina="rdo"><RdoLista /></RotaPorPagina>} />
+        <Route path="/rdo/obra/:obraId" element={<RotaPorPagina pagina="rdo"><RdoObra /></RotaPorPagina>} />
         <Route path="/rdo/novo" element={<RotaPorPagina pagina="rdo"><RdoDetalhe key="rdo-novo" novo /></RotaPorPagina>} />
         <Route path="/rdo/:id" element={<RotaPorPagina pagina="rdo"><RdoDetalhe key="rdo-existente" /></RotaPorPagina>} />
       </Route>

@@ -26,7 +26,11 @@ rdos.use(autorizar(...PERFIS_RDO));
 
 // Apoio ao formulário: obras do escopo do usuário e atividades vigentes (com o % vigente).
 rdos.get('/obras', acao((req) => rdoService.listarObras(req.user)));
+rdos.get('/obras/:obraId/resumo', acao((req) => rdoService.resumoDaObra(req.params.obraId, req.query || {}, req.user)));
 rdos.get('/obras/:obraId/atividades', acao((req) => rdoService.listarAtividadesDaObra(req.params.obraId, req.user)));
+
+// Controle de fotos (todas as fotos de evidência, com filtros).
+rdos.get('/fotos', acao((req) => rdoService.listarFotos(req.query || {}, req.user)));
 
 rdos.get('/', acao((req) => rdoService.listar(req.query || {}, req.user)));
 rdos.post('/', acao((req) => rdoService.criar(req.body || {}, req.user), 201));
@@ -63,6 +67,7 @@ const cadastros = Router();
 cadastros.use(autorizar(...PERFIS_RDO));
 
 // Declaradas antes de "/:tipo" para não serem capturadas pelo parâmetro.
+cadastros.get('/supervisores', acao(() => rdoService.listarSupervisores()));
 cadastros.get('/encarregados', acao((req) => cadastroService.listarEncarregados(req.user)));
 cadastros.put('/encarregados/:usuarioId/obras', acao((req) => cadastroService.definirObrasDoEncarregado(req.params.usuarioId, req.body || {}, req.user)));
 

@@ -10,9 +10,13 @@ const { totalHH, hhDoLancamento, esperaPtsMinutos, totalDesvios, normalizarPerce
 /**
  * RDO — Relatório Diário de Obra.
  *
+ * O RDO é sempre de UMA obra em andamento, lançado de dentro dela (1 por obra, por dia, por encarregado).
  * Fluxo: RASCUNHO → FINALIZADO (encarregado assina) → APROVADO | DEVOLVIDO (→ FINALIZADO de novo).
- * Só ao aprovar o avanço entra em `avanco_atividade_aprovado`; o % vigente de uma atividade é o
- * mais recente entre esse histórico e a última revisão do cronograma (utils/avancoAtividade).
+ * Só ao aprovar o avanço entra em `avanco_atividade_aprovado`; o % vigente de uma atividade é o mais
+ * recente entre esse histórico e a última revisão do cronograma (utils/avancoAtividade).
+ *
+ * Ordem do formulário: identificação (encarregado e supervisor), DSS, efetivo do dia, atividades
+ * (mão de obra só do efetivo), equipamentos, PTS e desvios.
  */
 
 const PERFIS_CAMPO = ['ENCARREGADO', 'ADMIN'];
@@ -21,6 +25,7 @@ const STATUS_EDITAVEIS = ['RASCUNHO', 'DEVOLVIDO'];
 const STATUS_VALIDOS = ['RASCUNHO', 'FINALIZADO', 'APROVADO', 'DEVOLVIDO'];
 const LIMITE_FOTOS_POR_ATIVIDADE = 12;
 const PASTA_FOTOS = `${process.env.CLOUDINARY_FOLDER_RDO || 'synapse/rdo'}`;
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /* -------------------------------------------------------------------------- */
 /* Helpers de validação                                                       */
@@ -53,22 +58,24 @@ function dataDia(valor, campo) {
   return new Date(`${t}T00:00:00Z`);
 }
 
-function instante(valor, campo, { obrigatorio = false } = {}) {
-  if (vazio(valor)) {
-    if (obrigatorio) throw new AppError(400, `O campo "${campo}" é obrigatório.`);
-    return null;
-  }
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) throw new AppError(400, `O campo "${campo}" deve ser uma data e hora válidas.`);
-  return d;
-}
-
 function horas(valor, campo, { minimo = 0 } = {}) {
   const n = Number(String(valor ?? '').replace(',', '.'));
   if (!Number.isFinite(n) || n < minimo || n > 24 || (minimo > 0 && n === 0)) {
     throw new AppError(400, `O campo "${campo}" deve ser um número de horas entre ${minimo > 0 ? 'mais de 0' : '0'} e 24.`);
   }
   return arredondar(n, 2);
+}
+
+/** "HH:MM" no dia do RDO (horário de Brasília) → instante. */
+function horaParaInstante(dia, hora, campo) {
+  if (!HORA.test(String(hora ?? ''))) throw new AppError(400, `O campo "${campo}" deve ser uma hora no formato HH:MM.`);
+  return new Date(`${dia}T${hora}:00-03:00`);
+}
+
+/** Instante → "HH:MM" no horário de Brasília. */
+function instanteParaHora(valor) {
+  if (!valor) return null;
+  return new Date(new Date(valor).getTime() - 3 * 3600 * 1000).toISOString().slice(11, 16);
 }
 
 function exigirPerfil(usuario, perfis, acao) {
@@ -96,6 +103,13 @@ function garantirObrasNoEscopo(escopo, obraIds) {
   if (fora !== undefined) throw new AppError(403, `Você não está vinculado à obra ${fora}.`);
 }
 
+/** O RDO só é lançado em obra em andamento. */
+function exigirObraEmAndamento(obra) {
+  if (obra.status !== 'EM_ANDAMENTO') {
+    throw new AppError(409, 'O RDO só pode ser lançado em obra em andamento.');
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* % vigente da atividade                                                     */
 /* -------------------------------------------------------------------------- */
@@ -117,13 +131,18 @@ async function percentualVigente(obraId, codigo, { client = repo.prisma, versao,
 }
 
 /* -------------------------------------------------------------------------- */
-/* Consulta de apoio ao formulário                                            */
+/* Consultas de apoio ao formulário                                           */
 /* -------------------------------------------------------------------------- */
 
-/** GET /api/rdos/obras — obras que o usuário pode lançar/ver (cabeçalho do RDO). */
+/**
+ * GET /api/rdos/obras — obras do escopo do usuário. O encarregado só vê as obras EM ANDAMENTO a que
+ * está vinculado (é onde ele pode lançar RDO). Traz o supervisor do último RDO da obra como sugestão.
+ */
 async function listarObras(usuario) {
   const escopo = await escopoDeObras(usuario);
-  const obras = await repo.obrasPorIds(escopo);
+  let obras = await repo.obrasPorIds(escopo);
+  if (usuario.perfil === 'ENCARREGADO') obras = obras.filter((o) => o.status === 'EM_ANDAMENTO');
+  const supervisores = await repo.ultimosSupervisores(obras.map((o) => o.id));
   return obras.map((o) => ({
     id: o.id,
     contrato_id: o.contrato_id,
@@ -132,7 +151,13 @@ async function listarObras(usuario) {
     pep: o.orcamento?.pep ?? null,
     descricao: o.orcamento?.descricao ?? null,
     cliente: o.orcamento?.cliente ?? null,
+    supervisor_padrao: supervisores.get(o.id) || null,
   }));
+}
+
+/** GET /api/rdo-cadastros/supervisores — usuários Supervisor ativos (lista do campo "supervisor"). */
+async function listarSupervisores() {
+  return repo.supervisoresAtivos();
 }
 
 /** GET /api/rdos/obras/:obraId/atividades — atividades-folha da revisão vigente, com o % vigente. */
@@ -151,13 +176,15 @@ async function listarAtividadesDaObra(obraIdParam, usuario) {
       aprovado: aprovado ? { percentual: aprovado.percentual, data: aprovado.data } : null,
       cronograma: { percentual: f.avanco_fisico_real, data: versao.data_snapshot },
     });
+    const percentual = arredondar(vigente.percentual, 2);
     return {
       codigo_atividade: f.codigo_atividade,
       codigo_pai: f.codigo_pai,
       descricao: f.descricao,
       data_inicio: f.data_inicio,
       data_fim: f.data_fim,
-      percentual_vigente: arredondar(vigente.percentual, 2),
+      percentual_vigente: percentual,
+      concluida: percentual >= 100,
       origem_percentual: vigente.origem,
     };
   });
@@ -225,6 +252,7 @@ async function resumoAvancoDaObra(obraIdParam) {
 /* Montagem e validação do corpo do RDO                                       */
 /* -------------------------------------------------------------------------- */
 
+/** Campos simples do cabeçalho (clima, DSS, comentário, PTS necessária). */
 function camposDoCabecalho(payload, { parcial }) {
   const dados = {};
   const mapa = [
@@ -233,6 +261,7 @@ function camposDoCabecalho(payload, { parcial }) {
     ['clima_noite', 40],
     ['dss_tema', 200],
     ['comentario_geral', 5000],
+    ['desvios_observacao', 2000],
   ];
   mapa.forEach(([campo, max]) => {
     if (!parcial || tem(payload, campo)) dados[campo] = texto(payload[campo], campo, max);
@@ -245,6 +274,13 @@ function camposDoCabecalho(payload, { parcial }) {
       dados.dss_participantes = n;
     }
   }
+  if (!parcial || tem(payload, 'pts_necessaria')) {
+    const v = payload.pts_necessaria;
+    if (vazio(v)) dados.pts_necessaria = null;
+    else if (v === true || v === 'true') dados.pts_necessaria = true;
+    else if (v === false || v === 'false') dados.pts_necessaria = false;
+    else throw new AppError(400, 'O campo "pts_necessaria" deve ser true, false ou vazio.');
+  }
   return dados;
 }
 
@@ -255,6 +291,39 @@ async function garantirCatalogo(client, modelo, ids, rotulo) {
   const achados = await client[modelo].findMany({ where: { id: { in: unicos }, ativo: true }, select: { id: true } });
   const faltando = unicos.filter((id) => !achados.some((a) => a.id === id));
   if (faltando.length) throw new AppError(400, `${rotulo} inexistente ou inativo(a): ${faltando.join(', ')}.`);
+}
+
+/** Supervisor da obra: precisa ser um usuário Supervisor ativo. */
+async function validarSupervisor(client, valor) {
+  if (vazio(valor)) return null;
+  const id = idValido(valor, 'supervisor_id');
+  const u = await client.usuario.findUnique({ where: { id }, select: { id: true, perfil: true, ativo: true, excluido_em: true } });
+  if (!u || u.excluido_em || u.ativo === false || u.perfil !== 'SUPERVISOR') {
+    throw new AppError(400, 'O supervisor informado não existe, está inativo ou não tem o perfil Supervisor.');
+  }
+  return id;
+}
+
+/** Efetivo do dia: pessoas por função (quantidade) ou nominais (colaborador cadastrado). */
+async function prepararEfetivo(client, lista) {
+  if (!Array.isArray(lista)) throw new AppError(400, 'O campo "efetivo" deve ser uma lista.');
+  const itens = lista.map((e, i) => {
+    const rot = `efetivo[${i}]`;
+    const tipo = String(e?.tipo || '').toUpperCase();
+    if (!['FUNCAO', 'NOMINAL'].includes(tipo)) throw new AppError(400, `${rot}.tipo deve ser FUNCAO ou NOMINAL.`);
+    if (tipo === 'FUNCAO') {
+      const qtd = Number(String(e.quantidade ?? 1).replace(',', '.'));
+      if (!Number.isFinite(qtd) || qtd <= 0 || qtd > 999) throw new AppError(400, `${rot}.quantidade deve ser maior que 0.`);
+      return { tipo, funcao_id: idValido(e.funcao_id, `${rot}.funcao_id`), colaborador_id: null, quantidade: arredondar(qtd, 2) };
+    }
+    return { tipo, funcao_id: null, colaborador_id: idValido(e.colaborador_id, `${rot}.colaborador_id`), quantidade: 1 };
+  });
+  const chaves = itens.map((e) => (e.tipo === 'FUNCAO' ? `F${e.funcao_id}` : `N${e.colaborador_id}`));
+  const repetida = chaves.find((c, i) => chaves.indexOf(c) !== i);
+  if (repetida) throw new AppError(400, 'O efetivo tem a mesma função ou o mesmo colaborador mais de uma vez.');
+  await garantirCatalogo(client, 'funcaoMaoObra', itens.map((e) => e.funcao_id).filter(Boolean), 'Função');
+  await garantirCatalogo(client, 'colaborador', itens.map((e) => e.colaborador_id).filter(Boolean), 'Colaborador');
+  return itens;
 }
 
 function montarMaoObra(lista, prefixo) {
@@ -274,17 +343,45 @@ function montarMaoObra(lista, prefixo) {
 }
 
 /**
- * Valida as atividades do corpo e devolve os dados prontos para gravar, com o % anterior vigente.
- * Regras: obra no escopo do usuário; todas as obras no mesmo contrato; EDT existente e folha na revisão
- * vigente (exceto fora de escopo); sem EDT repetido; % entre 0 e 100; recuo de % exige observação.
+ * A mão de obra de cada atividade só pode citar gente do efetivo do dia: por função (até a quantidade
+ * presente) ou nominal (o colaborador precisa estar no efetivo). Ninguém passa de 24 h no dia.
+ * `listas` = mão de obra de cada atividade (cada item com tipo/funcao_id/colaborador_id/quantidade/horas).
  */
-async function prepararAtividades(client, lista, escopo) {
+function validarMaoObraContraEfetivo(efetivo, listas) {
+  const funcoes = new Map(efetivo.filter((e) => e.tipo === 'FUNCAO').map((e) => [e.funcao_id, Number(e.quantidade)]));
+  const nominais = new Set(efetivo.filter((e) => e.tipo === 'NOMINAL').map((e) => e.colaborador_id));
+  const horasPorPessoa = new Map();
+
+  listas.forEach((lista) => {
+    const porFuncaoNaAtividade = new Map();
+    lista.forEach((m) => {
+      if (m.tipo === 'FUNCAO') {
+        if (!funcoes.has(m.funcao_id)) throw new AppError(400, 'A mão de obra cita uma função que não está no efetivo do dia. Adicione-a ao efetivo primeiro.');
+        const total = (porFuncaoNaAtividade.get(m.funcao_id) || 0) + Number(m.quantidade);
+        if (total > funcoes.get(m.funcao_id)) throw new AppError(400, 'A mão de obra de uma atividade tem mais pessoas de uma função do que o efetivo do dia.');
+        porFuncaoNaAtividade.set(m.funcao_id, total);
+      } else {
+        if (!nominais.has(m.colaborador_id)) throw new AppError(400, 'A mão de obra cita um colaborador que não está no efetivo do dia. Adicione-o ao efetivo primeiro.');
+        const total = (horasPorPessoa.get(m.colaborador_id) || 0) + Number(m.horas);
+        if (total > 24) throw new AppError(400, 'Um colaborador não pode somar mais de 24 horas nas atividades do dia.');
+        horasPorPessoa.set(m.colaborador_id, total);
+      }
+    });
+  });
+}
+
+/**
+ * Valida as atividades do corpo e devolve os dados prontos para gravar, com o % anterior vigente.
+ * Regras: EDT existente e folha na revisão vigente da obra (exceto fora de escopo); sem EDT repetido;
+ * % entre 0 e 100; recuo de % exige observação; atividade já em 100% não aceita avanço (fica em 100%);
+ * atividade fora de escopo exige descrição e justificativa; mão de obra só do efetivo do dia.
+ */
+async function prepararAtividades(client, lista, { obraId, efetivo }) {
   if (!Array.isArray(lista)) throw new AppError(400, 'O campo "atividades" deve ser uma lista.');
 
   const itens = lista.map((a, i) => {
     const rot = `atividades[${i}]`;
     const foraDeEscopo = a?.fora_de_escopo === true || a?.fora_de_escopo === 'true';
-    const obraId = idValido(a?.obra_id, `${rot}.obra_id`);
     const base = {
       id: vazio(a?.id) ? null : idValido(a.id, `${rot}.id`),
       obra_id: obraId,
@@ -293,57 +390,54 @@ async function prepararAtividades(client, lista, escopo) {
       mao_obra: montarMaoObra(a?.mao_obra, rot),
     };
     if (foraDeEscopo) {
-      return { ...base, codigo_atividade: null, descricao_snapshot: texto(a?.descricao, `${rot}.descricao`, 500, { obrigatorio: true }), percentual_declarado: 0 };
+      return {
+        ...base,
+        codigo_atividade: null,
+        descricao_snapshot: texto(a?.descricao, `${rot}.descricao`, 500, { obrigatorio: true }),
+        justificativa: texto(a?.justificativa, `${rot}.justificativa`, 2000, { obrigatorio: true }),
+        percentual_declarado: 0,
+      };
     }
     const codigo = texto(a?.codigo_atividade, `${rot}.codigo_atividade`, 60, { obrigatorio: true });
-    const declarado = normalizarPercentual(a?.percentual_declarado);
-    if (declarado === null) throw new AppError(400, `${rot}.percentual_declarado deve ser um número entre 0 e 100.`);
-    return { ...base, codigo_atividade: codigo, descricao_snapshot: '', percentual_declarado: declarado };
+    const declarado = vazio(a?.percentual_declarado) ? null : normalizarPercentual(a.percentual_declarado);
+    if (declarado === null && !vazio(a?.percentual_declarado)) throw new AppError(400, `${rot}.percentual_declarado deve ser um número entre 0 e 100.`);
+    return { ...base, codigo_atividade: codigo, descricao_snapshot: '', justificativa: null, percentual_declarado: declarado };
   });
 
-  const chaves = itens.filter((a) => !a.fora_de_escopo).map((a) => `${a.obra_id}|${a.codigo_atividade}`);
+  const chaves = itens.filter((a) => !a.fora_de_escopo).map((a) => a.codigo_atividade);
   const repetida = chaves.find((c, i) => chaves.indexOf(c) !== i);
-  if (repetida) throw new AppError(400, `A atividade ${repetida.split('|')[1]} aparece mais de uma vez no RDO.`);
+  if (repetida) throw new AppError(400, `A atividade ${repetida} aparece mais de uma vez no RDO.`);
 
-  const obraIds = [...new Set(itens.map((a) => a.obra_id))];
-  garantirObrasNoEscopo(escopo, obraIds);
-  const obras = await client.obra.findMany({ where: { id: { in: obraIds } }, select: { id: true, contrato_id: true } });
-  const inexistente = obraIds.find((id) => !obras.some((o) => o.id === id));
-  if (inexistente !== undefined) throw new AppError(404, `Obra ${inexistente} não encontrada.`);
-  const contratos = [...new Set(obras.map((o) => o.contrato_id))];
-  if (contratos.length > 1) throw new AppError(400, 'Todas as obras de um RDO devem pertencer ao mesmo contrato.');
-
-  const versoes = new Map();
-  for (const obraId of obraIds) {
-    // eslint-disable-next-line no-await-in-loop
-    versoes.set(obraId, await repo.ultimaVersao(obraId, client));
-  }
-
+  const versao = await repo.ultimaVersao(obraId, client);
   const prontos = [];
   for (const a of itens) {
     if (a.fora_de_escopo) {
       prontos.push({ ...a, percentual_anterior: 0 });
       continue;
     }
-    const versao = versoes.get(a.obra_id);
-    if (!versao) throw new AppError(409, `A obra ${a.obra_id} ainda não tem cronograma importado.`);
+    if (!versao) throw new AppError(409, 'A obra ainda não tem cronograma importado.');
     // eslint-disable-next-line no-await-in-loop
     const ativ = await repo.atividadeNaVersao(versao.id, a.codigo_atividade, client);
-    if (!ativ) throw new AppError(400, `A atividade ${a.codigo_atividade} não existe no cronograma vigente da obra ${a.obra_id}.`);
+    if (!ativ) throw new AppError(400, `A atividade ${a.codigo_atividade} não existe no cronograma vigente da obra.`);
     if (ativ.resumo) throw new AppError(400, `A atividade ${a.codigo_atividade} é um agrupamento (resumo); lance o avanço nas atividades filhas.`);
     // eslint-disable-next-line no-await-in-loop
-    const vigente = await percentualVigente(a.obra_id, a.codigo_atividade, { client, versao, atividadeCronograma: ativ });
+    const vigente = await percentualVigente(obraId, a.codigo_atividade, { client, versao, atividadeCronograma: ativ });
     const anterior = arredondar(vigente.percentual, 2);
+
+    // Atividade concluída: aceita observação, mão de obra e fotos, mas não recebe avanço.
+    if (anterior >= 100) {
+      prontos.push({ ...a, descricao_snapshot: ativ.descricao, percentual_anterior: anterior, percentual_declarado: 100 });
+      continue;
+    }
+    if (a.percentual_declarado === null) throw new AppError(400, `Informe o % declarado da atividade ${a.codigo_atividade}.`);
     if (a.percentual_declarado < anterior && !a.observacao) {
       throw new AppError(400, `A atividade ${a.codigo_atividade} regride de ${anterior}% para ${a.percentual_declarado}%: explique o motivo na observação.`);
     }
     prontos.push({ ...a, descricao_snapshot: ativ.descricao, percentual_anterior: anterior });
   }
 
-  await garantirCatalogo(client, 'funcaoMaoObra', prontos.flatMap((a) => a.mao_obra.map((m) => m.funcao_id).filter(Boolean)), 'Função');
-  await garantirCatalogo(client, 'colaborador', prontos.flatMap((a) => a.mao_obra.map((m) => m.colaborador_id).filter(Boolean)), 'Colaborador');
-
-  return { atividades: prontos, contratoId: contratos[0] ?? null };
+  validarMaoObraContraEfetivo(efetivo, prontos.map((a) => a.mao_obra));
+  return prontos;
 }
 
 async function prepararEquipamentos(client, lista) {
@@ -358,13 +452,23 @@ async function prepararEquipamentos(client, lista) {
   return itens;
 }
 
-function prepararPts(lista) {
+/**
+ * PTS: uma única por RDO. Só horas (o dia é o do RDO) e o nome de quem emitiu no cliente. Em rascunho a
+ * liberação e o emitente podem faltar; para finalizar o RDO os três campos são obrigatórios.
+ */
+function prepararPts(lista, dia) {
   if (!Array.isArray(lista)) throw new AppError(400, 'O campo "pts" deve ser uma lista.');
+  if (lista.length > 1) throw new AppError(400, 'Informe uma única PTS por RDO.');
   return lista.map((p, i) => {
-    const solicitado = instante(p?.solicitado_em, `pts[${i}].solicitado_em`, { obrigatorio: true });
-    const liberado = instante(p?.liberado_em, `pts[${i}].liberado_em`);
+    const solicitado = horaParaInstante(dia, p?.hora_solicitacao, `pts[${i}].hora_solicitacao`);
+    const liberado = vazio(p?.hora_liberacao) ? null : horaParaInstante(dia, p.hora_liberacao, `pts[${i}].hora_liberacao`);
     if (liberado && liberado < solicitado) throw new AppError(400, `pts[${i}]: a liberação não pode ser anterior à solicitação.`);
-    return { numero: texto(p?.numero, `pts[${i}].numero`, 60), solicitado_em: solicitado, liberado_em: liberado };
+    return {
+      numero: texto(p?.numero, `pts[${i}].numero`, 60),
+      solicitado_em: solicitado,
+      liberado_em: liberado,
+      emitente: texto(p?.emitente, `pts[${i}].emitente`, 160),
+    };
   });
 }
 
@@ -375,7 +479,9 @@ async function prepararDesvios(client, lista) {
     horas: horas(d?.horas, `desvios[${i}].horas`, { minimo: 0.01 }),
     observacao: texto(d?.observacao, `desvios[${i}].observacao`, 1000),
   }));
-  await garantirCatalogo(client, 'motivoDesvio', itens.map((d) => d.motivo_id), 'Motivo de desvio');
+  const motivos = itens.map((d) => d.motivo_id);
+  if (motivos.some((m, i) => motivos.indexOf(m) !== i)) throw new AppError(400, 'Cada motivo de desvio só pode aparecer uma vez no RDO.');
+  await garantirCatalogo(client, 'motivoDesvio', motivos, 'Motivo de desvio');
   return itens;
 }
 
@@ -383,21 +489,71 @@ async function prepararDesvios(client, lista) {
 /* Apresentação                                                               */
 /* -------------------------------------------------------------------------- */
 
+/** Atividades fora de escopo entram como desvio automático, em HH da própria atividade. */
+function desviosAutomaticos(atividades) {
+  return atividades
+    .filter((a) => a.fora_de_escopo)
+    .map((a) => ({ origem: 'FORA_DE_ESCOPO', atividade_id: a.id, descricao: a.descricao_snapshot, justificativa: a.justificativa, horas: a.hh }));
+}
+
 function apresentar(rdo) {
   const atividades = rdo.atividades.map((a) => ({
     ...a,
     hh: totalHH(a.mao_obra),
     mao_obra: a.mao_obra.map((m) => ({ ...m, hh: hhDoLancamento(m) })),
   }));
+  const automaticos = desviosAutomaticos(atividades);
+  const desvios = totalDesvios(rdo.desvios);
+  const horasAutomaticas = arredondar(automaticos.reduce((s, d) => s + Number(d.horas || 0), 0));
+  const pts = rdo.pts.map((p) => ({
+    ...p,
+    hora_solicitacao: instanteParaHora(p.solicitado_em),
+    hora_liberacao: instanteParaHora(p.liberado_em),
+    espera_minutos: esperaPtsMinutos(p.solicitado_em, p.liberado_em),
+  }));
+  const pessoas = (rdo.efetivo || []).reduce((s, e) => s + Number(e.quantidade), 0);
   return {
     ...rdo,
     atividades,
-    pts: rdo.pts.map((p) => ({ ...p, espera_minutos: esperaPtsMinutos(p.solicitado_em, p.liberado_em) })),
+    pts,
+    desvios_automaticos: automaticos,
     totais: {
       hh: arredondar(atividades.reduce((s, a) => s + a.hh, 0)),
-      desvios: totalDesvios(rdo.desvios),
-      espera_pts_minutos: rdo.pts.reduce((s, p) => s + (esperaPtsMinutos(p.solicitado_em, p.liberado_em) || 0), 0),
+      pessoas: arredondar(pessoas),
+      desvios: { ...desvios, total: arredondar(desvios.total + horasAutomaticas), fora_de_escopo: horasAutomaticas },
+      espera_pts_minutos: pts.reduce((s, p) => s + (p.espera_minutos || 0), 0),
     },
+  };
+}
+
+/** Versão enxuta (listagens/resumo): só o que as telas de resumo usam. */
+function apresentarResumo(rdo) {
+  const completo = apresentar(rdo);
+  return {
+    id: completo.id,
+    obra_id: completo.obra_id,
+    data: completo.data,
+    status: completo.status,
+    encarregado: completo.encarregado,
+    supervisor: completo.supervisor,
+    pts_necessaria: completo.pts_necessaria,
+    pts: completo.pts,
+    dss_tema: completo.dss_tema,
+    comentario_geral: completo.comentario_geral,
+    motivo_devolucao: completo.motivo_devolucao,
+    atividades: completo.atividades.map((a) => ({
+      id: a.id,
+      codigo_atividade: a.codigo_atividade,
+      descricao_snapshot: a.descricao_snapshot,
+      fora_de_escopo: a.fora_de_escopo,
+      justificativa: a.justificativa,
+      percentual_anterior: a.percentual_anterior,
+      percentual_declarado: a.percentual_declarado,
+      percentual_validado: a.percentual_validado,
+      hh: a.hh,
+      fotos: a.fotos,
+    })),
+    totais: completo.totais,
   };
 }
 
@@ -410,10 +566,7 @@ async function garantirAcessoLeitura(rdo, usuario) {
   }
   if (usuario.perfil === 'PLANEJADOR') {
     const escopo = await escopoDeObras(usuario);
-    const obraIds = [...new Set(rdo.atividades.map((a) => a.obra_id))];
-    if (obraIds.length === 0 || !obraIds.some((id) => escopo.includes(id))) {
-      throw new AppError(403, 'Este RDO não é de uma obra sob o seu planejamento.');
-    }
+    if (!escopo.includes(rdo.obra_id)) throw new AppError(403, 'Este RDO não é de uma obra sob o seu planejamento.');
     return;
   }
   throw new AppError(403, 'Seu perfil não tem acesso ao RDO.');
@@ -462,6 +615,7 @@ async function gravarAtividades(tx, rdoId, preparadas) {
       codigo_atividade: a.codigo_atividade,
       descricao_snapshot: a.descricao_snapshot,
       fora_de_escopo: a.fora_de_escopo,
+      justificativa: a.justificativa,
       percentual_anterior: a.percentual_anterior,
       percentual_declarado: a.percentual_declarado,
       observacao: a.observacao,
@@ -484,7 +638,11 @@ async function gravarAtividades(tx, rdoId, preparadas) {
   return fotosOrfas;
 }
 
-async function gravarSecoes(tx, rdoId, { equipamentos, pts, desvios }) {
+async function gravarSecoes(tx, rdoId, { efetivo, equipamentos, pts, desvios }) {
+  if (efetivo) {
+    await tx.rdoEfetivo.deleteMany({ where: { rdo_id: rdoId } });
+    if (efetivo.length) await tx.rdoEfetivo.createMany({ data: efetivo.map((e) => ({ ...e, rdo_id: rdoId })) });
+  }
   if (equipamentos) {
     await tx.rdoEquipamento.deleteMany({ where: { rdo_id: rdoId } });
     if (equipamentos.length) await tx.rdoEquipamento.createMany({ data: equipamentos.map((e) => ({ ...e, rdo_id: rdoId })) });
@@ -508,38 +666,62 @@ async function apagarImagens(publicIds) {
   );
 }
 
+/** "Não necessária" não pode ter PTS lançada: a lista é esvaziada. */
+function ajustarPts(ptsNecessaria, pts) {
+  if (ptsNecessaria === false) return [];
+  return pts;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Casos de uso                                                               */
 /* -------------------------------------------------------------------------- */
 
-/** POST /api/rdos — cria o RDO do dia (1 por encarregado por dia). */
+/**
+ * POST /api/rdos — cria o RDO do dia numa obra em andamento (1 por obra, por dia, por encarregado).
+ * Corpo: { obra_id, data?, supervisor_id?, clima_*, dss_*, pts_necessaria?, efetivo?, atividades?,
+ *          equipamentos?, pts?, desvios?, comentario_geral? }
+ */
 async function criar(payload = {}, usuario) {
   exigirPerfil(usuario, PERFIS_CAMPO, 'criar RDO');
 
+  const obraId = idValido(payload.obra_id, 'obra_id');
   let encarregadoId = usuario.id;
   if (usuario.perfil === 'ADMIN' && !vazio(payload.encarregado_id)) encarregadoId = idValido(payload.encarregado_id, 'encarregado_id');
-  const data = vazio(payload.data) ? dataDia(diaBrasilia(new Date()), 'data') : dataDia(payload.data, 'data');
+  const diaTexto = vazio(payload.data) ? diaBrasilia(new Date()) : String(payload.data).trim();
+  const data = dataDia(diaTexto, 'data');
 
+  // O encarregado só lança nas obras a que está vinculado; o admin lança em qualquer uma.
   const escopo = encarregadoId === usuario.id ? await escopoDeObras(usuario) : await repo.obraIdsDoEncarregado(encarregadoId);
+  garantirObrasNoEscopo(escopo, [obraId]);
   const cabecalho = camposDoCabecalho(payload, { parcial: false });
 
   const id = await repo.prisma.$transaction(async (tx) => {
-    const duplicado = await tx.rdo.findUnique({ where: { uq_rdo_encarregado_dia: { encarregado_id: encarregadoId, data } }, select: { id: true } });
-    if (duplicado) throw new AppError(409, `Já existe o RDO ${duplicado.id} deste encarregado nesta data.`, { rdo_id: duplicado.id });
+    const obra = await tx.obra.findUnique({ where: { id: obraId }, select: { id: true, status: true, contrato_id: true } });
+    if (!obra) throw new AppError(404, `Obra ${obraId} não encontrada.`);
+    exigirObraEmAndamento(obra);
 
-    const preparado = Array.isArray(payload.atividades) && payload.atividades.length
-      ? await prepararAtividades(tx, payload.atividades, escopo)
-      : { atividades: [], contratoId: null };
+    const duplicado = await tx.rdo.findUnique({ where: { uq_rdo_obra_encarregado_dia: { obra_id: obraId, encarregado_id: encarregadoId, data } }, select: { id: true } });
+    if (duplicado) throw new AppError(409, `Já existe o RDO ${duplicado.id} deste encarregado nesta obra e data.`, { rdo_id: duplicado.id });
+
+    // Sem supervisor informado, sugere o do último RDO da obra.
+    const supervisorId = tem(payload, 'supervisor_id')
+      ? await validarSupervisor(tx, payload.supervisor_id)
+      : (await repo.ultimosSupervisores([obraId], tx)).get(obraId)?.id ?? null;
+
+    const efetivo = payload.efetivo ? await prepararEfetivo(tx, payload.efetivo) : [];
+    const atividades = Array.isArray(payload.atividades) && payload.atividades.length
+      ? await prepararAtividades(tx, payload.atividades, { obraId, efetivo })
+      : [];
     const equipamentos = payload.equipamentos ? await prepararEquipamentos(tx, payload.equipamentos) : null;
-    const pts = payload.pts ? prepararPts(payload.pts) : null;
+    const pts = payload.pts ? ajustarPts(cabecalho.pts_necessaria, prepararPts(payload.pts, diaTexto)) : null;
     const desvios = payload.desvios ? await prepararDesvios(tx, payload.desvios) : null;
 
     const rdo = await tx.rdo.create({
-      data: { ...cabecalho, data, encarregado_id: encarregadoId, contrato_id: preparado.contratoId, status: 'RASCUNHO' },
+      data: { ...cabecalho, data, obra_id: obraId, contrato_id: obra.contrato_id, supervisor_id: supervisorId, encarregado_id: encarregadoId, status: 'RASCUNHO' },
       select: { id: true },
     });
-    await gravarAtividades(tx, rdo.id, preparado.atividades.map((a) => ({ ...a, id: null })));
-    await gravarSecoes(tx, rdo.id, { equipamentos, pts, desvios });
+    await gravarAtividades(tx, rdo.id, atividades.map((a) => ({ ...a, id: null })));
+    await gravarSecoes(tx, rdo.id, { efetivo, equipamentos, pts, desvios });
     await historico(tx, rdo.id, null, 'RASCUNHO', usuario.id);
     return rdo.id;
   }, { timeout: 30000, maxWait: 10000 });
@@ -551,27 +733,49 @@ async function criar(payload = {}, usuario) {
 async function atualizar(idParam, payload = {}, usuario) {
   const existente = await carregar(idParam);
   garantirEditavel(existente, usuario);
-  const escopo = await escopoDeObras(usuario);
   const cabecalho = camposDoCabecalho(payload, { parcial: true });
 
   let orfas = [];
   await repo.prisma.$transaction(async (tx) => {
     const dados = { ...cabecalho };
+    const diaAtual = diaBrasilia(existente.data);
+    let diaTexto = diaAtual;
     if (tem(payload, 'data') && !vazio(payload.data)) {
-      const novaData = dataDia(payload.data, 'data');
-      const conflito = await tx.rdo.findFirst({ where: { encarregado_id: existente.encarregado_id, data: novaData, NOT: { id: existente.id } }, select: { id: true } });
-      if (conflito) throw new AppError(409, `Já existe o RDO ${conflito.id} deste encarregado nesta data.`, { rdo_id: conflito.id });
+      diaTexto = String(payload.data).trim();
+      const novaData = dataDia(diaTexto, 'data');
+      const conflito = await tx.rdo.findFirst({ where: { obra_id: existente.obra_id, encarregado_id: existente.encarregado_id, data: novaData, NOT: { id: existente.id } }, select: { id: true } });
+      if (conflito) throw new AppError(409, `Já existe o RDO ${conflito.id} deste encarregado nesta obra e data.`, { rdo_id: conflito.id });
       dados.data = novaData;
     }
+    if (tem(payload, 'supervisor_id')) dados.supervisor_id = await validarSupervisor(tx, payload.supervisor_id);
+
+    // Efetivo final do RDO (o do corpo ou o já gravado) — a mão de obra é validada contra ele.
+    const efetivoNovo = payload.efetivo !== undefined ? await prepararEfetivo(tx, payload.efetivo) : null;
+    const efetivoFinal = efetivoNovo || (await tx.rdoEfetivo.findMany({ where: { rdo_id: existente.id } })).map((e) => ({ ...e, quantidade: Number(e.quantidade) }));
+
     if (payload.atividades !== undefined) {
-      const preparado = await prepararAtividades(tx, payload.atividades, escopo);
-      orfas = await gravarAtividades(tx, existente.id, preparado.atividades);
-      dados.contrato_id = preparado.contratoId;
+      const preparadas = await prepararAtividades(tx, payload.atividades, { obraId: existente.obra_id, efetivo: efetivoFinal });
+      orfas = await gravarAtividades(tx, existente.id, preparadas);
+    } else if (efetivoNovo) {
+      const maoObraAtual = await tx.rdoMaoObra.findMany({ where: { atividade: { rdo_id: existente.id } } });
+      const agrupada = new Map();
+      maoObraAtual.forEach((m) => agrupada.set(m.rdo_atividade_id, [...(agrupada.get(m.rdo_atividade_id) || []), { ...m, quantidade: Number(m.quantidade), horas: Number(m.horas) }]));
+      validarMaoObraContraEfetivo(efetivoFinal, [...agrupada.values()]);
     }
+
+    const ptsNecessaria = tem(payload, 'pts_necessaria') ? cabecalho.pts_necessaria : existente.pts_necessaria;
+    let pts = null;
+    if (payload.pts !== undefined) pts = ajustarPts(ptsNecessaria, prepararPts(payload.pts, diaTexto));
+    else if (ptsNecessaria === false && tem(payload, 'pts_necessaria')) pts = [];
+    else if (diaTexto !== diaAtual) {
+      // O dia mudou e as PTS ficaram como estavam: refaz os instantes no novo dia, mantendo as horas.
+      const atuais = await tx.rdoPts.findMany({ where: { rdo_id: existente.id } });
+      pts = prepararPts(atuais.map((p) => ({ numero: p.numero, hora_solicitacao: instanteParaHora(p.solicitado_em), hora_liberacao: instanteParaHora(p.liberado_em) })), diaTexto);
+    }
+
     const equipamentos = payload.equipamentos !== undefined ? await prepararEquipamentos(tx, payload.equipamentos) : null;
-    const pts = payload.pts !== undefined ? prepararPts(payload.pts) : null;
     const desvios = payload.desvios !== undefined ? await prepararDesvios(tx, payload.desvios) : null;
-    await gravarSecoes(tx, existente.id, { equipamentos, pts, desvios });
+    await gravarSecoes(tx, existente.id, { efetivo: efetivoNovo, equipamentos, pts, desvios });
     await tx.rdo.update({ where: { id: existente.id }, data: dados });
   }, { timeout: 30000, maxWait: 10000 });
 
@@ -586,8 +790,8 @@ async function obter(idParam, usuario) {
   return apresentar(await repo.buscarCompleto(simples.id));
 }
 
-/** GET /api/rdos?status=&obra_id=&encarregado_id=&data_de=&data_ate=&limite=&deslocamento= */
-async function listar(filtros = {}, usuario) {
+/** Filtros comuns de listagem (status, encarregado, obra, período) respeitando o escopo do perfil. */
+async function montarFiltro(filtros, usuario) {
   const escopo = await escopoDeObras(usuario);
   const where = {};
 
@@ -599,33 +803,109 @@ async function listar(filtros = {}, usuario) {
   if (usuario.perfil === 'ENCARREGADO') where.encarregado_id = usuario.id;
   else if (!vazio(filtros.encarregado_id)) where.encarregado_id = idValido(filtros.encarregado_id, 'encarregado_id');
 
-  const atividadesFiltro = {};
-  if (escopo !== null && usuario.perfil !== 'ENCARREGADO') atividadesFiltro.obra_id = { in: escopo };
   if (!vazio(filtros.obra_id)) {
     const obraId = idValido(filtros.obra_id, 'obra_id');
     garantirObrasNoEscopo(escopo, [obraId]);
-    atividadesFiltro.obra_id = obraId;
+    where.obra_id = obraId;
+  } else if (escopo !== null && usuario.perfil !== 'ENCARREGADO') {
+    where.obra_id = { in: escopo };
   }
-  if (Object.keys(atividadesFiltro).length) where.atividades = { some: atividadesFiltro };
 
   if (!vazio(filtros.data_de) || !vazio(filtros.data_ate)) {
     where.data = {};
     if (!vazio(filtros.data_de)) where.data.gte = dataDia(filtros.data_de, 'data_de');
     if (!vazio(filtros.data_ate)) where.data.lte = dataDia(filtros.data_ate, 'data_ate');
   }
+  return where;
+}
 
+/** GET /api/rdos?status=&obra_id=&encarregado_id=&data_de=&data_ate=&limite=&deslocamento= */
+async function listar(filtros = {}, usuario) {
+  const where = await montarFiltro(filtros, usuario);
   const limite = Math.min(Math.max(Number(filtros.limite) || 50, 1), 200);
   const deslocamento = Math.max(Number(filtros.deslocamento) || 0, 0);
   const { itens, total } = await repo.listar({ where, limite, deslocamento });
   return { total, limite, deslocamento, itens };
 }
 
-/** POST /api/rdos/:id/finalizar — o encarregado assina; exige ao menos uma atividade e foto das que avançaram. */
+/**
+ * GET /api/rdos/obras/:obraId/resumo — resumo dos RDOs da obra: indicadores e, por dia, atividades com
+ * fotos, supervisor, PTS e desvios. Alimenta a aba RDO da obra (até 100 RDOs mais recentes).
+ */
+async function resumoDaObra(obraIdParam, filtros = {}, usuario) {
+  const obraId = idValido(obraIdParam, 'obraId');
+  const where = await montarFiltro({ ...filtros, obra_id: obraId }, usuario);
+  const rdos = await repo.listarParaResumo(where, 100);
+  const itens = rdos.map(apresentarResumo);
+
+  const aprovados = itens.filter((r) => r.status === 'APROVADO').length;
+  const indicadores = {
+    rdos: itens.length,
+    aprovados,
+    aguardando_validacao: itens.filter((r) => r.status === 'FINALIZADO').length,
+    hh: arredondar(itens.reduce((s, r) => s + r.totais.hh, 0)),
+    fotos: itens.reduce((s, r) => s + r.atividades.reduce((x, a) => x + a.fotos.length, 0), 0),
+    desvios_horas: arredondar(itens.reduce((s, r) => s + r.totais.desvios.total, 0)),
+    pts_necessarias: itens.filter((r) => r.pts_necessaria === true).length,
+    espera_pts_minutos: itens.reduce((s, r) => s + r.totais.espera_pts_minutos, 0),
+  };
+  return { obra_id: obraId, indicadores, itens, truncado: itens.length >= 100 };
+}
+
+/**
+ * GET /api/rdos/fotos?obra_id=&data_de=&data_ate=&status=&limite=&deslocamento= — controle de fotos:
+ * todas as fotos de evidência, com obra, RDO, atividade e quem lançou.
+ */
+async function listarFotos(filtros = {}, usuario) {
+  const where = await montarFiltro(filtros, usuario);
+  const limite = Math.min(Math.max(Number(filtros.limite) || 60, 1), 200);
+  const deslocamento = Math.max(Number(filtros.deslocamento) || 0, 0);
+  const { itens, total } = await repo.listarFotos({ where, limite, deslocamento });
+  return {
+    total,
+    limite,
+    deslocamento,
+    itens: itens.map((f) => ({
+      id: f.id,
+      url: f.url,
+      legenda: f.legenda,
+      created_at: f.created_at,
+      rdo_id: f.atividade.rdo.id,
+      data: f.atividade.rdo.data,
+      status: f.atividade.rdo.status,
+      encarregado: f.atividade.rdo.encarregado,
+      obra: { id: f.atividade.rdo.obra.id, ss: f.atividade.rdo.obra.orcamento?.ss ?? null, descricao: f.atividade.rdo.obra.orcamento?.descricao ?? null },
+      atividade: { id: f.atividade.id, codigo_atividade: f.atividade.codigo_atividade, descricao: f.atividade.descricao_snapshot, fora_de_escopo: f.atividade.fora_de_escopo },
+    })),
+  };
+}
+
+/**
+ * POST /api/rdos/:id/finalizar — o encarregado assina. Exige: obra em andamento; supervisor; efetivo;
+ * ao menos uma atividade; resposta sobre PTS (e a PTS lançada quando necessária); foto de evidência
+ * nas atividades que avançaram.
+ */
 async function finalizar(idParam, usuario) {
   const rdo = await carregar(idParam);
   garantirEditavel(rdo, usuario);
 
+  const [obra, efetivo, ptsLancadas] = await Promise.all([
+    repo.prisma.obra.findUnique({ where: { id: rdo.obra_id }, select: { status: true } }),
+    repo.prisma.rdoEfetivo.count({ where: { rdo_id: rdo.id } }),
+    repo.prisma.rdoPts.findMany({ where: { rdo_id: rdo.id } }),
+  ]);
+  exigirObraEmAndamento(obra);
+  if (!rdo.supervisor_id) throw new AppError(400, 'Informe o supervisor da obra antes de finalizar o RDO.');
+  if (efetivo === 0) throw new AppError(400, 'Informe o efetivo do dia (quem esteve na obra) antes de finalizar o RDO.');
   if (rdo.atividades.length === 0) throw new AppError(400, 'Inclua ao menos uma atividade antes de finalizar o RDO.');
+  if (rdo.pts_necessaria === null) throw new AppError(400, 'Responda se foi necessária a emissão de PTS antes de finalizar o RDO.');
+  if (rdo.pts_necessaria === true) {
+    const pts = ptsLancadas[0];
+    if (!pts) throw new AppError(400, 'PTS emitida: informe a hora de solicitação, a hora de liberação e o nome do emitente.');
+    if (!pts.liberado_em) throw new AppError(400, 'PTS emitida: informe a hora de liberação.');
+    if (!pts.emitente) throw new AppError(400, 'PTS emitida: informe o nome do emitente.');
+  }
+
   const semFoto = rdo.atividades.filter(
     (a) => !a.fora_de_escopo && Number(a.percentual_declarado) > Number(a.percentual_anterior) && a._count.fotos === 0
   );
@@ -648,12 +928,13 @@ async function finalizar(idParam, usuario) {
  * POST /api/rdos/:id/aprovar — { atividades?: [{ id, percentual_validado }] }.
  * Tudo numa transação, com trava por obra: o % anterior é relido no momento da aprovação e a
  * validação nunca pode ficar abaixo dele (senão 409 CONFLITO_AVANCO e o planejador revisa).
+ * Atividades sem mudança de % (inclusive as já concluídas) não geram novo registro de avanço.
  */
 async function aprovar(idParam, payload = {}, usuario) {
   exigirPerfil(usuario, PERFIS_VALIDADORES, 'aprovar o RDO');
   const simples = await carregar(idParam);
   await garantirAcessoLeitura(simples, usuario);
-  garantirObrasNoEscopo(await escopoDeObras(usuario), simples.atividades.map((a) => a.obra_id));
+  garantirObrasNoEscopo(await escopoDeObras(usuario), [simples.obra_id]);
 
   const validacoes = new Map();
   if (payload.atividades !== undefined) {
@@ -666,12 +947,8 @@ async function aprovar(idParam, payload = {}, usuario) {
   }
 
   await repo.prisma.$transaction(async (tx) => {
-    const obraIds = [...new Set(simples.atividades.map((a) => a.obra_id))].sort((a, b) => a - b);
-    // Trava por obra (ordenada, sem deadlock): duas aprovações na mesma obra se enfileiram.
-    for (const obraId of obraIds) {
-      // eslint-disable-next-line no-await-in-loop
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${obraId}::bigint)`;
-    }
+    // Trava por obra: duas aprovações na mesma obra se enfileiram.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${simples.obra_id}::bigint)`;
 
     const rdo = await tx.rdo.findUnique({ where: { id: simples.id }, include: { atividades: true } });
     if (rdo.status !== 'FINALIZADO') throw new AppError(409, `O RDO está ${rdo.status}; só RDO FINALIZADO pode ser aprovado.`);
@@ -703,10 +980,12 @@ async function aprovar(idParam, payload = {}, usuario) {
     for (const { a, anterior, validado } of aplicar) {
       // eslint-disable-next-line no-await-in-loop
       await tx.rdoAtividade.update({ where: { id: a.id }, data: { percentual_anterior: anterior, percentual_validado: validado } });
-      // eslint-disable-next-line no-await-in-loop
-      await tx.avancoAtividadeAprovado.create({
-        data: { obra_id: a.obra_id, codigo_atividade: a.codigo_atividade, data: rdo.data, percentual: validado, rdo_atividade_id: a.id },
-      });
+      if (validado > anterior) {
+        // eslint-disable-next-line no-await-in-loop
+        await tx.avancoAtividadeAprovado.create({
+          data: { obra_id: a.obra_id, codigo_atividade: a.codigo_atividade, data: rdo.data, percentual: validado, rdo_atividade_id: a.id },
+        });
+      }
     }
 
     await tx.rdo.update({ where: { id: rdo.id }, data: { status: 'APROVADO', decidido_por_id: usuario.id, decidido_em: new Date(), motivo_devolucao: null } });
@@ -722,7 +1001,7 @@ async function devolver(idParam, payload = {}, usuario) {
   const motivo = texto(payload.motivo, 'motivo', 2000, { obrigatorio: true });
   const simples = await carregar(idParam);
   await garantirAcessoLeitura(simples, usuario);
-  garantirObrasNoEscopo(await escopoDeObras(usuario), simples.atividades.map((a) => a.obra_id));
+  garantirObrasNoEscopo(await escopoDeObras(usuario), [simples.obra_id]);
 
   await repo.prisma.$transaction(async (tx) => {
     const atual = await tx.rdo.findUnique({ where: { id: simples.id }, select: { status: true } });
@@ -783,8 +1062,11 @@ module.exports = {
   PERFIS_VALIDADORES,
   percentualVigente,
   listarObras,
+  listarSupervisores,
   listarAtividadesDaObra,
   resumoAvancoDaObra,
+  resumoDaObra,
+  listarFotos,
   criar,
   atualizar,
   obter,

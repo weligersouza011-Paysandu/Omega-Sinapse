@@ -99,9 +99,22 @@ function gerarPdfRdo(rdo, { fotosBaixadas = new Map() } = {}) {
     linha('Data', dataBr(rdo.data));
     linha('Encarregado', `${rdo.encarregado?.nome || '—'}${rdo.encarregado?.matricula ? ` (mat. ${rdo.encarregado.matricula})` : ''}`);
     linha('Contrato', rdo.contrato?.id_vale || '—');
-    const obras = [...new Map(rdo.atividades.map((a) => [a.obra_id, a.obra])).values()].filter(Boolean);
-    obras.forEach((o) => linha('Obra / SS', `${o.orcamento?.ss || `Obra ${o.id}`} · PEP ${o.orcamento?.pep || '—'} · ${o.orcamento?.descricao || ''}`));
+    const o = rdo.obra;
+    linha('Obra / SS', `${o?.orcamento?.ss || `Obra ${rdo.obra_id}`} · PEP ${o?.orcamento?.pep || '—'} · ${o?.orcamento?.descricao || ''}`);
+    linha('Supervisor', rdo.supervisor?.nome || '—');
     linha('Clima', `manhã: ${rdo.clima_manha || '—'} · tarde: ${rdo.clima_tarde || '—'} · noite: ${rdo.clima_noite || '—'}`);
+
+    // ------------------------------------------------------------ DSS e efetivo
+    if (rdo.dss_tema || rdo.dss_participantes !== null) {
+      titulo('DSS — Diálogo de Segurança');
+      linha('Tema', rdo.dss_tema);
+      linha('Participantes', rdo.dss_participantes);
+    }
+    titulo(`Efetivo do dia (${num(rdo.totais.pessoas)} pessoa(s))`);
+    if (!rdo.efetivo?.length) texto('Nenhum efetivo informado.');
+    (rdo.efetivo || []).forEach((e) =>
+      texto(`• ${e.tipo === 'FUNCAO' ? `${e.funcao?.nome || 'Função'} × ${num(e.quantidade)}` : `${e.colaborador?.nome || 'Colaborador'}${e.colaborador?.matricula ? ` (mat. ${e.colaborador.matricula})` : ''}`}`)
+    );
 
     // ------------------------------------------------------------ atividades
     titulo(`Atividades (${rdo.atividades.length})`);
@@ -109,7 +122,9 @@ function gerarPdfRdo(rdo, { fotosBaixadas = new Map() } = {}) {
       garantir(70);
       const obra = a.obra?.orcamento?.ss ? `${a.obra.orcamento.ss} · ` : '';
       doc.font('Helvetica-Bold').fontSize(9.5).fillColor(COR.texto).text(`${i + 1}. ${a.fora_de_escopo ? '[FORA DE ESCOPO] ' : `${a.codigo_atividade} - `}${a.descricao_snapshot}`, { width: largura });
-      doc.font('Helvetica').fontSize(8.5).fillColor(COR.suave).text(obra + (a.fora_de_escopo ? 'Sem avanço no cronograma' : `Anterior ${pct(a.percentual_anterior)} → declarado ${pct(a.percentual_declarado)} → validado ${pct(a.percentual_validado)}`));
+      const concluida = !a.fora_de_escopo && Number(a.percentual_anterior) >= 100;
+      doc.font('Helvetica').fontSize(8.5).fillColor(COR.suave).text(obra + (a.fora_de_escopo ? 'Sem avanço no cronograma' : concluida ? 'Atividade já concluída (100%) — sem avanço no dia' : `Anterior ${pct(a.percentual_anterior)} → declarado ${pct(a.percentual_declarado)} → validado ${pct(a.percentual_validado)}`));
+      if (a.fora_de_escopo && a.justificativa) texto(`Justificativa: ${a.justificativa}`);
       if (a.observacao) texto(`Obs.: ${a.observacao}`);
       if (a.mao_obra.length) {
         doc.font('Helvetica-Bold').fontSize(8.5).fillColor(COR.suave).text(`Mão de obra (${num(a.hh)} HH):`);
@@ -147,20 +162,18 @@ function gerarPdfRdo(rdo, { fotosBaixadas = new Map() } = {}) {
       titulo('Equipamentos');
       rdo.equipamentos.forEach((e) => texto(`• ${e.equipamento?.nome || 'Equipamento'}${e.equipamento?.codigo ? ` (${e.equipamento.codigo})` : ''} — trabalhadas ${num(e.horas_trabalhadas)} h · paradas ${num(e.horas_paradas)} h${e.observacao ? ` · ${e.observacao}` : ''}`));
     }
-    if (rdo.pts.length) {
-      titulo('PTS — Permissão de Trabalho');
-      rdo.pts.forEach((p) => texto(`• ${p.numero || 's/ nº'} — solicitada ${horaBr(p.solicitado_em)} · liberada ${horaBr(p.liberado_em)} · espera ${minutosParaTexto(p.espera_minutos)}`));
+    titulo('PTS — Permissão de Trabalho Seguro');
+    linha('Foi necessária a emissão de PTS?', rdo.pts_necessaria === null ? 'não informado' : rdo.pts_necessaria ? 'Sim' : 'Não');
+    if (rdo.pts_necessaria) {
+      rdo.pts.forEach((p) => texto(`• ${p.numero || 's/ nº'} — solicitada às ${p.hora_solicitacao || '—'} · liberada às ${p.hora_liberacao || 'ainda não liberada'} · espera ${minutosParaTexto(p.espera_minutos)}${p.emitente ? ` · emitente: ${p.emitente}` : ''}`));
       linha('Espera total', minutosParaTexto(rdo.totais.espera_pts_minutos));
     }
-    if (rdo.desvios.length) {
+    if (rdo.desvios.length || rdo.desvios_automaticos?.length) {
       titulo('Desvios / improdutividades');
       rdo.desvios.forEach((d) => texto(`• ${d.motivo?.descricao || 'Motivo'} — ${num(d.horas)} h${d.observacao ? ` · ${d.observacao}` : ''}`));
+      (rdo.desvios_automaticos || []).forEach((d) => texto(`• Atividade fora de escopo: ${d.descricao} — ${num(d.horas)} HH${d.justificativa ? ` · ${d.justificativa}` : ''}`));
       linha('Total', `${num(rdo.totais.desvios.total)} h`);
-    }
-    if (rdo.dss_tema || rdo.dss_participantes !== null) {
-      titulo('DSS — Diálogo de Segurança');
-      linha('Tema', rdo.dss_tema);
-      linha('Participantes', rdo.dss_participantes);
+      if (rdo.desvios_observacao) linha('Observações sobre desvios', rdo.desvios_observacao);
     }
     if (rdo.comentario_geral) {
       titulo('Comentário geral');
