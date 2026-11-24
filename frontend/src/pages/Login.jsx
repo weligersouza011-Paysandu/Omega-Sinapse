@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import BotaoTema from '../components/BotaoTema.jsx';
+import CapaLoginAnimada from '../components/CapaLoginAnimada.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 
 /** Frentes de trabalho exibidas no painel da marca. */
 const FRENTES = ['Orçamentos', 'Obras', 'Medição', 'Demandas'];
 
-/** Tela de autenticação: painel da marca com fotos de campo (telas largas) e formulário. */
+/** Tela de autenticação: painel da marca com a capa animada das obras (telas largas) e formulário. */
 export default function Login() {
   const { login, autenticado } = useAuth();
   const navegar = useNavigate();
@@ -51,18 +52,7 @@ export default function Login() {
     <div className="min-h-screen lg:grid lg:grid-cols-[1.15fr_1fr]">
       {/* ------------------------------------------- Painel da marca (telas largas) */}
       <aside className="tema-claro relative hidden overflow-hidden bg-omega-900 lg:block">
-        <img
-          src="/brand/campo-painel.jpg"
-          alt=""
-          aria-hidden="true"
-          className="foto-login absolute inset-0 h-full w-full object-cover object-[18%_50%]"
-        />
-        <img
-          src="/brand/campo-solda.jpg"
-          alt=""
-          aria-hidden="true"
-          className="foto-login foto-login-b absolute inset-0 h-full w-full object-cover object-[72%_50%]"
-        />
+        <CapaLoginAnimada />
         {/* Véu vinho: dá leitura ao texto e amarra as fotos à identidade da marca. */}
         <div className="absolute inset-0 bg-gradient-to-t from-omega-900/95 via-omega-800/60 to-omega-700/35" />
 
