@@ -312,7 +312,7 @@ export default function RdoDetalhe({ novo = false }) {
         </div>
       ) : null}
 
-      <Secao numero="1" titulo="Identificação">
+      <Secao faixa titulo="01 — Identificação">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           <div>
             <label className="rotulo">Data *</label>
@@ -336,7 +336,7 @@ export default function RdoDetalhe({ novo = false }) {
         </div>
       </Secao>
 
-      <Secao numero="2" titulo="DSS — Diálogo de Segurança">
+      <Secao faixa titulo="02 — DSS / Diálogo de Segurança">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
             <label className="rotulo">Tema do DSS</label>
@@ -349,11 +349,11 @@ export default function RdoDetalhe({ novo = false }) {
         </div>
       </Secao>
 
-      <Secao numero="3" titulo={`Efetivo do dia (${efetivoValido.length})`} resumo={`${efetivoValido.reduce((s, e) => s + (e.tipo === 'FUNCAO' ? Number(e.quantidade) || 0 : 1), 0)} pessoa(s)`}>
+      <Secao faixa titulo={`03 — Efetivo do Dia (${efetivoValido.length})`} resumo={`${efetivoValido.reduce((s, e) => s + (e.tipo === 'FUNCAO' ? Number(e.quantidade) || 0 : 1), 0)} pessoa(s)`}>
         <SecaoEfetivo itens={form.efetivo} editavel={editavel} catalogos={catalogos} usados={pessoasUsadas} onChange={alterarEfetivo} />
       </Secao>
 
-      <Secao numero="4" titulo={`Atividades (${form.atividades.length})`} resumo={`${totalHH.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`}>
+      <Secao faixa titulo={`04 — Atividades (${form.atividades.length})`} resumo={`${totalHH.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`}>
         <div className="space-y-3">
           {form.atividades.length === 0 ? <p className="text-sm text-slate-500">Nenhuma atividade lançada ainda.</p> : null}
           {form.atividades.map((a, indice) => (
@@ -383,7 +383,7 @@ export default function RdoDetalhe({ novo = false }) {
         </div>
       </Secao>
 
-      <Secao numero="5" titulo={`Equipamentos (${form.equipamentos.length})`} aberta={form.equipamentos.length > 0}>
+      <Secao faixa titulo={`05 — Equipamentos (${form.equipamentos.length})`} aberta={form.equipamentos.length > 0}>
         <SecaoEquipamentos itens={form.equipamentos} editavel={editavel} catalogo={catalogos.equipamentos} onChange={(equipamentos) => alterarForm({ equipamentos })} />
       </Secao>
 
@@ -395,12 +395,12 @@ export default function RdoDetalhe({ novo = false }) {
         <SecaoDesvios itens={form.desvios} automaticos={desviosAutomaticos} editavel={editavel} catalogo={catalogos.motivos} observacao={form.desvios_observacao} onObservacao={(v) => alterarForm({ desvios_observacao: v })} onChange={(desvios) => alterarForm({ desvios })} />
       </Secao>
 
-      <Secao numero="8" titulo="Comentário geral" aberta={Boolean(form.comentario_geral) || editavel}>
+      <Secao faixa titulo="08 — Comentário Geral" aberta={Boolean(form.comentario_geral) || editavel}>
         <textarea className="campo" rows={3} maxLength={5000} disabled={!editavel} value={form.comentario_geral} onChange={(e) => alterarForm({ comentario_geral: e.target.value })} />
       </Secao>
 
       {rdo?.historico?.length ? (
-        <Secao titulo="Histórico" aberta={false}>
+        <Secao faixa titulo="Histórico" aberta={false}>
           <ul className="space-y-1 text-sm text-slate-600">
             {rdo.historico.map((h) => (
               <li key={h.id}>
