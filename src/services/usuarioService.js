@@ -8,7 +8,7 @@ const authService = require('./authService');
 const { normalizarPaginas } = require('../config/paginas');
 
 /** Perfis reconhecidos pelo RBAC (espelha o enum PerfilUsuario do schema). */
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE', 'ENCARREGADO'];
 
 /** Rótulos oficiais exibidos na tela de Gestão de Usuários. */
 const ROTULOS_PERFIL = {
@@ -17,6 +17,7 @@ const ROTULOS_PERFIL = {
   SUPERVISOR: 'Gestor / Supervisor',
   ADMIN: 'Administrador',
   CLIENTE: 'Cliente',
+  ENCARREGADO: 'Encarregado',
 };
 
 const SALT_ROUNDS = 10;

@@ -36,6 +36,12 @@ export const PERFIS_OPCOES = [
     descricao: 'Acesso externo somente para consulta, apenas nas páginas liberadas no cadastro.',
     cor: 'bg-teal-100 text-teal-800 border-teal-300',
   },
+  {
+    value: 'ENCARREGADO',
+    label: 'Encarregado',
+    descricao: 'Campo: preenche o RDO (Relatório Diário de Obra) das obras a que está vinculado.',
+    cor: 'bg-orange-100 text-orange-800 border-orange-300',
+  },
 ];
 
 /** Opções no formato consumido pelo Dropdown customizado. */

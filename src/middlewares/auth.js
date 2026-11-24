@@ -6,7 +6,7 @@ const { obterJwtSecret } = require('../config/jwtSecret');
 const usuarioRepository = require('../repositories/usuarioRepository');
 
 /** Perfis aceitos pelo sistema (RBAC). */
-const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE'];
+const PERFIS_VALIDOS = ['ORCAMENTISTA', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN', 'CLIENTE', 'ENCARREGADO'];
 
 /**
  * ACESSO TEMPORÁRIO (BYPASS) — válido somente quando `AUTH_BYPASS=true` no .env.
@@ -155,4 +155,18 @@ function autorizar(...perfisPermitidos) {
   };
 }
 
-module.exports = { autenticar, autorizar, acessoCliente, PERFIS_VALIDOS, BYPASS_ATIVO };
+/**
+ * Bloqueia perfis em módulos que não são deles. O ENCARREGADO (campo) só usa o RDO: as demais
+ * APIs lhe respondem 403, mesmo que ele conheça a rota.
+ * Uso: app.use('/api/obras', autenticar, bloquearPerfis('ENCARREGADO'), obraRoutes)
+ */
+function bloquearPerfis(...perfisBloqueados) {
+  return (req, res, next) => {
+    if (req.user && perfisBloqueados.includes(req.user.perfil)) {
+      return next(new AppError(403, 'Seu perfil não tem acesso a este módulo.'));
+    }
+    return next();
+  };
+}
+
+module.exports = { autenticar, autorizar, acessoCliente, bloquearPerfis, PERFIS_VALIDOS, BYPASS_ATIVO };

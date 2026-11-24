@@ -24,6 +24,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useAuth } from '../../context/AuthContext.jsx';
+import AvancoRdoObra from './AvancoRdoObra.jsx';
 import { CORES_CURVA_S, LegendaCurvaS, linhasPrevisto, marcosCurvaS, prepararCurvaS, seriesTooltip } from '../graficos/curvaSEstilo.jsx';
 import { useToast } from '../../context/ToastContext.jsx';
 import RedeCaminhoCritico from './RedeCaminhoCritico.jsx';
@@ -883,6 +884,7 @@ export default function AbaCronograma({ obra, podeEditar }) {
 
       {versoes.length && analise.curva ? (
         <>
+          <AvancoRdoObra obraId={obra.id} />
           <IndicadoresPrazo curva={analise.curva} />
           <CurvaS curva={analise.curva} />
         </>
