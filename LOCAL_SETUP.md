@@ -247,3 +247,15 @@ Com `MODO_DEMO = true`, o front-end ignora a API e usa dados em memória
 (`frontend/src/services/demoApi.js`) — útil para avaliar a interface sem banco.
 
 **Para operar com dados reais, defina `MODO_DEMO = false`.**
+
+---
+
+## Teste de integracao do RDO (banco local)
+
+O teste `tests/rdoFluxo.integration.test.js` roda o fluxo completo do RDO contra um Postgres de TESTE e
+e ignorado quando `TEST_DATABASE_URL` nao esta definida. Ele so aceita bancos locais cujo nome contenha
+"teste" ou "test". NUNCA aponte para o Neon de producao.
+
+1. Crie um banco local de teste com encoding UTF8 e aplique as migrations nele:
+   `DATABASE_URL=postgresql://usuario:senha@localhost:5432/rdo_teste npx prisma migrate deploy`
+2. Rode: `TEST_DATABASE_URL=postgresql://usuario:senha@localhost:5432/rdo_teste npm test`

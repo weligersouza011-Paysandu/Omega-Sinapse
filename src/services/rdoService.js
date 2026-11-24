@@ -164,6 +164,63 @@ async function listarAtividadesDaObra(obraIdParam, usuario) {
   return { versao: { id: versao.id, versao: versao.versao, data_snapshot: versao.data_snapshot }, atividades };
 }
 
+/**
+ * GET /api/obras/:id/avanco-rdo — avanço físico da obra com o que os RDOs aprovados já apuraram.
+ * Pondera as atividades-folha da revisão vigente pela duração (como o MS Project) e compara o %
+ * do cronograma com o % vigente (o mais recente entre RDO aprovado e cronograma).
+ */
+async function resumoAvancoDaObra(obraIdParam) {
+  const obraId = idValido(obraIdParam, 'obraId');
+  if (!(await repo.prisma.obra.findUnique({ where: { id: obraId }, select: { id: true } }))) {
+    throw new AppError(404, `Obra ${obraId} não encontrada.`);
+  }
+  const versao = await repo.ultimaVersao(obraId);
+  if (!versao) return { obra_id: obraId, versao: null, percentual_cronograma: null, percentual_com_rdo: null, atividades_total: 0, atividades_com_rdo: 0, ultimo_rdo_aprovado_em: null, atualizadas: [] };
+
+  const [folhas, avancos] = await Promise.all([repo.folhasDaVersao(versao.id), repo.ultimosAvancosDaObra(obraId)]);
+  let pesoTotal = 0;
+  let somaCronograma = 0;
+  let somaVigente = 0;
+  let ultimo = null;
+  const atualizadas = [];
+
+  folhas.forEach((f) => {
+    const duracao = Number(f.dados_origem?.duracao_dias);
+    const peso = Number.isFinite(duracao) && duracao > 0 ? duracao : 1;
+    const noCronograma = Number(f.avanco_fisico_real) || 0;
+    const aprovado = avancos.get(f.codigo_atividade);
+    const vigente = escolherPercentualVigente({
+      aprovado: aprovado ? { percentual: aprovado.percentual, data: aprovado.data } : null,
+      cronograma: { percentual: noCronograma, data: versao.data_snapshot },
+    });
+    pesoTotal += peso;
+    somaCronograma += peso * noCronograma;
+    somaVigente += peso * vigente.percentual;
+    if (vigente.origem === 'RDO') {
+      atualizadas.push({
+        codigo_atividade: f.codigo_atividade,
+        descricao: f.descricao,
+        percentual_cronograma: arredondar(noCronograma, 2),
+        percentual_vigente: arredondar(vigente.percentual, 2),
+        data: vigente.data,
+      });
+      if (!ultimo || vigente.data > ultimo) ultimo = vigente.data;
+    }
+  });
+
+  atualizadas.sort((a, b) => (a.data < b.data ? 1 : a.data > b.data ? -1 : 0));
+  return {
+    obra_id: obraId,
+    versao: { id: versao.id, versao: versao.versao, data_snapshot: versao.data_snapshot },
+    percentual_cronograma: pesoTotal ? arredondar(somaCronograma / pesoTotal, 2) : null,
+    percentual_com_rdo: pesoTotal ? arredondar(somaVigente / pesoTotal, 2) : null,
+    atividades_total: folhas.length,
+    atividades_com_rdo: atualizadas.length,
+    ultimo_rdo_aprovado_em: ultimo,
+    atualizadas: atualizadas.slice(0, 10),
+  };
+}
+
 /* -------------------------------------------------------------------------- */
 /* Montagem e validação do corpo do RDO                                       */
 /* -------------------------------------------------------------------------- */
@@ -727,6 +784,7 @@ module.exports = {
   percentualVigente,
   listarObras,
   listarAtividadesDaObra,
+  resumoAvancoDaObra,
   criar,
   atualizar,
   obter,

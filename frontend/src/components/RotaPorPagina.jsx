@@ -14,7 +14,7 @@ export default function RotaPorPagina({ pagina, children }) {
   useValoresOcultos(); // re-renderiza a página quando o olho muda
   const modulo = MODULOS.find((item) => item.id === pagina);
 
-  if (usuario?.perfil === 'CLIENTE' && !moduloLiberado(usuario, modulo)) {
+  if ((usuario?.perfil === 'CLIENTE' || usuario?.perfil === 'ENCARREGADO') && !moduloLiberado(usuario, modulo)) {
     return <Navigate to={rotaInicial(usuario)} replace />;
   }
   // Elemento novo a cada render: a página (e tudo dentro dela) reformata os valores sem perder o estado.

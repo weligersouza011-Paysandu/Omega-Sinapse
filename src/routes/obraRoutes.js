@@ -7,6 +7,7 @@ const dashboardController = require('../controllers/dashboardController');
 const curvaSController = require('../controllers/curvaSController');
 const lookaheadController = require('../controllers/lookaheadController');
 const obraMedicaoController = require('../controllers/obraMedicaoController');
+const rdoService = require('../services/rdoService');
 const { autorizar } = require('../middlewares/auth');
 
 const router = Router();
@@ -25,6 +26,14 @@ router.get('/localizacoes-referencia', obraController.listarLocalizacoesReferenc
 // Curva S consolidada (Previsto × Real × Tendência) e indicadores de prazo.
 // GET /api/obras/:id/curva-s?versao_id=&comparar=linha_base|nenhum&base_id=
 router.get('/:id/curva-s', curvaSController.obterCurvaS);
+// Avanço físico com o que os RDOs aprovados já apuraram (o mais recente entre RDO e cronograma).
+router.get('/:id/avanco-rdo', async (req, res, next) => {
+  try {
+    return res.json(await rdoService.resumoAvancoDaObra(req.params.id));
+  } catch (err) {
+    return next(err);
+  }
+});
 // Caminho crítico (CPM) da versão mais recente do cronograma.
 // GET /api/obras/:id/caminho-critico?versao_id=&prazo=projeto|contratual&todas=true
 router.get('/:id/caminho-critico', curvaSController.obterCaminhoCritico);

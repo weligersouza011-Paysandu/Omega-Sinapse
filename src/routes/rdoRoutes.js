@@ -5,6 +5,7 @@ const rdoService = require('../services/rdoService');
 const cadastroService = require('../services/rdoCadastroService');
 const { autorizar } = require('../middlewares/auth');
 const upload = require('../config/multer');
+const { gerarPdfDoRdo } = require('../services/rdoPdfService');
 
 /** Envolve um caso de uso assíncrono no contrato de resposta do Express. */
 function acao(metodo, status = 200) {
@@ -30,6 +31,17 @@ rdos.get('/obras/:obraId/atividades', acao((req) => rdoService.listarAtividadesD
 rdos.get('/', acao((req) => rdoService.listar(req.query || {}, req.user)));
 rdos.post('/', acao((req) => rdoService.criar(req.body || {}, req.user), 201));
 rdos.get('/:id', acao((req) => rdoService.obter(req.params.id, req.user)));
+// PDF do RDO (mesma regra de acesso da consulta).
+rdos.get('/:id/pdf', async (req, res, next) => {
+  try {
+    const rdo = await rdoService.obter(req.params.id, req.user);
+    const pdf = await gerarPdfDoRdo(rdo);
+    res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="RDO-${rdo.id}.pdf"`, 'Cache-Control': 'no-store' });
+    return res.send(pdf);
+  } catch (err) {
+    return next(err);
+  }
+});
 rdos.put('/:id', acao((req) => rdoService.atualizar(req.params.id, req.body || {}, req.user)));
 rdos.delete('/:id', acao((req) => rdoService.excluir(req.params.id, req.user)));
 

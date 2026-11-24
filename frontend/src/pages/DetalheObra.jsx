@@ -21,7 +21,7 @@ import AbaMedicaoObra from '../components/obras/AbaMedicaoObra.jsx';
 import AbaProjecaoObra from '../components/obras/AbaProjecaoObra.jsx';
 import AbaVisaoGeral from '../components/obras/AbaVisaoGeral.jsx';
 import ConfiguracaoObra from '../components/obras/ConfiguracaoObra.jsx';
-import RelatoriosObra from '../components/obras/RelatoriosObra.jsx';
+import AbaRdoObra from '../components/obras/AbaRdoObra.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCabecalhoPagina } from '../context/CabecalhoContext.jsx';
 import { useObraDetalhe } from '../hooks/useObras.js';
@@ -251,7 +251,7 @@ export default function DetalheObra() {
         ) : null}
 
         {aba === 'relatorios' ? (
-          <RelatoriosObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
+          <AbaRdoObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />
         ) : null}
 
         {aba === VISAO_EDICAO ? (

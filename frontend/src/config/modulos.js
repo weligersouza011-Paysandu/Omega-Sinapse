@@ -59,6 +59,16 @@ export const MODULOS = [
     icone: 'M9 6h11M9 12h11M9 18h11M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2',
   },
   {
+    id: 'rdo',
+    rota: '/rdo',
+    label: 'RDO',
+    descricao: 'Relatório Diário de Obra: lançamento do encarregado e validação do planejamento.',
+    ativo: true,
+    // Encarregado (campo) lança; planejamento valida. Cliente não acessa.
+    perfis: ['ENCARREGADO', 'PLANEJADOR', 'SUPERVISOR', 'ADMIN'],
+    icone: 'M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Zm-2 2H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1M9 12h6M9 16h4',
+  },
+  {
     id: 'usuarios',
     rota: '/usuarios',
     label: 'Gestão de Usuários',
@@ -83,11 +93,14 @@ export function moduloLiberado(usuario, modulo) {
   if (usuario?.perfil === 'CLIENTE') {
     return Boolean(modulo.liberavelCliente) && (usuario.paginas_permitidas || []).includes(modulo.id);
   }
+  // O Encarregado só enxerga o que o módulo lista expressamente para ele.
+  if (usuario?.perfil === 'ENCARREGADO') return Boolean(modulo.perfis?.includes('ENCARREGADO'));
   return !modulo.perfis || modulo.perfis.includes(usuario?.perfil);
 }
 
 /** Primeira página que o usuário pode abrir (destino do login e dos redirecionamentos). */
 export function rotaInicial(usuario) {
+  if (usuario?.perfil === 'ENCARREGADO') return '/rdo';
   if (usuario?.perfil !== 'CLIENTE') return '/orcamentos';
   const primeira = MODULOS.find((modulo) => modulo.ativo && moduloLiberado(usuario, modulo));
   return primeira ? primeira.rota : '/sem-acesso';

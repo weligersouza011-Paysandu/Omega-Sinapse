@@ -53,7 +53,7 @@ function folhasDaVersao(versaoId, client = prisma) {
   return client.atividadeCronograma.findMany({
     where: { versao_cronograma_id: versaoId, resumo: false },
     orderBy: { ordem: 'asc' },
-    select: { codigo_atividade: true, codigo_pai: true, descricao: true, nivel: true, avanco_fisico_real: true, data_inicio: true, data_fim: true },
+    select: { codigo_atividade: true, codigo_pai: true, descricao: true, nivel: true, avanco_fisico_real: true, data_inicio: true, data_fim: true, dados_origem: true },
   });
 }
 
