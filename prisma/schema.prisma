@@ -1392,6 +1392,8 @@ model MotivoDesvio {
   id         Int      @id @default(autoincrement())
   descricao  String   @unique @db.VarChar(160)
   ativo      Boolean  @default(true)
+  /// Posição na lista do RDO (os motivos padrão seguem o modelo de campo; novos vão para o fim).
+  ordem      Int      @default(1000)
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   desvios RdoDesvio[]
@@ -1414,32 +1416,34 @@ model EncarregadoObra {
 }
 
 model Rdo {
-  id                Int       @id @default(autoincrement())
+  id                 Int       @id @default(autoincrement())
   /// O RDO é sempre de UMA obra (SS) em andamento, lançado de dentro dela.
-  obra_id           Int
+  obra_id            Int
   /// Contrato da obra (espelho de `obras.contrato_id` no momento do lançamento).
-  contrato_id       Int?
-  encarregado_id    Int
+  contrato_id        Int?
+  encarregado_id     Int
   /// Supervisor responsável pela obra no dia (indicador para análises futuras).
-  supervisor_id     Int?
-  data              DateTime  @db.Date
+  supervisor_id      Int?
+  data               DateTime  @db.Date
   /// Foi necessária a emissão de PTS? Nulo = ainda não respondido (obrigatório para finalizar).
-  pts_necessaria    Boolean?
-  status            StatusRdo @default(RASCUNHO)
-  clima_manha       String?   @db.VarChar(40)
-  clima_tarde       String?   @db.VarChar(40)
-  clima_noite       String?   @db.VarChar(40)
+  pts_necessaria     Boolean?
+  /// Observações gerais sobre os desvios/improdutividades do dia.
+  desvios_observacao String?
+  status             StatusRdo @default(RASCUNHO)
+  clima_manha        String?   @db.VarChar(40)
+  clima_tarde        String?   @db.VarChar(40)
+  clima_noite        String?   @db.VarChar(40)
   /// DSS (Diálogo de Segurança).
-  dss_tema          String?   @db.VarChar(200)
-  dss_participantes Int?
-  comentario_geral  String?
+  dss_tema           String?   @db.VarChar(200)
+  dss_participantes  Int?
+  comentario_geral   String?
   /// Assinatura do encarregado ao finalizar.
-  assinado_em       DateTime? @db.Timestamptz(6)
-  decidido_por_id   Int?
-  decidido_em       DateTime? @db.Timestamptz(6)
-  motivo_devolucao  String?
-  created_at        DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+  assinado_em        DateTime? @db.Timestamptz(6)
+  decidido_por_id    Int?
+  decidido_em        DateTime? @db.Timestamptz(6)
+  motivo_devolucao   String?
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
 
   obra         Obra      @relation(fields: [obra_id], references: [id], onDelete: Restrict)
   contrato     Contrato? @relation(fields: [contrato_id], references: [id], onDelete: SetNull)
@@ -1564,6 +1568,8 @@ model RdoPts {
   numero        String?   @db.VarChar(60)
   solicitado_em DateTime  @db.Timestamptz(6)
   liberado_em   DateTime? @db.Timestamptz(6)
+  /// Quem emitiu a PTS no cliente (obrigatório para finalizar o RDO).
+  emitente      String?   @db.VarChar(160)
 
   rdo Rdo @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
 
@@ -1581,6 +1587,8 @@ model RdoDesvio {
   rdo    Rdo          @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
   motivo MotivoDesvio @relation(fields: [motivo_id], references: [id], onDelete: Restrict)
 
+  /// Um lançamento por motivo no RDO.
+  @@unique([rdo_id, motivo_id])
   @@index([rdo_id])
   @@map("rdo_desvios")
 }

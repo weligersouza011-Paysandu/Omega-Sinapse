@@ -261,6 +261,7 @@ function camposDoCabecalho(payload, { parcial }) {
     ['clima_noite', 40],
     ['dss_tema', 200],
     ['comentario_geral', 5000],
+    ['desvios_observacao', 2000],
   ];
   mapa.forEach(([campo, max]) => {
     if (!parcial || tem(payload, campo)) dados[campo] = texto(payload[campo], campo, max);
@@ -451,14 +452,23 @@ async function prepararEquipamentos(client, lista) {
   return itens;
 }
 
-/** PTS: só horas (o dia é o do RDO). A liberação pode ficar em aberto se ainda não saiu. */
+/**
+ * PTS: uma única por RDO. Só horas (o dia é o do RDO) e o nome de quem emitiu no cliente. Em rascunho a
+ * liberação e o emitente podem faltar; para finalizar o RDO os três campos são obrigatórios.
+ */
 function prepararPts(lista, dia) {
   if (!Array.isArray(lista)) throw new AppError(400, 'O campo "pts" deve ser uma lista.');
+  if (lista.length > 1) throw new AppError(400, 'Informe uma única PTS por RDO.');
   return lista.map((p, i) => {
     const solicitado = horaParaInstante(dia, p?.hora_solicitacao, `pts[${i}].hora_solicitacao`);
     const liberado = vazio(p?.hora_liberacao) ? null : horaParaInstante(dia, p.hora_liberacao, `pts[${i}].hora_liberacao`);
     if (liberado && liberado < solicitado) throw new AppError(400, `pts[${i}]: a liberação não pode ser anterior à solicitação.`);
-    return { numero: texto(p?.numero, `pts[${i}].numero`, 60), solicitado_em: solicitado, liberado_em: liberado };
+    return {
+      numero: texto(p?.numero, `pts[${i}].numero`, 60),
+      solicitado_em: solicitado,
+      liberado_em: liberado,
+      emitente: texto(p?.emitente, `pts[${i}].emitente`, 160),
+    };
   });
 }
 
@@ -469,7 +479,9 @@ async function prepararDesvios(client, lista) {
     horas: horas(d?.horas, `desvios[${i}].horas`, { minimo: 0.01 }),
     observacao: texto(d?.observacao, `desvios[${i}].observacao`, 1000),
   }));
-  await garantirCatalogo(client, 'motivoDesvio', itens.map((d) => d.motivo_id), 'Motivo de desvio');
+  const motivos = itens.map((d) => d.motivo_id);
+  if (motivos.some((m, i) => motivos.indexOf(m) !== i)) throw new AppError(400, 'Cada motivo de desvio só pode aparecer uma vez no RDO.');
+  await garantirCatalogo(client, 'motivoDesvio', motivos, 'Motivo de desvio');
   return itens;
 }
 
@@ -877,17 +889,22 @@ async function finalizar(idParam, usuario) {
   const rdo = await carregar(idParam);
   garantirEditavel(rdo, usuario);
 
-  const [obra, efetivo, pts] = await Promise.all([
+  const [obra, efetivo, ptsLancadas] = await Promise.all([
     repo.prisma.obra.findUnique({ where: { id: rdo.obra_id }, select: { status: true } }),
     repo.prisma.rdoEfetivo.count({ where: { rdo_id: rdo.id } }),
-    repo.prisma.rdoPts.count({ where: { rdo_id: rdo.id } }),
+    repo.prisma.rdoPts.findMany({ where: { rdo_id: rdo.id } }),
   ]);
   exigirObraEmAndamento(obra);
   if (!rdo.supervisor_id) throw new AppError(400, 'Informe o supervisor da obra antes de finalizar o RDO.');
   if (efetivo === 0) throw new AppError(400, 'Informe o efetivo do dia (quem esteve na obra) antes de finalizar o RDO.');
   if (rdo.atividades.length === 0) throw new AppError(400, 'Inclua ao menos uma atividade antes de finalizar o RDO.');
   if (rdo.pts_necessaria === null) throw new AppError(400, 'Responda se foi necessária a emissão de PTS antes de finalizar o RDO.');
-  if (rdo.pts_necessaria === true && pts === 0) throw new AppError(400, 'Foi necessária PTS: informe a hora de solicitação (e de liberação, se já saiu).');
+  if (rdo.pts_necessaria === true) {
+    const pts = ptsLancadas[0];
+    if (!pts) throw new AppError(400, 'PTS emitida: informe a hora de solicitação, a hora de liberação e o nome do emitente.');
+    if (!pts.liberado_em) throw new AppError(400, 'PTS emitida: informe a hora de liberação.');
+    if (!pts.emitente) throw new AppError(400, 'PTS emitida: informe o nome do emitente.');
+  }
 
   const semFoto = rdo.atividades.filter(
     (a) => !a.fora_de_escopo && Number(a.percentual_declarado) > Number(a.percentual_anterior) && a._count.fotos === 0

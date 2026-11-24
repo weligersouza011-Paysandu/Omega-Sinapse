@@ -387,17 +387,12 @@ export default function RdoDetalhe({ novo = false }) {
         <SecaoEquipamentos itens={form.equipamentos} editavel={editavel} catalogo={catalogos.equipamentos} onChange={(equipamentos) => alterarForm({ equipamentos })} />
       </Secao>
 
-      <Secao numero="6" titulo="PTS — Permissão de Trabalho Seguro" resumo={form.pts_necessaria === null ? 'não respondido' : form.pts_necessaria ? 'necessária' : 'não necessária'}>
-        <SecaoPts necessaria={form.pts_necessaria} itens={form.pts} editavel={editavel} onNecessaria={(v) => alterarForm({ pts_necessaria: v })} onChange={(pts) => alterarForm({ pts })} />
+      <Secao faixa titulo="06 — Permissão de Trabalho Seguro (PTS)" resumo={form.pts_necessaria === null ? 'não respondido' : form.pts_necessaria ? 'emitida' : 'não necessária'}>
+        <SecaoPts necessaria={form.pts_necessaria} pts={form.pts} editavel={editavel} onNecessaria={(v) => alterarForm({ pts_necessaria: v })} onChange={(pts) => alterarForm({ pts })} />
       </Secao>
 
-      <Secao
-        numero="7"
-        titulo={`Desvios e improdutividades (${form.desvios.length + desviosAutomaticos.length})`}
-        resumo={rdo ? `${(rdo.totais?.desvios?.total ?? 0).toLocaleString('pt-BR')} h` : null}
-        aberta={form.desvios.length + desviosAutomaticos.length > 0}
-      >
-        <SecaoDesvios itens={form.desvios} automaticos={desviosAutomaticos} editavel={editavel} catalogo={catalogos.motivos} onChange={(desvios) => alterarForm({ desvios })} />
+      <Secao faixa titulo="07 — Desvios / Improdutividades" resumo={rdo ? `${(rdo.totais?.desvios?.total ?? 0).toLocaleString('pt-BR')} h` : null}>
+        <SecaoDesvios itens={form.desvios} automaticos={desviosAutomaticos} editavel={editavel} catalogo={catalogos.motivos} observacao={form.desvios_observacao} onObservacao={(v) => alterarForm({ desvios_observacao: v })} onChange={(desvios) => alterarForm({ desvios })} />
       </Secao>
 
       <Secao numero="8" titulo="Comentário geral" aberta={Boolean(form.comentario_geral) || editavel}>

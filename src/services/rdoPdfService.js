@@ -165,7 +165,7 @@ function gerarPdfRdo(rdo, { fotosBaixadas = new Map() } = {}) {
     titulo('PTS — Permissão de Trabalho Seguro');
     linha('Foi necessária a emissão de PTS?', rdo.pts_necessaria === null ? 'não informado' : rdo.pts_necessaria ? 'Sim' : 'Não');
     if (rdo.pts_necessaria) {
-      rdo.pts.forEach((p) => texto(`• ${p.numero || 's/ nº'} — solicitada às ${p.hora_solicitacao || '—'} · liberada às ${p.hora_liberacao || 'ainda não liberada'} · espera ${minutosParaTexto(p.espera_minutos)}`));
+      rdo.pts.forEach((p) => texto(`• ${p.numero || 's/ nº'} — solicitada às ${p.hora_solicitacao || '—'} · liberada às ${p.hora_liberacao || 'ainda não liberada'} · espera ${minutosParaTexto(p.espera_minutos)}${p.emitente ? ` · emitente: ${p.emitente}` : ''}`));
       linha('Espera total', minutosParaTexto(rdo.totais.espera_pts_minutos));
     }
     if (rdo.desvios.length || rdo.desvios_automaticos?.length) {
@@ -173,6 +173,7 @@ function gerarPdfRdo(rdo, { fotosBaixadas = new Map() } = {}) {
       rdo.desvios.forEach((d) => texto(`• ${d.motivo?.descricao || 'Motivo'} — ${num(d.horas)} h${d.observacao ? ` · ${d.observacao}` : ''}`));
       (rdo.desvios_automaticos || []).forEach((d) => texto(`• Atividade fora de escopo: ${d.descricao} — ${num(d.horas)} HH${d.justificativa ? ` · ${d.justificativa}` : ''}`));
       linha('Total', `${num(rdo.totais.desvios.total)} h`);
+      if (rdo.desvios_observacao) linha('Observações sobre desvios', rdo.desvios_observacao);
     }
     if (rdo.comentario_geral) {
       titulo('Comentário geral');

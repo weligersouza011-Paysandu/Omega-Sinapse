@@ -95,7 +95,8 @@ test('RDO: fluxo completo contra o banco', { skip: pular }, async (t) => {
     }],
     equipamentos: [{ equipamento_id: equipamento.id, horas_trabalhadas: 6, horas_paradas: 2 }],
     pts_necessaria: true,
-    pts: [{ numero: 'PTS-1', hora_solicitacao: '07:00', hora_liberacao: '08:30' }],
+    pts: [{ numero: 'PTS-1', hora_solicitacao: '07:00', hora_liberacao: '08:30', emitente: 'Fiscal Vale' }],
+    desvios_observacao: 'Chuva forte no início da manhã',
     desvios: [{ motivo_id: motivo.id, horas: 1.5 }],
     ...extra,
   });
@@ -138,6 +139,8 @@ test('RDO: fluxo completo contra o banco', { skip: pular }, async (t) => {
     assert.equal(r1.efetivo.length, 2);
     assert.equal(r1.pts[0].hora_solicitacao, '07:00');
     assert.equal(r1.pts[0].espera_minutos, 90);
+    assert.equal(r1.pts[0].emitente, 'Fiscal Vale');
+    assert.equal(r1.desvios_observacao, 'Chuva forte no início da manhã');
     assert.equal(r1.totais.desvios.total, 1.5);
   });
 
@@ -215,6 +218,31 @@ test('RDO: fluxo completo contra o banco', { skip: pular }, async (t) => {
     const dataNova = await rdo.atualizar(semPts.id, { data: dia(16) }, u(encB));
     assert.equal(dataNova.pts[0].hora_solicitacao, '06:30', 'trocar o dia mantém a hora da PTS');
     await rdo.excluir(semPts.id, u(encB));
+  });
+
+  await t.test('PTS: uma única por RDO; para finalizar exige liberação e emitente', async () => {
+    await assert.rejects(() => rdo.criar(corpo({ data: dia(19), pts: [{ hora_solicitacao: '07:00' }, { hora_solicitacao: '08:00' }] }), u(encB)), (e) => /única PTS/.test(e.message));
+    const r = await rdo.criar(corpo({ data: dia(19), pts: [{ hora_solicitacao: '07:00' }] }), u(encB));
+    await comFoto(r);
+    await assert.rejects(() => rdo.finalizar(r.id, u(encB)), (e) => /liberação/.test(e.message));
+    await rdo.atualizar(r.id, { pts: [{ hora_solicitacao: '07:00', hora_liberacao: '09:00' }] }, u(encB));
+    await assert.rejects(() => rdo.finalizar(r.id, u(encB)), (e) => /emitente/.test(e.message));
+    const ok = await rdo.atualizar(r.id, { pts: [{ hora_solicitacao: '07:00', hora_liberacao: '09:00', emitente: 'Ana Souza' }] }, u(encB));
+    assert.equal(ok.pts[0].emitente, 'Ana Souza');
+    assert.equal(ok.totais.espera_pts_minutos, 120);
+    await rdo.excluir(r.id, u(encB));
+  });
+
+  await t.test('desvios: lista fixa de motivos na ordem do modelo, um lançamento por motivo', async () => {
+    const motivos = await cadastros.listar('motivos', { ativos: 'true' });
+    assert.equal(motivos[0].descricao, 'Aguardando Materiais');
+    assert.equal(motivos[17].descricao, 'Equipe à disposição');
+    assert.ok(motivos.length >= 18);
+    await assert.rejects(() => rdo.criar(corpo({ data: dia(19), desvios: [{ motivo_id: motivo.id, horas: 1 }, { motivo_id: motivo.id, horas: 2 }] }), u(encB)), (e) => /só pode aparecer uma vez/.test(e.message));
+    const r = await rdo.criar(corpo({ data: dia(19), desvios: [{ motivo_id: motivos[0].id, horas: 1.5 }, { motivo_id: motivos[5].id, horas: 0.25 }], desvios_observacao: 'Sem material na frente' }), u(encB));
+    assert.equal(r.totais.desvios.total, 1.75);
+    assert.equal(r.desvios_observacao, 'Sem material na frente');
+    await rdo.excluir(r.id, u(encB));
   });
 
   await t.test('atualizar mantém fotos das atividades que permanecem', async () => {

@@ -26,6 +26,18 @@ export function numeroOuVazio(valor) {
   return valor === null || valor === undefined ? '' : String(valor);
 }
 
+/** Minutos → "HH:MM" (ex.: 80 → "01:20"). */
+export function formatarHHMM(minutos) {
+  const m = Math.max(0, Math.round(Number(minutos) || 0));
+  return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+}
+
+/** "HH:MM" → minutos ("" ou inválido → 0). */
+export function hhmmParaMinutos(texto) {
+  const [h, m] = String(texto || '').split(':').map(Number);
+  return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : 0;
+}
+
 /** Minutos entre duas horas "HH:MM" do mesmo dia; null se faltar uma ou a liberação for anterior. */
 export function esperaEntreHoras(solicitacao, liberacao) {
   if (!solicitacao || !liberacao) return null;
@@ -46,10 +58,11 @@ export const formVazio = (data) => ({
   dss_participantes: '',
   comentario_geral: '',
   pts_necessaria: null,
+  desvios_observacao: '',
   efetivo: [],
   atividades: [],
   equipamentos: [],
-  pts: [],
+  pts: { hora_solicitacao: '', hora_liberacao: '', emitente: '' },
   desvios: [],
 });
 
@@ -87,6 +100,7 @@ export function rdoParaForm(rdo) {
     dss_participantes: numeroOuVazio(rdo.dss_participantes),
     comentario_geral: rdo.comentario_geral || '',
     pts_necessaria: rdo.pts_necessaria,
+    desvios_observacao: rdo.desvios_observacao || '',
     efetivo: rdo.efetivo.map((e) => ({
       chave: novaChave(),
       tipo: e.tipo,
@@ -123,13 +137,13 @@ export function rdoParaForm(rdo) {
       horas_paradas: numeroOuVazio(e.horas_paradas),
       observacao: e.observacao || '',
     })),
-    pts: rdo.pts.map((p) => ({
-      chave: novaChave(),
-      numero: p.numero || '',
-      hora_solicitacao: p.hora_solicitacao || '',
-      hora_liberacao: p.hora_liberacao || '',
-    })),
-    desvios: rdo.desvios.map((d) => ({ chave: novaChave(), motivo_id: String(d.motivo_id), horas: numeroOuVazio(d.horas), observacao: d.observacao || '' })),
+    pts: {
+      hora_solicitacao: rdo.pts[0]?.hora_solicitacao || '',
+      hora_liberacao: rdo.pts[0]?.hora_liberacao || '',
+      emitente: rdo.pts[0]?.emitente || '',
+    },
+    // Desvios: uma linha por motivo, em minutos (a tela mostra HH:MM).
+    desvios: rdo.desvios.map((d) => ({ motivo_id: String(d.motivo_id), descricao: d.motivo?.descricao, minutos: Math.round(Number(d.horas) * 60) })),
   };
 }
 
@@ -148,6 +162,7 @@ export function formParaPayload(form) {
     dss_participantes: form.dss_participantes === '' ? null : Number(form.dss_participantes),
     comentario_geral: form.comentario_geral,
     pts_necessaria: form.pts_necessaria,
+    desvios_observacao: form.desvios_observacao,
     efetivo: form.efetivo.map((e) => ({
       tipo: e.tipo,
       funcao_id: e.tipo === 'FUNCAO' ? idOuNulo(e.funcao_id) : null,
@@ -179,7 +194,11 @@ export function formParaPayload(form) {
       horas_paradas: e.horas_paradas || 0,
       observacao: e.observacao,
     })),
-    pts: form.pts_necessaria ? form.pts.map((p) => ({ numero: p.numero, hora_solicitacao: p.hora_solicitacao, hora_liberacao: p.hora_liberacao || null })) : [],
-    desvios: form.desvios.map((d) => ({ motivo_id: idOuNulo(d.motivo_id), horas: d.horas, observacao: d.observacao })),
+    pts: form.pts_necessaria && form.pts.hora_solicitacao
+      ? [{ hora_solicitacao: form.pts.hora_solicitacao, hora_liberacao: form.pts.hora_liberacao || null, emitente: form.pts.emitente }]
+      : [],
+    desvios: form.desvios
+      .filter((d) => d.minutos > 0)
+      .map((d) => ({ motivo_id: idOuNulo(d.motivo_id), horas: Math.round((d.minutos / 60) * 100) / 100 })),
   };
 }

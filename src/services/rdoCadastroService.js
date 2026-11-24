@@ -76,7 +76,7 @@ const CADASTROS = {
   motivos: {
     modelo: 'motivoDesvio',
     rotulo: 'Motivo de desvio',
-    ordem: { descricao: 'asc' },
+    ordem: [{ ordem: 'asc' }, { descricao: 'asc' }],
     campos: (p, parcial) => {
       const d = {};
       if (!parcial || tem(p, 'descricao')) d.descricao = texto(p.descricao, 'descricao', 160, true);

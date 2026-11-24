@@ -1,17 +1,21 @@
-import { Plus, UserPlus, Users, X } from 'lucide-react';
-import { chaveEfetivo, esperaEntreHoras, minutosParaTexto, novaChave } from '../../utils/rdo.js';
+import { useState } from 'react';
+import { Check, Lock, Pencil, Plus, UserPlus, Users, X } from 'lucide-react';
+import { chaveEfetivo, esperaEntreHoras, formatarHHMM, hhmmParaMinutos, novaChave } from '../../utils/rdo.js';
 
-/** Cartão recolhível de seção (bom para tela de celular). */
-export function Secao({ numero, titulo, resumo, children, aberta = true, acao }) {
+/**
+ * Cartão recolhível de seção (bom para tela de celular). Com `faixa`, o cabeçalho vira uma faixa
+ * vermelha com o título em branco (modelo de campo usado em PTS e Desvios).
+ */
+export function Secao({ numero, titulo, resumo, children, aberta = true, acao, faixa = false }) {
   return (
-    <details open={aberta} className="card group">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3">
-        <span className="flex items-center gap-2 text-sm font-bold text-slate-800">
-          {numero ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-omega-600 text-xs text-white">{numero}</span> : null}
+    <details open={aberta} className="card group overflow-hidden">
+      <summary className={`flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 ${faixa ? 'bg-omega-700 text-white' : ''}`}>
+        <span className={`flex items-center gap-2 text-sm font-bold ${faixa ? 'text-white' : 'text-slate-800'}`}>
+          {numero && !faixa ? <span className="flex h-6 w-6 items-center justify-center rounded-full bg-omega-600 text-xs text-white">{numero}</span> : null}
           {titulo}
         </span>
         <span className="flex items-center gap-3">
-          {resumo ? <span className="text-xs text-slate-500">{resumo}</span> : null}
+          {resumo ? <span className={`text-xs ${faixa ? 'text-white/80' : 'text-slate-500'}`}>{resumo}</span> : null}
           {acao}
         </span>
       </summary>
@@ -145,94 +149,129 @@ export function SecaoEquipamentos({ itens, editavel, catalogo, onChange }) {
 }
 
 /**
- * PTS (Permissão de Trabalho Seguro): a pergunta é se foi necessária a emissão. Se sim, a hora em que
- * foi solicitada e a hora em que o cliente liberou a área; a espera entre as duas é calculada.
+ * PTS (Permissão de Trabalho Seguro): a pergunta é se foi emitida. Se sim, a hora em que foi solicitada
+ * ao cliente, a hora em que ele liberou a área e o nome de quem emitiu; o tempo de espera é calculado.
+ * `pts` = { hora_solicitacao, hora_liberacao, emitente }.
  */
-export function SecaoPts({ necessaria, itens, editavel, onNecessaria, onChange }) {
-  const alterar = (chave, campos) => onChange(itens.map((i) => (i.chave === chave ? { ...i, ...campos } : i)));
-  const opcao = (valor, rotulo) => (
-    <label className={`flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold ${necessaria === valor ? 'border-omega-600 bg-omega-600 text-white' : 'border-slate-300 bg-white text-slate-700'} ${editavel ? '' : 'cursor-default opacity-70'}`}>
-      <input type="radio" name="pts-necessaria" className="sr-only" disabled={!editavel} checked={necessaria === valor} onChange={() => onNecessaria(valor)} />
-      {rotulo}
-    </label>
-  );
+export function SecaoPts({ necessaria, pts, editavel, onNecessaria, onChange }) {
+  const espera = esperaEntreHoras(pts.hora_solicitacao, pts.hora_liberacao);
+  const invalida = Boolean(pts.hora_solicitacao && pts.hora_liberacao && espera === null);
+  const botao = (valor, rotulo, Icone) => {
+    const ativo = necessaria === valor;
+    return (
+      <label className={`flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-3 text-sm font-bold transition ${ativo ? 'border-omega-600 bg-white text-omega-700' : 'border-slate-200 bg-slate-100 text-slate-500'} ${editavel ? 'cursor-pointer hover:border-omega-400' : 'cursor-default'}`}>
+        <input type="radio" name="pts-necessaria" className="sr-only" disabled={!editavel} checked={ativo} onChange={() => onNecessaria(valor)} />
+        <Icone className="h-4 w-4" aria-hidden="true" /> {rotulo}
+      </label>
+    );
+  };
 
   return (
-    <div className="space-y-3">
-      <div>
-        <p className="rotulo">Foi necessária a emissão de PTS? *</p>
-        <div className="flex gap-2">{opcao(true, 'Sim')}{opcao(false, 'Não')}</div>
-        {necessaria === null ? <p className="mt-1 text-xs text-amber-700">Responda para poder finalizar o RDO.</p> : null}
-      </div>
+    <div className="space-y-4">
+      <div className="flex gap-3">{botao(true, 'PTS Emitida', Lock)}{botao(false, 'PTS Não Necessária', Check)}</div>
+      {necessaria === null ? <p className="text-xs text-amber-700">Responda se foi necessária a emissão de PTS para poder finalizar o RDO.</p> : null}
 
       {necessaria ? (
-        <div className="space-y-2">
-          <p className="text-xs text-slate-500">Informe só as horas: a solicitação ao cliente e a liberação da área. Se ainda não liberou, deixe a liberação em branco.</p>
-          {itens.map((p) => {
-            const espera = esperaEntreHoras(p.hora_solicitacao, p.hora_liberacao);
-            const invalida = p.hora_solicitacao && p.hora_liberacao && espera === null;
-            return (
-              <div key={p.chave} className="grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_1fr_1fr_1fr_32px] sm:items-end">
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="rotulo">Nº da PTS</label>
-                  <input className="campo" disabled={!editavel} value={p.numero} onChange={(e) => alterar(p.chave, { numero: e.target.value })} />
-                </div>
-                <div>
-                  <label className="rotulo">Solicitada às *</label>
-                  <input type="time" className="campo" disabled={!editavel} value={p.hora_solicitacao} onChange={(e) => alterar(p.chave, { hora_solicitacao: e.target.value })} />
-                </div>
-                <div>
-                  <label className="rotulo">Liberada às</label>
-                  <input type="time" className="campo" disabled={!editavel} value={p.hora_liberacao} onChange={(e) => alterar(p.chave, { hora_liberacao: e.target.value })} />
-                </div>
-                <div>
-                  <label className="rotulo">Espera</label>
-                  <p className={`campo bg-white ${invalida ? 'text-red-600' : espera > 60 ? 'font-bold text-amber-700' : 'text-slate-600'}`}>{invalida ? 'inválida' : minutosParaTexto(espera)}</p>
-                </div>
-                {editavel ? <BotaoRemover onClick={() => onChange(itens.filter((i) => i.chave !== p.chave))} /> : null}
-              </div>
-            );
-          })}
-          {editavel ? <BotaoAdicionar rotulo="Adicionar PTS" onClick={() => onChange([...itens, { chave: novaChave(), numero: '', hora_solicitacao: '', hora_liberacao: '' }])} /> : null}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_1fr_auto]">
+            <div>
+              <label className="rotulo normal-case tracking-normal">Hora Solicitação PTS <span className="text-omega-600">*</span></label>
+              <input type="time" className="campo" disabled={!editavel} value={pts.hora_solicitacao} onChange={(e) => onChange({ ...pts, hora_solicitacao: e.target.value })} />
+            </div>
+            <div>
+              <label className="rotulo normal-case tracking-normal">Hora Liberação PTS <span className="text-omega-600">*</span></label>
+              <input type="time" className="campo" disabled={!editavel} value={pts.hora_liberacao} onChange={(e) => onChange({ ...pts, hora_liberacao: e.target.value })} />
+            </div>
+            <div className="min-w-[8.5rem]">
+              <p className="rotulo normal-case tracking-normal">{espera === null ? 'Aguardo (cálculo)' : 'Calculado'}</p>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Tempo de espera</p>
+              <p className={`text-2xl font-extrabold ${invalida ? 'text-red-600' : 'text-omega-600'}`}>{invalida ? 'inválido' : formatarHHMM(espera ?? 0)}</p>
+            </div>
+          </div>
+          <div>
+            <label className="rotulo normal-case tracking-normal">Nome do Emitente PTS <span className="text-omega-600">*</span></label>
+            <input className="campo" disabled={!editavel} maxLength={160} placeholder="Nome completo do emitente" value={pts.emitente} onChange={(e) => onChange({ ...pts, emitente: e.target.value })} />
+          </div>
+        </>
       ) : null}
     </div>
   );
 }
 
-/** Desvios e improdutividades, em horas, por motivo. */
-export function SecaoDesvios({ itens, editavel, catalogo, automaticos = [], onChange }) {
-  const alterar = (chave, campos) => onChange(itens.map((i) => (i.chave === chave ? { ...i, ...campos } : i)));
+/**
+ * Desvios / improdutividades: tabela fixa de motivos com as horas (HH:MM) de cada um; o lápis edita a
+ * linha. Mais a observação geral. Atividades fora de escopo entram como linhas automáticas.
+ * `itens` = [{ motivo_id, descricao?, minutos }] (só os com horas > 0 vão para o servidor).
+ */
+export function SecaoDesvios({ itens, editavel, catalogo, automaticos = [], observacao, onObservacao, onChange }) {
+  const [editando, setEditando] = useState(null);
+  const minutosDe = (id) => itens.find((i) => i.motivo_id === String(id))?.minutos || 0;
+  const definir = (id, descricao, minutos) => {
+    const sem = itens.filter((i) => i.motivo_id !== String(id));
+    onChange(minutos > 0 ? [...sem, { motivo_id: String(id), descricao, minutos }] : sem);
+  };
+  // Motivos já usados no RDO que saíram do catálogo ativo continuam aparecendo.
+  const extras = itens
+    .filter((i) => !catalogo.some((m) => String(m.id) === i.motivo_id))
+    .map((i) => ({ id: i.motivo_id, descricao: i.descricao || `Motivo ${i.motivo_id}` }));
+  const linhas = [...catalogo, ...extras];
+  const total = itens.reduce((s, i) => s + i.minutos, 0);
+
   return (
-    <div className="space-y-2">
-      {itens.length === 0 && automaticos.length === 0 ? <p className="text-xs text-slate-400">Nenhum desvio lançado.</p> : null}
-      {automaticos.map((d) => (
-        <div key={d.atividade_id} className="rounded-md border border-amber-200 bg-amber-50 p-2 text-sm text-amber-900">
-          <strong>Atividade fora de escopo</strong> — {d.descricao} · {Number(d.horas).toLocaleString('pt-BR')} HH
-          {d.justificativa ? <p className="text-xs text-amber-700">Justificativa: {d.justificativa}</p> : null}
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-lg border border-slate-200">
+        <div className="grid grid-cols-[1fr_auto_2.5rem] items-center gap-2 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600">
+          <span>Motivo</span>
+          <span>Horas</span>
+          <span />
         </div>
-      ))}
-      {itens.map((d) => (
-        <div key={d.chave} className="grid grid-cols-2 gap-2 rounded-md bg-slate-50 p-2 sm:grid-cols-[1fr_100px_1fr_32px] sm:items-end">
-          <div className="col-span-2 sm:col-span-1">
-            <label className="rotulo">Motivo</label>
-            <select className="campo" disabled={!editavel} value={d.motivo_id} onChange={(e) => alterar(d.chave, { motivo_id: e.target.value })}>
-              <option value="">Selecione…</option>
-              {catalogo.map((m) => <option key={m.id} value={m.id}>{m.descricao}</option>)}
-            </select>
+        {linhas.map((m) => {
+          const minutos = minutosDe(m.id);
+          const emEdicao = editando === String(m.id);
+          return (
+            <div key={m.id} className="grid grid-cols-[1fr_auto_2.5rem] items-center gap-2 border-b border-slate-100 px-3 py-2 last:border-b-0">
+              <span className="text-sm text-slate-700">{m.descricao}</span>
+              {emEdicao ? (
+                <input
+                  type="time"
+                  autoFocus
+                  className="campo !w-28 !py-1"
+                  value={formatarHHMM(minutos)}
+                  onChange={(e) => definir(m.id, m.descricao, hhmmParaMinutos(e.target.value))}
+                  onBlur={() => setEditando(null)}
+                  onKeyDown={(e) => e.key === 'Enter' && setEditando(null)}
+                />
+              ) : (
+                <span className={`text-sm font-bold tabular-nums ${minutos > 0 ? 'text-omega-600' : 'text-teal-600'}`}>{formatarHHMM(minutos)}</span>
+              )}
+              {editavel ? (
+                <button type="button" className="rounded border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800" aria-label={`Editar horas de ${m.descricao}`} onClick={() => setEditando(emEdicao ? null : String(m.id))}>
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              ) : <span />}
+            </div>
+          );
+        })}
+        {automaticos.map((d) => (
+          <div key={d.atividade_id} className="grid grid-cols-[1fr_auto_2.5rem] items-center gap-2 border-t border-amber-200 bg-amber-50 px-3 py-2">
+            <span className="text-sm text-amber-900">
+              Atividade fora de escopo — {d.descricao}
+              {d.justificativa ? <span className="block text-xs text-amber-700">{d.justificativa}</span> : null}
+            </span>
+            <span className="text-sm font-bold tabular-nums text-amber-800">{Number(d.horas).toLocaleString('pt-BR')} HH</span>
+            <span />
           </div>
-          <div>
-            <label className="rotulo">Horas</label>
-            <input type="number" inputMode="decimal" min="0.25" max="24" step="0.25" className="campo" disabled={!editavel} value={d.horas} onChange={(e) => alterar(d.chave, { horas: e.target.value })} />
-          </div>
-          <div className="col-span-2 sm:col-span-1">
-            <label className="rotulo">Observação</label>
-            <input className="campo" disabled={!editavel} value={d.observacao} onChange={(e) => alterar(d.chave, { observacao: e.target.value })} />
-          </div>
-          {editavel ? <BotaoRemover onClick={() => onChange(itens.filter((i) => i.chave !== d.chave))} /> : null}
+        ))}
+        <div className="flex items-center justify-between bg-slate-50 px-3 py-2 text-sm">
+          <span className="font-bold text-slate-700">Total lançado</span>
+          <span className="font-extrabold tabular-nums text-omega-600">{formatarHHMM(total)}</span>
         </div>
-      ))}
-      {editavel ? <BotaoAdicionar rotulo="Adicionar desvio" onClick={() => onChange([...itens, { chave: novaChave(), motivo_id: '', horas: '', observacao: '' }])} /> : null}
+      </div>
+
+      <div>
+        <label className="rotulo normal-case tracking-normal">Observações sobre Desvios</label>
+        <textarea className="campo" rows={3} maxLength={2000} disabled={!editavel} placeholder="Descreva detalhes sobre as improdutividades..." value={observacao} onChange={(e) => onObservacao(e.target.value)} />
+      </div>
     </div>
   );
 }
