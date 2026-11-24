@@ -6,6 +6,12 @@ const prisma = require('../config/prisma');
 const INCLUDE_COMPLETO = {
   encarregado: { select: { id: true, nome: true, matricula: true } },
   decidido_por: { select: { id: true, nome: true } },
+  supervisor: { select: { id: true, nome: true } },
+  obra: { select: { id: true, status: true, orcamento: { select: { ss: true, pep: true, descricao: true, cliente: true } } } },
+  efetivo: {
+    orderBy: { id: 'asc' },
+    include: { funcao: { select: { id: true, nome: true } }, colaborador: { select: { id: true, nome: true, matricula: true } } },
+  },
   contrato: { select: { id: true, id_vale: true } },
   atividades: {
     orderBy: { id: 'asc' },
@@ -26,6 +32,8 @@ const INCLUDE_COMPLETO = {
 
 const INCLUDE_LISTA = {
   encarregado: { select: { id: true, nome: true } },
+  supervisor: { select: { id: true, nome: true } },
+  obra: { select: { id: true, orcamento: { select: { ss: true, descricao: true } } } },
   _count: { select: { atividades: true } },
 };
 
@@ -135,6 +143,82 @@ async function listar({ where, limite, deslocamento }) {
   return { itens, total };
 }
 
+
+/** Supervisor do RDO mais recente de cada obra (sugestão ao abrir um RDO novo). */
+async function ultimosSupervisores(obraIds, client = prisma) {
+  if (!obraIds.length) return new Map();
+  const linhas = await client.rdo.findMany({
+    where: { obra_id: { in: obraIds }, supervisor_id: { not: null } },
+    orderBy: [{ data: 'desc' }, { id: 'desc' }],
+    distinct: ['obra_id'],
+    select: { obra_id: true, supervisor: { select: { id: true, nome: true } } },
+  });
+  return new Map(linhas.map((l) => [l.obra_id, l.supervisor]));
+}
+
+/** Usuários Supervisor ativos (opções do campo "supervisor"). */
+function supervisoresAtivos() {
+  return prisma.usuario.findMany({
+    where: { perfil: 'SUPERVISOR', ativo: true, excluido_em: null },
+    orderBy: { nome: 'asc' },
+    select: { id: true, nome: true, matricula: true },
+  });
+}
+
+/** RDOs com o necessário para o resumo da obra (atividades, fotos, mão de obra, PTS e desvios). */
+function listarParaResumo(where, limite) {
+  return prisma.rdo.findMany({
+    where,
+    orderBy: [{ data: 'desc' }, { id: 'desc' }],
+    take: limite,
+    include: {
+      encarregado: { select: { id: true, nome: true } },
+      supervisor: { select: { id: true, nome: true } },
+      efetivo: true,
+      atividades: {
+        orderBy: { id: 'asc' },
+        include: { fotos: { orderBy: { id: 'asc' } }, mao_obra: true },
+      },
+      pts: { orderBy: { solicitado_em: 'asc' } },
+      desvios: true,
+    },
+  });
+}
+
+/** Fotos de evidência dos RDOs que casam com o filtro, da mais recente para a mais antiga. */
+async function listarFotos({ where, limite, deslocamento }) {
+  const filtro = { atividade: { rdo: where } };
+  const [itens, total] = await Promise.all([
+    prisma.rdoFoto.findMany({
+      where: filtro,
+      orderBy: { id: 'desc' },
+      take: limite,
+      skip: deslocamento,
+      include: {
+        atividade: {
+          select: {
+            id: true,
+            codigo_atividade: true,
+            descricao_snapshot: true,
+            fora_de_escopo: true,
+            rdo: {
+              select: {
+                id: true,
+                data: true,
+                status: true,
+                encarregado: { select: { id: true, nome: true } },
+                obra: { select: { id: true, orcamento: { select: { ss: true, descricao: true } } } },
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.rdoFoto.count({ where: filtro }),
+  ]);
+  return { itens, total };
+}
+
 module.exports = {
   prisma,
   INCLUDE_COMPLETO,
@@ -149,4 +233,8 @@ module.exports = {
   buscarCompleto,
   buscarSimples,
   listar,
+  ultimosSupervisores,
+  supervisoresAtivos,
+  listarParaResumo,
+  listarFotos,
 };

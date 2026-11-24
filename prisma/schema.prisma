@@ -275,6 +275,7 @@ model Usuario {
   exclusoes_solicitadas   SolicitacaoExclusaoProjecao[]   @relation("ExclusaoSolicitante")
   exclusoes_decididas     SolicitacaoExclusaoProjecao[]   @relation("ExclusaoDecisor")
   rdos_encarregado        Rdo[]                           @relation("RdoEncarregado")
+  rdos_supervisor         Rdo[]                           @relation("RdoSupervisor")
   rdos_decididos          Rdo[]                           @relation("RdoDecisor")
   obras_encarregado       EncarregadoObra[]
   rdo_historico           RdoHistoricoStatus[]
@@ -463,6 +464,7 @@ model Obra {
   projecoes_bmm         ProjecaoBmm[]
   /// RDO: encarregados vinculados, atividades lançadas e avanço aprovado.
   encarregados          EncarregadoObra[]
+  rdos                  Rdo[]
   rdo_atividades        RdoAtividade[]
   avancos_atividade     AvancoAtividadeAprovado[]
 
@@ -1346,6 +1348,7 @@ model FuncaoMaoObra {
   item_qqp      ItemQqp?      @relation(fields: [item_qqp_id], references: [id], onDelete: SetNull)
   colaboradores Colaborador[]
   lancamentos   RdoMaoObra[]
+  efetivo_rdo   RdoEfetivo[]
 
   @@map("funcoes_mao_obra")
 }
@@ -1362,6 +1365,7 @@ model Colaborador {
 
   funcao      FuncaoMaoObra? @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
   lancamentos RdoMaoObra[]
+  efetivo_rdo RdoEfetivo[]
 
   @@index([funcao_id])
   @@map("colaboradores")
@@ -1411,10 +1415,16 @@ model EncarregadoObra {
 
 model Rdo {
   id                Int       @id @default(autoincrement())
-  /// Contrato das obras lançadas (todas as obras do RDO pertencem a ele).
+  /// O RDO é sempre de UMA obra (SS) em andamento, lançado de dentro dela.
+  obra_id           Int
+  /// Contrato da obra (espelho de `obras.contrato_id` no momento do lançamento).
   contrato_id       Int?
   encarregado_id    Int
+  /// Supervisor responsável pela obra no dia (indicador para análises futuras).
+  supervisor_id     Int?
   data              DateTime  @db.Date
+  /// Foi necessária a emissão de PTS? Nulo = ainda não respondido (obrigatório para finalizar).
+  pts_necessaria    Boolean?
   status            StatusRdo @default(RASCUNHO)
   clima_manha       String?   @db.VarChar(40)
   clima_tarde       String?   @db.VarChar(40)
@@ -1431,20 +1441,42 @@ model Rdo {
   created_at        DateTime  @default(now()) @db.Timestamptz(6)
   updated_at        DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
 
+  obra         Obra      @relation(fields: [obra_id], references: [id], onDelete: Restrict)
   contrato     Contrato? @relation(fields: [contrato_id], references: [id], onDelete: SetNull)
   encarregado  Usuario   @relation("RdoEncarregado", fields: [encarregado_id], references: [id], onDelete: Restrict)
+  supervisor   Usuario?  @relation("RdoSupervisor", fields: [supervisor_id], references: [id], onDelete: SetNull)
   decidido_por Usuario?  @relation("RdoDecisor", fields: [decidido_por_id], references: [id], onDelete: SetNull)
 
+  efetivo      RdoEfetivo[]
   atividades   RdoAtividade[]
   equipamentos RdoEquipamento[]
   pts          RdoPts[]
   desvios      RdoDesvio[]
   historico    RdoHistoricoStatus[]
 
-  @@unique([encarregado_id, data], name: "uq_rdo_encarregado_dia")
+  @@unique([obra_id, encarregado_id, data], name: "uq_rdo_obra_encarregado_dia")
+  @@index([obra_id, data])
   @@index([status, data])
   @@index([contrato_id])
   @@map("rdos")
+}
+
+/// Efetivo do dia: quem esteve na obra. A mão de obra de cada atividade só aceita pessoas daqui
+/// (por função: quantidade de pessoas; nominal: um colaborador cadastrado).
+model RdoEfetivo {
+  id             Int                   @id @default(autoincrement())
+  rdo_id         Int
+  tipo           TipoLancamentoMaoObra
+  funcao_id      Int?
+  colaborador_id Int?
+  quantidade     Decimal               @default(1) @db.Decimal(6, 2)
+
+  rdo         Rdo            @relation(fields: [rdo_id], references: [id], onDelete: Cascade)
+  funcao      FuncaoMaoObra? @relation(fields: [funcao_id], references: [id], onDelete: Restrict)
+  colaborador Colaborador?   @relation(fields: [colaborador_id], references: [id], onDelete: Restrict)
+
+  @@index([rdo_id])
+  @@map("rdo_efetivo")
 }
 
 model RdoAtividade {
@@ -1456,6 +1488,8 @@ model RdoAtividade {
   /// Descrição no momento do lançamento (sobrevive à reimportação do cronograma).
   descricao_snapshot   String
   fora_de_escopo       Boolean  @default(false)
+  /// Obrigatória nas atividades fora de escopo (entram como desvio no RDO).
+  justificativa        String?
   /// Último % vigente (aprovado ou do cronograma) quando o RDO foi salvo; refeito na aprovação.
   percentual_anterior  Decimal  @default(0) @db.Decimal(5, 2)
   percentual_declarado Decimal  @default(0) @db.Decimal(5, 2)
