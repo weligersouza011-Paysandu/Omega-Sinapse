@@ -33,6 +33,12 @@ export const ESTILOS_CATEGORIA = {
     ponto: 'bg-violet-500',
     hex: '#8b5cf6',
   },
+  CANTEIRO_CENTRAL: {
+    label: 'Canteiro Central',
+    classe: `${BASE_BADGE} border-slate-300 bg-slate-100 text-slate-700`,
+    ponto: 'bg-slate-500',
+    hex: '#64748b',
+  },
   CARTEIRA_DA_COORDENACAO: {
     label: 'Carteira da Coordenação',
     classe: `${BASE_BADGE} border-cyan-200 bg-cyan-50 text-cyan-700`,

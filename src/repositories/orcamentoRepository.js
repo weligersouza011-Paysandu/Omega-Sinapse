@@ -11,6 +11,15 @@ const prisma = require('../config/prisma');
 const TRANSACAO_TIMEOUT_MS = 15000;
 
 /**
+ * O canteiro central (obra de categoria CANTEIRO_CENTRAL, ex.: "998") é apoiado num registro técnico
+ * de orçamento sem valor, que não é um orçamento comercial: fica fora da listagem e dos indicadores.
+ */
+// Atenção: "NOT obra.categoria = X" também excluiria obras com categoria NULL; por isso o OR explícito.
+const SEM_CANTEIRO_CENTRAL = {
+  AND: [{ OR: [{ obra: { is: null } }, { obra: { is: { OR: [{ categoria: null }, { categoria: { not: 'CANTEIRO_CENTRAL' } }] } } }] }],
+};
+
+/**
  * Colunas do orçamento que podem ser atualizadas diretamente.
  * `valor` NÃO está aqui de propósito: toda alteração de valor passa
  * obrigatoriamente por addRevisao() (fluxo ISO 9001).
@@ -175,7 +184,7 @@ async function findAll(filtros = {}) {
   const page = filtros.page && filtros.page > 0 ? filtros.page : 1;
   const limit = filtros.limit && filtros.limit > 0 ? filtros.limit : 20;
 
-  const where = {};
+  const where = { ...SEM_CANTEIRO_CENTRAL };
 
   if (status) {
     where.status = status;
@@ -270,7 +279,7 @@ async function listarOpcoes() {
  */
 async function obterEstatisticas(filtros = {}) {
   const { de, ate, busca } = filtros;
-  const where = {};
+  const where = { ...SEM_CANTEIRO_CENTRAL };
 
   if (de || ate) {
     where.created_at = {};

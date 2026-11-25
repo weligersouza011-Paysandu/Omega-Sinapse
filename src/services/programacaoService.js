@@ -10,6 +10,7 @@ const {
   normalizarSs,
   lerPlanilhaProgramacao,
   calcularResumo,
+  montarPlanilhaProgramacao,
 } = require('../utils/programacaoS1');
 
 /**
@@ -101,20 +102,65 @@ async function listar() {
   return itens;
 }
 
-async function obter(id) {
-  const programacao = await prisma.programacaoSemanal.findUnique({ where: { id: idValido(id) }, include: INCLUDE_COMPLETO });
-  if (!programacao) throw new AppError(404, 'Programação não encontrada.');
-  return { ...programacao, resumo: calcularResumo(programacao) };
+/**
+ * Efetivo do contrato: colaboradores ativos do cadastro (o mesmo que o RDO usa na mão de obra),
+ * com função, disciplina, liderança e situação.
+ */
+async function listarEfetivo() {
+  const colaboradores = await prisma.colaborador.findMany({
+    where: { ativo: true },
+    orderBy: [{ nome: 'asc' }],
+    select: {
+      id: true, matricula: true, nome: true, cargo: true, disciplina: true, supervisor: true, encarregado: true,
+      situacao: true, ferias_inicio: true, ferias_fim: true, data_mobilizacao: true,
+      funcao: { select: { id: true, nome: true } },
+      contrato: { select: { id: true, id_vale: true, descricao: true } },
+    },
+  });
+  return colaboradores.map((c) => ({ ...c, funcao_id: c.funcao?.id ?? null, funcao: c.funcao?.nome ?? null }));
 }
 
-/** Obras (SS) que podem receber frente na programação: todas, menos as concluídas. */
+async function obter(id) {
+  const [programacao, efetivo] = await Promise.all([
+    prisma.programacaoSemanal.findUnique({ where: { id: idValido(id) }, include: INCLUDE_COMPLETO }),
+    listarEfetivo(),
+  ]);
+  if (!programacao) throw new AppError(404, 'Programação não encontrada.');
+  return { ...programacao, resumo: calcularResumo(programacao, efetivo) };
+}
+
+/** Obras que podem receber frente na programação: as EM ANDAMENTO (inclui o canteiro central). */
 async function listarObras() {
   const obras = await prisma.obra.findMany({
-    where: { status: { not: 'CONCLUIDA' } },
-    select: { id: true, status: true, orcamento: { select: { ss: true, descricao: true } } },
+    where: { status: 'EM_ANDAMENTO' },
+    select: { id: true, status: true, categoria: true, orcamento: { select: { ss: true, descricao: true } } },
     orderBy: { id: 'desc' },
   });
-  return obras.map((o) => ({ id: o.id, status: o.status, ss: o.orcamento?.ss || null, descricao: o.orcamento?.descricao || null }));
+  return obras
+    .map((o) => ({ id: o.id, status: o.status, categoria: o.categoria, ss: o.orcamento?.ss || null, descricao: o.orcamento?.descricao || null }))
+    .sort((a, b) => String(a.ss || '').localeCompare(String(b.ss || '')));
+}
+
+/**
+ * Frente de OBRA precisa estar ligada a uma obra EM ANDAMENTO; o código da frente passa a ser a SS da obra.
+ * Frentes de apoio (itinerantes), disponível e afastamentos não têm obra.
+ */
+async function validarVinculoObra(dados, atual = null) {
+  const tipo = dados.tipo ?? atual?.tipo ?? 'OBRA';
+  const obraId = tem(dados, 'obra_id') ? dados.obra_id : atual?.obra_id ?? null;
+  if (tipo !== 'OBRA') {
+    if (tem(dados, 'tipo')) dados.obra_id = null;
+    return dados;
+  }
+  if (!obraId) throw new AppError(400, 'Frente de obra precisa estar ligada a uma obra em andamento.');
+  if (tem(dados, 'obra_id') || tem(dados, 'tipo')) {
+    const obra = await prisma.obra.findUnique({ where: { id: obraId }, select: { status: true, orcamento: { select: { ss: true } } } });
+    if (!obra) throw new AppError(400, 'Obra não encontrada.');
+    if (obra.status !== 'EM_ANDAMENTO') throw new AppError(400, 'Só obras em andamento recebem frente na programação.');
+    dados.obra_id = obraId;
+    if (obra.orcamento?.ss) dados.codigo = obra.orcamento.ss;
+  }
+  return dados;
 }
 
 /** Mapa SS normalizada → obra_id, para vincular frentes pela SS. */
@@ -216,6 +262,29 @@ async function gravarFrentes(tx, programacaoId, frentes) {
  * Cria a programação da semana que contém `data` (padrão: a próxima semana, S+1).
  * Com `copiar_de_id`, copia frentes, equipes, pessoas, presença, atividades e premissas daquela programação.
  */
+/** Frentes/equipes/pessoas de uma programação, prontas para gravar numa nova semana. */
+function copiarFrentes(origem) {
+  return origem.frentes.map((f) => ({
+    tipo: f.tipo, titulo: f.titulo, codigo: f.codigo, responsavel: f.responsavel, obra_id: f.obra_id,
+    equipes: f.equipes.map((e) => ({
+      codigo: e.codigo, disciplina: e.disciplina, atividades: e.atividades, premissas: e.premissas,
+      alocacoes: e.alocacoes.map((a) => ({ matricula: a.matricula, nome: a.nome, funcao: a.funcao, dias: a.dias })),
+    })),
+  }));
+}
+
+/**
+ * Início da reunião: cria a programação da semana seguinte à última cadastrada, copiando-a
+ * (frentes, equipes, pessoas, presença, atividades e premissas). Sem nenhuma, cria a da semana atual em branco.
+ */
+async function criarProxima(usuario) {
+  const ultima = await prisma.programacaoSemanal.findFirst({ orderBy: [{ data_inicio: 'desc' }], select: { id: true, data_inicio: true } });
+  if (!ultima) return criar({ data: new Date().toISOString().slice(0, 10) }, usuario);
+  const proxima = new Date(ultima.data_inicio);
+  proxima.setUTCDate(proxima.getUTCDate() + 7);
+  return criar({ data: proxima.toISOString().slice(0, 10), copiar_de_id: ultima.id }, usuario);
+}
+
 async function criar(payload, usuario) {
   const base = vazio(payload.data) ? new Date(Date.now() + 7 * 86400000) : new Date(`${String(payload.data).slice(0, 10)}T12:00:00Z`);
   const semana = identificarSemana(base);
@@ -225,14 +294,7 @@ async function criar(payload, usuario) {
 
   let frentes = [];
   if (!vazio(payload.copiar_de_id)) {
-    const origem = await obter(payload.copiar_de_id);
-    frentes = origem.frentes.map((f) => ({
-      tipo: f.tipo, titulo: f.titulo, codigo: f.codigo, responsavel: f.responsavel, obra_id: f.obra_id,
-      equipes: f.equipes.map((e) => ({
-        codigo: e.codigo, disciplina: e.disciplina, atividades: e.atividades, premissas: e.premissas,
-        alocacoes: e.alocacoes.map((a) => ({ matricula: a.matricula, nome: a.nome, funcao: a.funcao, dias: a.dias })),
-      })),
-    }));
+    frentes = copiarFrentes(await obter(payload.copiar_de_id));
   }
 
   const criada = await prisma.$transaction(async (tx) => {
@@ -288,19 +350,19 @@ async function criarFrente(programacaoId, payload) {
   const pid = idValido(programacaoId, 'programacao_id');
   await programacaoEditavel(pid);
   const dados = camposFrente(payload, false);
-  if (dados.obra_id && !dados.codigo) {
-    const obra = await prisma.obra.findUnique({ where: { id: dados.obra_id }, select: { orcamento: { select: { ss: true } } } });
-    dados.codigo = obra?.orcamento?.ss || null;
-  } else if (!dados.obra_id && dados.tipo === 'OBRA' && dados.codigo) {
+  if (!dados.obra_id && dados.tipo === 'OBRA' && dados.codigo) {
     dados.obra_id = (await mapaObrasPorSs()).get(normalizarSs(dados.codigo)) ?? null;
   }
+  await validarVinculoObra(dados);
   const ordem = await prisma.programacaoFrente.count({ where: { programacao_id: pid } });
   return prisma.programacaoFrente.create({ data: { ...dados, programacao_id: pid, ordem } });
 }
 
 async function atualizarFrente(id, payload) {
   const f = await frenteEditavel(id);
-  return prisma.programacaoFrente.update({ where: { id: f.id }, data: camposFrente(payload, true) });
+  const atual = await prisma.programacaoFrente.findUnique({ where: { id: f.id }, select: { tipo: true, obra_id: true } });
+  const dados = await validarVinculoObra(camposFrente(payload, true), atual);
+  return prisma.programacaoFrente.update({ where: { id: f.id }, data: dados });
 }
 
 async function excluirFrente(id) {
@@ -411,9 +473,24 @@ async function importar(arquivo, opcoes, usuario) {
   return obter(id);
 }
 
+/** Exporta a programação em .xlsx no layout da reunião. */
+async function exportar(id) {
+  const programacao = await obter(id);
+  const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
+  return {
+    nome: `Programacao_S+1_Sem_${programacao.semana}_${programacao.ano}_${rev}.xlsx`,
+    conteudo: montarPlanilhaProgramacao(XLSX, programacao, programacao.resumo),
+  };
+}
+
 module.exports = {
   listar,
   obter,
+  listarEfetivo,
+  criarProxima,
+  exportar,
+  copiarFrentes,
+  gravarFrentes,
   listarObras,
   criar,
   atualizar,

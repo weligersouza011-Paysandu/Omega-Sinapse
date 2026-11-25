@@ -100,7 +100,11 @@ const INCLUDE_DASHBOARD = {
 /** Carrega todas as obras com as relações necessárias ao dashboard. */
 async function findAll() {
   return prisma.obra.findMany({
-    where: { orcamento: { is: { status: { in: STATUS_ORCAMENTO_DE_OBRA } } } },
+    where: {
+      orcamento: { is: { status: { in: STATUS_ORCAMENTO_DE_OBRA } } },
+      // O canteiro central não é obra de carteira: fica fora dos indicadores.
+      OR: [{ categoria: null }, { categoria: { not: 'CANTEIRO_CENTRAL' } }],
+    },
     include: INCLUDE_DASHBOARD,
     orderBy: { id: 'asc' },
   });

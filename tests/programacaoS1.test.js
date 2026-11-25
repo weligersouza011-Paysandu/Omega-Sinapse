@@ -105,3 +105,59 @@ test('validação: frente exige título; pessoa nova entra de segunda a sexta', 
   assert.deepEqual(camposAlocacao({ nome: 'A' }, false).dias, [true, true, true, true, true, false, false]);
   assert.deepEqual(camposAlocacao({ dias: [1] }, true), { dias: [true, false, false, false, false, false, false] });
 });
+
+test('SS: "998" e "SS998" são a mesma obra; "SS 113/24" = "SS113/24"', () => {
+  assert.equal(u.normalizarSs('998'), u.normalizarSs('SS998'));
+  assert.equal(u.normalizarSs('SS 113/24'), u.normalizarSs('SS113/24'));
+  assert.notEqual(u.normalizarSs('SS113/24'), u.normalizarSs('SS113/25'));
+});
+
+test('saldo pelo efetivo do contrato: disponíveis − programados, não programados e fora do efetivo', () => {
+  const r = u.lerPlanilhaProgramacao(XLSX, planilhaExemplo());
+  const efetivo = [
+    { matricula: '100', nome: 'PESSOA A', funcao: 'Mecânico Montador', situacao: 'DISPONIVEL' },
+    { matricula: '500', nome: 'PESSOA E', funcao: 'MECÂNICO MONTADOR', situacao: 'DISPONIVEL' },
+    { matricula: '200', nome: 'PESSOA B', funcao: 'SOLDADOR', situacao: 'DISPONIVEL' },
+    { matricula: '400', nome: 'PESSOA D', funcao: 'SOLDADOR', situacao: 'INDISPONIVEL' },
+  ];
+  const resumo = u.calcularResumo(r, efetivo);
+  assert.equal(resumo.saldo_pelo_efetivo, true);
+  const mec = resumo.saldo_por_funcao.find((f) => f.funcao === 'MECÂNICO MONTADOR');
+  assert.equal(mec.efetivo, 2);
+  assert.deepEqual(mec.sem_programacao, [1, 1, 1, 1, 1, 1, 2]);
+  const topografo = resumo.saldo_por_funcao.find((f) => f.funcao === 'TOPÓGRAFO');
+  assert.equal(topografo.sem_programacao[0], -1); // programado sem estar disponível no efetivo
+  assert.deepEqual(resumo.nao_programados.map((c) => c.matricula), ['500']);
+  assert.deepEqual(resumo.fora_do_efetivo.map((c) => c.matricula), ['300']);
+});
+
+test('efetivo do contrato: lê a aba EFETIVO A DISTRIBUIR (uma linha por matrícula)', () => {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    [' e ', 'COD', 'MAT', 'NOME', 'FUNÇÃO OMEGA', 'QQP', 'FUNÇÃO PLANEJAMENTO', 'CÓDIGO DISCIPLINA', 'DICIP.', 'SUPERVISOR', 'ENCARREGADO', 'SITE', 'FRENTE DE SERVIÇO', 'SITUAÇÃO', 'INICIO FÉRIAS', 'TÉRMINO FÉRIAS'],
+    [1, 'MEC-011', 100, ' PESSOA A ', 'MECÂNICO MONTADOR I', '', 'mecânico montador', 'MEC-01', 'MECÂNICA', 'SUP', 'ENC', 'X', 'SS1', 'DISPONÍVEL', '', ''],
+    [1, 'FER-011', 400, 'PESSOA D', 'SOLDADOR II', '', 'SOLDADOR', 'FER-01', 'MECÂNICA', 'SUP', 'ENC', 'X', 'FÉRIAS', 'INDISPONÍVEL', '01/11/2026', '30/11/2026'],
+    [1, 'MEC-012', 100, 'DUPLICADA', '', '', '', '', '', '', '', '', '', '', '', ''],
+  ]), 'EFETIVO A DISTRIBUIR');
+  const efetivo = u.lerPlanilhaEfetivo(XLSX, XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }));
+  assert.equal(efetivo.length, 2);
+  assert.equal(efetivo[0].nome, 'PESSOA A');
+  assert.equal(efetivo[0].funcao, 'MECÂNICO MONTADOR');
+  assert.equal(efetivo[0].cargo, 'MECÂNICO MONTADOR I');
+  assert.equal(efetivo[1].situacao, 'INDISPONIVEL');
+  assert.equal(efetivo[1].ferias_inicio.toISOString().slice(0, 10), '2026-11-01');
+});
+
+test('exportação usa o layout da reunião e pode ser lida de volta', () => {
+  const lida = u.lerPlanilhaProgramacao(XLSX, planilhaExemplo(), 'x rev02.xlsx');
+  const prog = { ...lida, revisao: 2, frentes: lida.frentes.map((f, i) => ({ ...f, id: i + 1 })) };
+  const buffer = u.montarPlanilhaProgramacao(XLSX, prog, u.calcularResumo(prog));
+  const relida = u.lerPlanilhaProgramacao(XLSX, buffer, 'exportada rev02.xlsx');
+  assert.equal(relida.semana, 48);
+  assert.equal(relida.data_inicio.toISOString().slice(0, 10), '2026-11-23');
+  assert.deepEqual(relida.frentes.map((f) => f.titulo), lida.frentes.map((f) => f.titulo));
+  assert.deepEqual(relida.frentes[0].equipes[0].alocacoes, lida.frentes[0].equipes[0].alocacoes);
+  assert.equal(relida.frentes[0].equipes[0].premissas, lida.frentes[0].equipes[0].premissas);
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  assert.deepEqual(wb.SheetNames, ['PRG S+1_', 'SALDO POR FUNÇÃO']);
+});

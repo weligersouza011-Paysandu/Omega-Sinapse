@@ -114,6 +114,16 @@ enum CategoriaObra {
   CADEIA_DE_AJUDA
   /// Obras sob gestão direta da coordenação.
   CARTEIRA_DA_COORDENACAO
+  /// Canteiro central (ex.: "998"): estrutura permanente do contrato, sem valor e sem orçamento
+  /// comercial. Não entra em Orçamentos nem no Dashboard de Planejamento; recebe frentes da
+  /// Programação S+1 e RDO como qualquer obra em andamento.
+  CANTEIRO_CENTRAL
+}
+
+/// Situação do colaborador no efetivo do contrato (coluna SITUAÇÃO da planilha de efetivo).
+enum SituacaoEfetivo {
+  DISPONIVEL
+  INDISPONIVEL
 }
 
 /// Situação de uma restrição da metodologia 6WLA (lookahead de 6 semanas).
@@ -942,6 +952,8 @@ model Contrato {
   /// Previsto e tendência financeiros do contrato por ciclo (planilha de acompanhamento).
   curva_financeira   CurvaFinanceiraContrato[]
   historico_curva    HistoricoCurvaFinanceira[]
+  /// Efetivo (colaboradores) do contrato.
+  efetivo            Colaborador[]
 
   @@map("contratos")
 }
@@ -1358,20 +1370,35 @@ model FuncaoMaoObra {
 
 /// Colaborador de campo (cadastro manual; não é usuário do sistema).
 model Colaborador {
-  id         Int      @id @default(autoincrement())
-  nome       String   @db.VarChar(255)
-  matricula  String?  @unique @db.VarChar(30)
-  funcao_id  Int?
-  ativo      Boolean  @default(true)
-  created_at DateTime @default(now()) @db.Timestamptz(6)
-  updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id               Int             @id @default(autoincrement())
+  nome             String          @db.VarChar(255)
+  matricula        String?         @unique @db.VarChar(30)
+  /// Função de planejamento (a usada na programação e no RDO).
+  funcao_id        Int?
+  ativo            Boolean         @default(true)
+  /// Efetivo do contrato: cargo formal (função Omega), disciplina, liderança e situação.
+  cargo            String?         @db.VarChar(160)
+  disciplina       String?         @db.VarChar(60)
+  supervisor       String?         @db.VarChar(120)
+  encarregado      String?         @db.VarChar(120)
+  situacao         SituacaoEfetivo @default(DISPONIVEL)
+  ferias_inicio    DateTime?       @db.Date
+  ferias_fim       DateTime?       @db.Date
+  /// Primeiro dia do colaborador na obra/contrato.
+  data_mobilizacao DateTime?       @db.Date
+  /// Contrato a cujo efetivo o colaborador pertence.
+  contrato_id      Int?
+  created_at       DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
 
   funcao                FuncaoMaoObra?        @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
+  contrato              Contrato?             @relation(fields: [contrato_id], references: [id], onDelete: SetNull)
   lancamentos           RdoMaoObra[]
   efetivo_rdo           RdoEfetivo[]
   programacao_alocacoes ProgramacaoAlocacao[]
 
   @@index([funcao_id])
+  @@index([contrato_id])
   @@map("colaboradores")
 }
 

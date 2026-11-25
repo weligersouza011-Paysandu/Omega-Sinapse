@@ -10,6 +10,16 @@ export const excluirProgramacao = async (id) => (await api.delete(`/programacoes
 export const emitirProgramacao = async (id) => (await api.post(`/programacoes/${id}/emitir`)).data;
 export const novaRevisaoProgramacao = async (id) => (await api.post(`/programacoes/${id}/revisao`)).data;
 export const listarObrasProgramacao = async () => (await api.get('/programacoes/obras')).data;
+export const listarEfetivoProgramacao = async () => (await api.get('/programacoes/efetivo')).data;
+/** Início da reunião: nova semana copiando a última programação. */
+export const criarProximaProgramacao = async () => (await api.post('/programacoes/proxima', {}, { timeout: 120000 })).data;
+
+/** Baixa a programação em .xlsx (layout da reunião). */
+export async function baixarExportacaoProgramacao(id) {
+  const resposta = await api.get(`/programacoes/${id}/exportar`, { responseType: 'blob', timeout: 120000 });
+  const nome = /filename="([^"]+)"/.exec(resposta.headers['content-disposition'] || '')?.[1];
+  return { blob: resposta.data, nome: nome ? decodeURIComponent(nome) : `programacao-${id}.xlsx` };
+}
 
 export async function importarPlanilhaProgramacao(arquivo, substituir = false) {
   const formulario = new FormData();

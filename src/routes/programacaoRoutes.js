@@ -22,8 +22,12 @@ const PERFIS_PROGRAMACAO = ['PLANEJADOR', 'SUPERVISOR', 'ADMIN'];
 const router = Router();
 router.use(autorizar(...PERFIS_PROGRAMACAO));
 
-// Apoio: obras (SS) não concluídas, para vincular uma frente.
+// Apoio: obras em andamento (para vincular uma frente) e o efetivo do contrato.
 router.get('/obras', acao(() => service.listarObras()));
+router.get('/efetivo', acao(() => service.listarEfetivo()));
+
+// Início da reunião: nova semana copiando a anterior.
+router.post('/proxima', acao((req) => service.criarProxima(req.user), 201));
 
 // Importação da planilha da reunião (multipart: arquivo .xlsx, substituir?).
 router.post('/importar', uploadPlanilhaProgramacao, acao((req) => service.importar(req.file, req.body || {}, req.user), 201));
@@ -47,5 +51,19 @@ router.delete('/:id', acao((req) => service.excluir(req.params.id, req.user)));
 router.post('/:id/emitir', acao((req) => service.emitir(req.params.id)));
 router.post('/:id/revisao', acao((req) => service.novaRevisao(req.params.id)));
 router.post('/:id/frentes', acao((req) => service.criarFrente(req.params.id, req.body || {}), 201));
+// Exportação .xlsx no layout da reunião.
+router.get('/:id/exportar', async (req, res, next) => {
+  try {
+    const { nome, conteudo } = await service.exportar(req.params.id);
+    res.set({
+      'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(nome)}"`,
+      'Cache-Control': 'no-store',
+    });
+    return res.send(conteudo);
+  } catch (err) {
+    return next(err);
+  }
+});
 
 module.exports = router;

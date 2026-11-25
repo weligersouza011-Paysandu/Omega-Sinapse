@@ -24,6 +24,7 @@
     "prisma:format": "prisma format",
     "prisma:studio": "prisma studio",
     "importar:medicao": "node scripts/importarMedicaoPasta13.js",
+    "semear:programacao": "node scripts/semearProgramacaoS1.js",
     "email:diario": "node scripts/enviarEmailDiario.js",
     "email:teste": "node scripts/testarEmail.js",
     "email:diagnostico": "node scripts/diagnosticarBrevo.js"

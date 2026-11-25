@@ -15,6 +15,11 @@ export const CATEGORIAS_OBRA = [
     label: 'Cadeia de Ajuda',
     descricao: 'Obras de suporte rápido ou demandas pontuais acionadas por terceiros.',
   },
+  {
+    value: 'CANTEIRO_CENTRAL',
+    label: 'Canteiro Central',
+    descricao: 'Estrutura permanente do contrato (ex.: 998), sem valor e sem orçamento; recebe frentes e RDO.',
+  },
 ];
 
 export function rotuloCategoria(categoria) {
