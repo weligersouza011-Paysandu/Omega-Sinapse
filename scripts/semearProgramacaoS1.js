@@ -6,8 +6,9 @@
  *
  *  1. Efetivo do contrato (aba "EFETIVO A DISTRIBUIR") → cadastro de colaboradores e funções
  *     (o mesmo cadastro que o RDO usa na mão de obra). Atualiza por matrícula; não apaga ninguém.
- *  2. Obra "SS998 — Canteiro Central" (categoria CANTEIRO_CENTRAL, em andamento, sem valor),
- *     se ainda não existir obra com SS 998.
+ *  2. Obra "SS998 — 998 - CEP (Centro de Empresas Parceiras)" (categoria CANTEIRO_CENTRAL, em andamento,
+ *     sem valor), se ainda não existir obra com SS exatamente 998. A SS998/26 (REP 6 — relocação do CEP)
+ *     é outra obra, com orçamento próprio, e não é tocada.
  *  3. Programação da semana da planilha (aba "PRG S+1_"), ligando cada frente à obra pela SS.
  *     Se a semana já existir, não mexe (use --substituir para regravar).
  *
@@ -25,6 +26,7 @@ const programacaoService = require('../src/services/programacaoService');
 const { lerPlanilhaEfetivo, lerPlanilhaProgramacao, normalizarSs } = require('../src/utils/programacaoS1');
 
 const SS_CANTEIRO = 'SS998';
+const DESCRICAO_CANTEIRO = '998 - CEP (Centro de Empresas Parceiras)';
 
 function argumentos() {
   const args = process.argv.slice(2);
@@ -102,9 +104,9 @@ async function garantirCanteiro(contrato) {
   const obra = await prisma.$transaction(async (tx) => {
     const orcamento = await tx.orcamento.create({
       data: {
-        pep: 'CANTEIRO-998',
+        pep: 'CEP-998',
         ss: SS_CANTEIRO,
-        descricao: 'Canteiro Central 998 — estrutura permanente do contrato (sem orçamento comercial)',
+        descricao: DESCRICAO_CANTEIRO,
         status: 'OSI_EMITIDA',
         valor: 0,
         foto_1: '',
@@ -116,7 +118,7 @@ async function garantirCanteiro(contrato) {
         status: 'EM_ANDAMENTO',
         categoria: 'CANTEIRO_CENTRAL',
         contrato_id: contrato?.id ?? null,
-        observacoes: 'Canteiro central: recebe frentes da Programação S+1 e RDO; não tem valor nem orçamento.',
+        observacoes: 'Canteiro central do contrato: CEP (Centro de Empresas Parceiras). Recebe frentes da Programação S+1 e RDO; não tem valor nem orçamento.',
       },
     });
   });
@@ -156,7 +158,7 @@ async function main() {
   console.log(`[semear] Efetivo: ${resEfetivo.total} colaboradores (${resEfetivo.criados} novos, ${resEfetivo.atualizados} atualizados), ${resEfetivo.funcoes} funções.`);
 
   const canteiro = await garantirCanteiro(contrato);
-  console.log(`[semear] Obra SS998 (Canteiro Central): ${canteiro.criada ? 'criada' : 'já existia'} — obra ${canteiro.id}.`);
+  console.log(`[semear] Obra SS998 (${DESCRICAO_CANTEIRO}): ${canteiro.criada ? 'criada' : 'já existia'} — obra ${canteiro.id}.`);
 
   const prog = await semearProgramacao(lida, substituir);
   const completa = await programacaoService.obter(prog.id);
