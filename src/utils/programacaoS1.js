@@ -66,9 +66,9 @@ function inferirTipoFrente(titulo, codigo) {
   return 'OBRA';
 }
 
-/** "SS 113/24" → "SS113/24" (comparação da SS da frente com a SS da obra). */
+/** "SS 113/24" → "113/24" e "998" = "SS998" (comparação da SS da frente com a SS da obra). */
 function normalizarSs(valor) {
-  return limpar(valor).toUpperCase().replace(/\s+/g, '');
+  return limpar(valor).toUpperCase().replace(/\s+/g, '').replace(/^SS-?/, '');
 }
 
 const ehCodigoEquipe = (v) => /^[A-ZÇ]{2,5}-\d{1,3}$/i.test(limpar(v));
@@ -195,8 +195,9 @@ const chavePessoa = (a) => (limpar(a.matricula) ? `M:${limpar(a.matricula)}` : `
  * Resumo da programação: totais por dia (geral e por tipo de frente), total de cada frente,
  * saldo por função (efetivo × programado em obra/apoio) e conflitos (mesma pessoa em duas equipes no mesmo dia).
  * @param {{ frentes: Array<{ id?, titulo, tipo, equipes: Array<{ id?, codigo, alocacoes: Array<{ matricula, nome, funcao, dias }> }> }> }} programacao
+ * @param {Array<{ id?, matricula, nome, funcao, situacao }>|null} efetivo efetivo do contrato (colaboradores ativos)
  */
-function calcularResumo(programacao) {
+function calcularResumo(programacao, efetivo = null) {
   const zeros = () => DIAS_SEMANA.map(() => 0);
   const porTipo = Object.fromEntries(TIPOS_FRENTE.map((t) => [t, zeros()]));
   const totalPorFrente = {};
@@ -226,16 +227,41 @@ function calcularResumo(programacao) {
   });
 
   const funcoes = new Map();
+  const funcaoDe = (nome) => {
+    if (!funcoes.has(nome)) funcoes.set(nome, { funcao: nome, efetivo: 0, afastados: 0, programados: zeros() });
+    return funcoes.get(nome);
+  };
+  const comEfetivo = Array.isArray(efetivo) && efetivo.length > 0;
+  // Com o efetivo do contrato: base = colaboradores DISPONÍVEIS por função (como no topo da planilha);
+  // sem ele, a base é a própria lista da programação.
+  if (comEfetivo) {
+    efetivo.forEach((c) => {
+      const f = funcaoDe(limpar(c.funcao).toUpperCase() || 'SEM FUNÇÃO');
+      if (c.situacao === 'INDISPONIVEL') f.afastados += 1;
+      else f.efetivo += 1;
+    });
+  }
   pessoas.forEach((p) => {
-    if (!funcoes.has(p.funcao)) funcoes.set(p.funcao, { funcao: p.funcao, efetivo: 0, afastados: 0, programados: zeros() });
-    const f = funcoes.get(p.funcao);
+    const f = funcaoDe(p.funcao);
     if (p.afastado) {
-      f.afastados += 1;
+      if (!comEfetivo) f.afastados += 1;
       return;
     }
-    f.efetivo += 1;
+    if (!comEfetivo) f.efetivo += 1;
     p.produtivo.forEach((v, i) => { f.programados[i] += v; });
   });
+
+  // Efetivo × programação: quem está disponível e não aparece na semana, e quem foi programado sem estar no efetivo.
+  const naProgramacao = new Set([...pessoas.values()].map((p) => limpar(p.matricula)).filter(Boolean));
+  const noEfetivo = new Set((efetivo || []).map((c) => limpar(c.matricula)).filter(Boolean));
+  const naoProgramados = comEfetivo
+    ? efetivo.filter((c) => c.situacao !== 'INDISPONIVEL' && limpar(c.matricula) && !naProgramacao.has(limpar(c.matricula)))
+      .map((c) => ({ id: c.id ?? null, matricula: c.matricula, nome: c.nome, funcao: c.funcao || null }))
+    : [];
+  const foraDoEfetivo = comEfetivo
+    ? [...pessoas.values()].filter((p) => !p.matricula || !noEfetivo.has(limpar(p.matricula)))
+      .map((p) => ({ matricula: p.matricula, nome: p.nome, funcao: p.funcao }))
+    : [];
   const saldoPorFuncao = [...funcoes.values()]
     .map((f) => ({ ...f, sem_programacao: f.programados.map((n) => f.efetivo - n) }))
     .sort((a, b) => b.efetivo - a.efetivo || a.funcao.localeCompare(b.funcao));
@@ -258,11 +284,124 @@ function calcularResumo(programacao) {
     por_tipo: porTipo,
     total_por_frente: totalPorFrente,
     saldo_por_funcao: saldoPorFuncao,
+    saldo_pelo_efetivo: comEfetivo,
+    nao_programados: naoProgramados,
+    fora_do_efetivo: foraDoEfetivo,
     conflitos,
   };
 }
 
+/** Data do Excel (serial ou texto dd/mm/aaaa) → Date UTC, ou null. */
+function dataDaCelula(XLSX, valor) {
+  if (valor === '' || valor === null || valor === undefined) return null;
+  if (typeof valor === 'number') {
+    const p = XLSX.SSF.parse_date_code(valor);
+    return p ? new Date(Date.UTC(p.y, p.m - 1, p.d)) : null;
+  }
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(limpar(valor));
+  return m ? new Date(Date.UTC(Number(m[3]), Number(m[2]) - 1, Number(m[1]))) : null;
+}
+
+/**
+ * Lê a aba "EFETIVO A DISTRIBUIR" (efetivo do contrato): MAT, NOME, FUNÇÃO OMEGA (cargo),
+ * FUNÇÃO PLANEJAMENTO, DISCIP., SUPERVISOR, ENCARREGADO, SITUAÇÃO, férias e primeiro dia na obra.
+ * Uma linha por matrícula (a primeira prevalece).
+ */
+function lerPlanilhaEfetivo(XLSX, buffer) {
+  const wb = XLSX.read(buffer, { type: 'buffer' });
+  const nomeAba = wb.SheetNames.find((n) => /EFETIVO/i.test(n));
+  if (!nomeAba) throw new Error('Aba "EFETIVO A DISTRIBUIR" não encontrada.');
+  const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nomeAba], { header: 1, defval: '', raw: true });
+  const cab = (linhas[0] || []).map((c) => limpar(c).toUpperCase());
+  const col = (re) => cab.findIndex((c) => re.test(c));
+  const i = {
+    mat: col(/^MAT/), nome: col(/^NOME/), cargo: col(/FUN[ÇC][ÃA]O OMEGA/), funcao: col(/FUN[ÇC][ÃA]O PLANEJAMENTO/),
+    disciplina: col(/^DI[SC]+IP/), supervisor: col(/^SUPERVISOR/), encarregado: col(/^ENCARREGADO/),
+    situacao: col(/^SITUA/), feriasIni: col(/IN[IÍ]CIO F[ÉE]RIAS/), feriasFim: col(/T[ÉE]RMINO F[ÉE]RIAS/), mobilizacao: col(/PRIMEIRO DIA/),
+  };
+  if (i.mat < 0 || i.nome < 0) throw new Error('Colunas MAT e NOME não encontradas na aba de efetivo.');
+  const vistos = new Set();
+  const efetivo = [];
+  linhas.slice(1).forEach((l) => {
+    const matricula = limpar(l[i.mat]);
+    const nome = limpar(l[i.nome]);
+    if (!matricula || !nome || vistos.has(matricula)) return;
+    vistos.add(matricula);
+    const pegar = (k) => (i[k] >= 0 ? limpar(l[i[k]]) || null : null);
+    efetivo.push({
+      matricula,
+      nome,
+      cargo: pegar('cargo'),
+      funcao: pegar('funcao')?.toUpperCase() || pegar('cargo')?.toUpperCase() || null,
+      disciplina: pegar('disciplina'),
+      supervisor: pegar('supervisor'),
+      encarregado: pegar('encarregado'),
+      situacao: /^INDISPON/i.test(pegar('situacao') || '') ? 'INDISPONIVEL' : 'DISPONIVEL',
+      ferias_inicio: i.feriasIni >= 0 ? dataDaCelula(XLSX, l[i.feriasIni]) : null,
+      ferias_fim: i.feriasFim >= 0 ? dataDaCelula(XLSX, l[i.feriasFim]) : null,
+      data_mobilizacao: i.mobilizacao >= 0 ? dataDaCelula(XLSX, l[i.mobilizacao]) : null,
+    });
+  });
+  return efetivo;
+}
+
+const ROTULO_TIPO = { OBRA: 'OBRA', APOIO: 'ITINERANTE', DISPONIVEL: 'ITINERANTE', AFASTAMENTO: 'ITINERANTE' };
+
+/**
+ * Monta a planilha de exportação com as MESMAS colunas da planilha da reunião (aba "PRG S+1_"):
+ * A código da equipe/nº · B matrícula/título · C nome · D função · E turma/responsável · F código/previsto ·
+ * G "SEM"/P · H..N segunda a domingo (1 = programado) · O principais atividades · P premissas.
+ * Assim o arquivo exportado abre igual ao que a equipe usa (e pode ser lido de volta).
+ * Inclui a aba "SALDO POR FUNÇÃO".
+ * @returns {Buffer} conteúdo .xlsx
+ */
+function montarPlanilhaProgramacao(XLSX, programacao, resumo) {
+  const iso = datasDaSemana(programacao.data_inicio);
+  const datas = iso.map((d) => `${d.slice(8, 10)}/${d.slice(5, 7)}`);
+  // Meio-dia UTC: a conversão para data do Excel usa o fuso local e não pode cair no dia anterior.
+  const datasExcel = iso.map((d) => new Date(`${d}T12:00:00Z`));
+  const rev = `rev${String(programacao.revisao ?? 0).padStart(2, '0')}`;
+  const vazio7 = DIAS_SEMANA.map(() => '');
+  const linhas = [
+    ['', `PROGRAMAÇÃO DE MÃO DE OBRA S+1_SEMANA ${programacao.semana}/${programacao.ano} ${rev}`, '', '', '', '', 'SEM', ...DIAS_SEMANA],
+    ['', 'ITEM', 'RESUMO', '', 'TURMA', 'QTD', programacao.semana, ...datasExcel],
+  ];
+  (programacao.frentes || []).forEach((f) => {
+    const codigo = f.obra?.orcamento?.ss || f.codigo || ROTULO_TIPO[f.tipo];
+    linhas.push(['', f.titulo, '', '', f.responsavel || '-', codigo, 'SEM', ...DIAS_SEMANA, 'PRINCIPAIS ATIVIDADES', 'PREMISSAS']);
+    linhas.push(['', 'MAT.', 'NOME', 'FUNÇÃO', 'TURMA', 'PREVISTO', programacao.semana, ...datas]);
+    const total = DIAS_SEMANA.map(() => 0);
+    (f.equipes || []).forEach((e) => {
+      linhas.push([e.codigo || '', e.disciplina || 'EQUIPE', '', '', '', '', '', ...vazio7, e.atividades || '', e.premissas || '']);
+      (e.alocacoes || []).forEach((a, n) => {
+        const dias = normalizarDias(a.dias);
+        dias.forEach((v, i) => { if (v) total[i] += 1; });
+        linhas.push([n + 1, a.matricula || '', a.nome, a.funcao || '', codigo, 1, 'P', ...dias.map((v) => (v ? 1 : ''))]);
+      });
+    });
+    linhas.push(['', '', '', '', '', 'TOTAL', '', ...total]);
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(linhas, { dateNF: 'dd/mm' });
+  ws['!cols'] = [{ wch: 8 }, { wch: 40 }, { wch: 34 }, { wch: 30 }, { wch: 14 }, { wch: 10 }, { wch: 5 }, ...DIAS_SEMANA.map(() => ({ wch: 6 })), { wch: 60 }, { wch: 45 }];
+  XLSX.utils.book_append_sheet(wb, ws, 'PRG S+1_');
+
+  if (resumo) {
+    const saldo = [
+      ['FUNÇÃO', resumo.saldo_pelo_efetivo ? 'DISPONÍVEL NO EFETIVO' : 'EFETIVO', 'AFASTADOS', ...DIAS_SEMANA.map((d, i) => `${d} ${datas[i]}`)],
+      ...resumo.saldo_por_funcao.map((s) => [s.funcao, s.efetivo, s.afastados, ...s.sem_programacao]),
+    ];
+    const wsSaldo = XLSX.utils.aoa_to_sheet(saldo);
+    wsSaldo['!cols'] = [{ wch: 38 }, { wch: 12 }, { wch: 10 }, ...DIAS_SEMANA.map(() => ({ wch: 10 }))];
+    XLSX.utils.book_append_sheet(wb, wsSaldo, 'SALDO POR FUNÇÃO');
+  }
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
 module.exports = {
+  lerPlanilhaEfetivo,
+  montarPlanilhaProgramacao,
   DIAS_SEMANA,
   TIPOS_FRENTE,
   segundaDaSemana,

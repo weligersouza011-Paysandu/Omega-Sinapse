@@ -1,22 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarRange, Copy, FileUp, Lock, Plus, Search, Trash2, Unlock, Users } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Lock, Plus, Search, Trash2, Unlock, Users } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { Secao } from '../components/rdo/SecoesRdo.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useToast } from '../context/ToastContext.jsx';
 import {
-  atualizarAlocacao, atualizarEquipe, atualizarFrente, criarAlocacao, criarEquipe, criarFrente, criarProgramacao,
-  emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao, importarPlanilhaProgramacao,
-  listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
+  atualizarAlocacao, atualizarEquipe, atualizarFrente, baixarExportacaoProgramacao, criarAlocacao, criarEquipe, criarFrente,
+  criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
+  listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
 } from '../services/programacaoApi.js';
-import { formatarDataHora } from '../utils/formatters.js';
+import { formatarData, formatarDataHora } from '../utils/formatters.js';
+
+const ID_LISTA_EFETIVO = 'programacao-efetivo-contrato';
 
 const DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 const TIPOS = {
   OBRA: { label: 'Obras', cor: 'bg-omega-600/10 text-omega-700 border-omega-300' },
-  APOIO: { label: 'Apoio', cor: 'bg-sky-50 text-sky-700 border-sky-200' },
+  APOIO: { label: 'Itinerante', cor: 'bg-sky-50 text-sky-700 border-sky-200' },
   DISPONIVEL: { label: 'Disponível', cor: 'bg-amber-50 text-amber-700 border-amber-200' },
   AFASTAMENTO: { label: 'Férias / INSS', cor: 'bg-slate-100 text-slate-600 border-slate-300' },
 };
@@ -30,6 +32,8 @@ function datasDaSemana(dataInicio) {
     return `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
   });
 }
+
+const rotuloObra = (o) => `${o.ss || `Obra ${o.id}`}${o.categoria === 'CANTEIRO_CENTRAL' ? ' · Canteiro Central' : ''} · ${o.descricao?.slice(0, 70) || ''}`;
 
 const somaDias = (alocacoes) => DIAS.map((_, i) => alocacoes.reduce((s, a) => s + (a.dias?.[i] ? 1 : 0), 0));
 
@@ -69,8 +73,13 @@ function CampoSalvo({ valor, onSalvar, multilinha = false, className = 'campo', 
 }
 
 /** Tabela de uma equipe: pessoas × dias (clique na célula marca/desmarca o dia). */
-function Equipe({ equipe, editavel, executar }) {
+function Equipe({ equipe, editavel, executar, efetivoPorMatricula }) {
   const [nova, setNova] = useState({ matricula: '', nome: '', funcao: '' });
+  // Matrícula do efetivo do contrato: completa nome e função.
+  const escolherMatricula = (matricula) => {
+    const c = efetivoPorMatricula.get(matricula.trim());
+    setNova((atual) => (c ? { matricula, nome: c.nome, funcao: c.funcao || '' } : { ...atual, matricula }));
+  };
   const totais = somaDias(equipe.alocacoes);
 
   const adicionar = async () => {
@@ -139,7 +148,7 @@ function Equipe({ equipe, editavel, executar }) {
             ))}
             {editavel ? (
               <tr className="border-t border-slate-100 bg-slate-50/60">
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Matrícula" value={nova.matricula} onChange={(e) => setNova({ ...nova, matricula: e.target.value })} /></td>
+                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Matrícula (efetivo)" list={ID_LISTA_EFETIVO} value={nova.matricula} onChange={(e) => escolherMatricula(e.target.value)} /></td>
                 <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Nome (ou só a matrícula do cadastro)" value={nova.nome} onChange={(e) => setNova({ ...nova, nome: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
                 <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Função" value={nova.funcao} onChange={(e) => setNova({ ...nova, funcao: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
                 <td colSpan={DIAS.length + 1} className="px-2 py-1">
@@ -170,7 +179,7 @@ function Equipe({ equipe, editavel, executar }) {
   );
 }
 
-function Frente({ frente, editavel, obras, executar, totais }) {
+function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula }) {
   const [editando, setEditando] = useState(false);
   const pessoas = frente.equipes.reduce((s, e) => s + e.alocacoes.length, 0);
   const ss = frente.obra?.orcamento?.ss || frente.codigo;
@@ -189,7 +198,11 @@ function Frente({ frente, editavel, obras, executar, totais }) {
           <span className={`rounded-full border px-2 py-0.5 font-bold ${TIPOS[frente.tipo]?.cor}`}>{TIPOS[frente.tipo]?.label}</span>
           {frente.obra ? (
             <Link to={`/obras/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">Abrir obra {frente.obra.orcamento?.ss}</Link>
-          ) : frente.tipo === 'OBRA' ? <span className="text-slate-500">Sem obra do Sinapse vinculada</span> : null}
+          ) : frente.tipo === 'OBRA' ? (
+            <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 font-bold text-red-700">
+              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />Vincule a uma obra em andamento{editavel ? ' (Editar frente)' : ''}
+            </span>
+          ) : frente.tipo === 'APOIO' ? <span className="text-slate-500">Atende todas as frentes</span> : null}
           {frente.obra ? <Link to={`/rdo/obra/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">RDOs da obra</Link> : null}
           {editavel ? (
             <span className="ml-auto flex gap-2">
@@ -210,21 +223,23 @@ function Frente({ frente, editavel, obras, executar, totais }) {
             <div><label className="rotulo">Responsável</label><CampoSalvo editavel valor={frente.responsavel} onSalvar={(v) => executar(() => atualizarFrente(frente.id, { responsavel: v }))} /></div>
             <div>
               <label className="rotulo">Tipo</label>
-              <select className="campo" value={frente.tipo} onChange={(e) => executar(() => atualizarFrente(frente.id, { tipo: e.target.value }))}>
+              <select className="campo" value={frente.tipo} onChange={(e) => executar(() => atualizarFrente(frente.id, e.target.value === 'OBRA' && !frente.obra_id && obras[0] ? { tipo: 'OBRA', obra_id: obras[0].id } : { tipo: e.target.value }))}>
                 {Object.entries(TIPOS).map(([v, t]) => <option key={v} value={v}>{t.label}</option>)}
               </select>
             </div>
-            <div className="sm:col-span-2 lg:col-span-5">
-              <label className="rotulo">Obra do Sinapse</label>
-              <select className="campo" value={frente.obra_id || ''} onChange={(e) => executar(() => atualizarFrente(frente.id, { obra_id: e.target.value || null }))}>
-                <option value="">Sem vínculo</option>
-                {obras.map((o) => <option key={o.id} value={o.id}>{o.ss || `Obra ${o.id}`} · {o.descricao?.slice(0, 70)}</option>)}
-              </select>
-            </div>
+            {frente.tipo === 'OBRA' ? (
+              <div className="sm:col-span-2 lg:col-span-5">
+                <label className="rotulo">Obra em andamento</label>
+                <select className="campo" value={frente.obra_id || ''} onChange={(e) => e.target.value && executar(() => atualizarFrente(frente.id, { obra_id: e.target.value }))}>
+                  <option value="" disabled>Selecione a obra</option>
+                  {obras.map((o) => <option key={o.id} value={o.id}>{rotuloObra(o)}</option>)}
+                </select>
+              </div>
+            ) : null}
           </div>
         ) : null}
 
-        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} />)}
+        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} />)}
         {frente.equipes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma equipe nesta frente.</p> : null}
       </div>
     </Secao>
@@ -235,13 +250,15 @@ function SaldoPorFuncao({ resumo, datas }) {
   return (
     <div className="card overflow-x-auto">
       <p className="border-b border-slate-100 px-4 py-3 text-sm text-slate-600">
-        Pessoas <strong>sem programação</strong> por função e dia: efetivo ativo (fora férias/INSS) menos quem está programado em obra ou apoio.
+        {resumo.saldo_pelo_efetivo
+          ? <>Saldo por função e dia: <strong>disponíveis no efetivo do contrato</strong> menos os programados em obra ou itinerante. Positivo = sobra gente; <span className="font-semibold text-red-600">negativo = programou mais do que tem</span>.</>
+          : <>Pessoas <strong>sem programação</strong> por função e dia: efetivo da lista (fora férias/INSS) menos quem está programado em obra ou itinerante.</>}
       </p>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
             <th className="px-3 py-2">Função</th>
-            <th className="px-2 py-2 text-center">Efetivo</th>
+            <th className="px-2 py-2 text-center">{resumo.saldo_pelo_efetivo ? 'Disponível' : 'Efetivo'}</th>
             <th className="px-2 py-2 text-center">Afast.</th>
             {DIAS.map((d, i) => <th key={d} className="px-2 py-2 text-center">{d}<br /><span className="font-normal normal-case">{datas[i]}</span></th>)}
           </tr>
@@ -253,7 +270,7 @@ function SaldoPorFuncao({ resumo, datas }) {
               <td className="px-2 py-1.5 text-center">{f.efetivo}</td>
               <td className="px-2 py-1.5 text-center text-slate-500">{f.afastados || '—'}</td>
               {f.sem_programacao.map((n, i) => (
-                <td key={DIAS[i]} className={`px-2 py-1.5 text-center font-semibold ${n > 0 ? 'text-amber-700' : 'text-slate-300'}`} title={`${f.programados[i]} programado(s)`}>{n || '—'}</td>
+                <td key={DIAS[i]} className={`px-2 py-1.5 text-center font-semibold ${n < 0 ? 'text-red-600' : n > 0 ? 'text-amber-700' : 'text-slate-300'}`} title={`${f.programados[i]} programado(s)`}>{n || '—'}</td>
               ))}
             </tr>
           ))}
@@ -276,6 +293,91 @@ function Conflitos({ conflitos, datas }) {
           <span className="text-slate-700">{c.locais.map((l) => `${l.equipe || '—'} (${l.frente})`).join(' e ')}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Efetivo do contrato (cadastro de colaboradores, o mesmo que o RDO usa na mão de obra) cruzado com a
+ * semana: onde cada pessoa está programada e quem está disponível sem programação.
+ */
+function EfetivoContrato({ efetivo, prog }) {
+  const [busca, setBusca] = useState('');
+  const [filtro, setFiltro] = useState('');
+  const ondeEsta = useMemo(() => {
+    const mapa = new Map();
+    prog.frentes.forEach((f) => f.equipes.forEach((e) => e.alocacoes.forEach((a) => {
+      if (!a.matricula) return;
+      const lista = mapa.get(a.matricula) || [];
+      lista.push({ frente: f, equipe: e, dias: a.dias });
+      mapa.set(a.matricula, lista);
+    })));
+    return mapa;
+  }, [prog]);
+
+  const termo = busca.trim().toUpperCase();
+  const linhas = efetivo
+    .filter((c) => !termo || `${c.nome} ${c.matricula || ''} ${c.funcao || ''} ${c.disciplina || ''} ${c.supervisor || ''}`.toUpperCase().includes(termo))
+    .filter((c) => {
+      const programado = ondeEsta.has(c.matricula);
+      if (filtro === 'sem') return c.situacao === 'DISPONIVEL' && !programado;
+      if (filtro === 'indisponiveis') return c.situacao === 'INDISPONIVEL';
+      return true;
+    });
+  const semProgramacao = efetivo.filter((c) => c.situacao === 'DISPONIVEL' && !ondeEsta.has(c.matricula)).length;
+
+  return (
+    <div className="space-y-3">
+      <div className="card flex flex-wrap items-center gap-2 p-3">
+        {[['', `Todos (${efetivo.length})`], ['sem', `Disponíveis sem programação (${semProgramacao})`], ['indisponiveis', 'Indisponíveis']].map(([v, rotulo]) => (
+          <button key={v || 'todos'} type="button" onClick={() => setFiltro(v)}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${filtro === v ? 'border-omega-600 bg-omega-600 text-white' : 'border-slate-200 text-slate-600 hover:border-omega-300'}`}>
+            {rotulo}
+          </button>
+        ))}
+        <span className="relative ml-auto">
+          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+          <input className="campo !w-64 !pl-8" placeholder="Buscar no efetivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </span>
+      </div>
+      {efetivo.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato (cadastro de colaboradores do RDO).</div> : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                <th className="px-3 py-2">Mat.</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Função</th>
+                <th className="px-3 py-2">Disciplina</th><th className="px-3 py-2">Supervisor</th><th className="px-3 py-2">Situação</th>
+                <th className="px-3 py-2">Nesta semana</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((c) => {
+                const locais = ondeEsta.get(c.matricula) || [];
+                return (
+                  <tr key={c.id} className="border-t border-slate-100">
+                    <td className="px-3 py-1.5 font-mono text-xs text-slate-600">{c.matricula || '—'}</td>
+                    <td className="px-3 py-1.5 font-medium text-slate-800">{c.nome}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.funcao || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.disciplina || '—'}</td>
+                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.supervisor || '—'}</td>
+                    <td className="px-3 py-1.5">
+                      {c.situacao === 'INDISPONIVEL'
+                        ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">Indisponível</span>
+                        : <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Disponível</span>}
+                      {c.ferias_inicio ? <span className="ml-1 text-[11px] text-slate-500">férias {formatarData(c.ferias_inicio)}–{formatarData(c.ferias_fim)}</span> : null}
+                    </td>
+                    <td className="px-3 py-1.5 text-xs">
+                      {locais.length
+                        ? locais.map((l) => `${l.equipe.codigo || '—'} · ${l.frente.obra?.orcamento?.ss || l.frente.codigo || l.frente.titulo}`).join(' | ')
+                        : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
@@ -340,21 +442,26 @@ function ModalNovaFrente({ aberto, onFechar, obras, onSalvar }) {
         </div>
         {f.tipo === 'OBRA' ? (
           <div>
-            <label className="rotulo">Obra do Sinapse</label>
+            <label className="rotulo">Obra em andamento</label>
             <select className="campo" value={f.obra_id} onChange={(e) => escolherObra(e.target.value)}>
-              <option value="">Sem vínculo</option>
-              {obras.map((o) => <option key={o.id} value={o.id}>{o.ss || `Obra ${o.id}`} · {o.descricao?.slice(0, 70)}</option>)}
+              <option value="">Selecione a obra</option>
+              {obras.map((o) => <option key={o.id} value={o.id}>{rotuloObra(o)}</option>)}
             </select>
+            {obras.length === 0 ? <p className="mt-1 text-xs text-red-600">Nenhuma obra em andamento cadastrada em Obras.</p> : null}
           </div>
         ) : null}
         <div><label className="rotulo">Título</label><input className="campo" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></div>
         <div className="grid grid-cols-2 gap-3">
-          <div><label className="rotulo">Código (SS)</label><input className="campo" value={f.codigo} onChange={(e) => setF({ ...f, codigo: e.target.value })} placeholder={f.tipo === 'OBRA' ? 'SS000/26' : 'ITINERANTE'} /></div>
+          {f.tipo === 'OBRA' ? (
+            <div><label className="rotulo">SS</label><input className="campo" value={f.codigo} disabled placeholder="vem da obra" /></div>
+          ) : (
+            <div><label className="rotulo">Código</label><input className="campo" value={f.codigo} onChange={(e) => setF({ ...f, codigo: e.target.value })} placeholder="ITINERANTE" /></div>
+          )}
           <div><label className="rotulo">Responsável</label><input className="campo" value={f.responsavel} onChange={(e) => setF({ ...f, responsavel: e.target.value })} /></div>
         </div>
         <div className="flex justify-end gap-2">
           <button type="button" className="btn-neutro" onClick={onFechar}>Cancelar</button>
-          <button type="button" className="btn-primario" disabled={!f.titulo.trim()} onClick={() => onSalvar(f)}>Adicionar</button>
+          <button type="button" className="btn-primario" disabled={!f.titulo.trim() || (f.tipo === 'OBRA' && !f.obra_id)} onClick={() => onSalvar(f)}>Adicionar</button>
         </div>
       </div>
     </ModalBase>
@@ -372,14 +479,14 @@ export default function ProgramacaoS1() {
   const [selecionadaId, setSelecionadaId] = useState(null);
   const [prog, setProg] = useState(null);
   const [obras, setObras] = useState([]);
+  const [efetivo, setEfetivo] = useState([]);
   const [carregando, setCarregando] = useState(false);
   const [aba, setAba] = useState('programacao');
   const [filtroTipo, setFiltroTipo] = useState('');
   const [busca, setBusca] = useState('');
   const [modalSemana, setModalSemana] = useState(false);
   const [modalFrente, setModalFrente] = useState(false);
-  const [importando, setImportando] = useState(false);
-  const arquivoRef = useRef(null);
+  const [ocupado, setOcupado] = useState('');
   const podeExcluir = ['SUPERVISOR', 'ADMIN'].includes(usuario?.perfil);
 
   const carregarLista = useCallback(async (manterId) => {
@@ -396,6 +503,7 @@ export default function ProgramacaoS1() {
   useEffect(() => {
     carregarLista().catch((err) => { toast.erro(err.message); setProgramacoes([]); });
     listarObrasProgramacao().then(setObras).catch(() => setObras([]));
+    listarEfetivoProgramacao().then(setEfetivo).catch(() => setEfetivo([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -403,6 +511,8 @@ export default function ProgramacaoS1() {
     setCarregando(true);
     obterProgramacao(selecionadaId).then(setProg).catch((err) => toast.erro(err.message)).finally(() => setCarregando(false));
   }, [selecionadaId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const efetivoPorMatricula = useMemo(() => new Map(efetivo.filter((c) => c.matricula).map((c) => [c.matricula, c])), [efetivo]);
 
   /** Executa uma alteração e recarrega a programação. Retorna true se deu certo. */
   const executar = useCallback(async (operacao) => {
@@ -427,22 +537,40 @@ export default function ProgramacaoS1() {
     }
   };
 
-  const importar = async (arquivo, substituir = false) => {
-    setImportando(true);
+  /** Início da reunião: cria a semana seguinte à última, copiando tudo dela. */
+  const copiarSemanaAnterior = async () => {
+    const ultima = programacoes?.[0];
+    const aviso = ultima
+      ? `Criar a semana seguinte à ${nomeSemana(ultima)}, copiando frentes, equipes, pessoas, atividades e premissas?`
+      : 'Criar a programação desta semana (em branco)?';
+    if (!window.confirm(aviso)) return;
+    setOcupado('copiar');
     try {
-      const p = await importarPlanilhaProgramacao(arquivo, substituir);
+      const p = await criarProximaProgramacao();
       await carregarLista(p.id);
       setProg(p);
-      toast.sucesso(`Planilha importada: ${nomeSemana(p)} com ${p.frentes.length} frentes e ${p.resumo.total_pessoas} pessoas.`);
+      toast.sucesso(`${nomeSemana(p)} criada${ultima ? ` a partir da semana ${ultima.semana}` : ''}.`);
     } catch (err) {
-      if (err.status === 409 && !substituir && window.confirm(`${err.message}\n\nSubstituir?`)) {
-        await importar(arquivo, true);
-      } else if (err.status !== 409 || substituir) {
-        toast.erro(err.message);
-      }
+      toast.erro(err.message);
     } finally {
-      setImportando(false);
-      if (arquivoRef.current) arquivoRef.current.value = '';
+      setOcupado('');
+    }
+  };
+
+  const exportar = async () => {
+    setOcupado('exportar');
+    try {
+      const { blob, nome } = await baixarExportacaoProgramacao(prog.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nome;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setOcupado('');
     }
   };
 
@@ -476,10 +604,15 @@ export default function ProgramacaoS1() {
 
   const resumo = prog?.resumo;
   const contagemTipo = (tipo) => prog?.frentes.filter((f) => f.tipo === tipo).length ?? 0;
-  const disponiveisSeg = resumo ? resumo.por_tipo.DISPONIVEL[0] : 0;
+  const semObra = prog?.frentes.filter((f) => f.tipo === 'OBRA' && !f.obra_id).length ?? 0;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
+      {/* Lista do efetivo do contrato para os campos de matrícula. */}
+      <datalist id={ID_LISTA_EFETIVO}>
+        {efetivo.filter((c) => c.matricula).map((c) => <option key={c.id} value={c.matricula}>{`${c.nome} · ${c.funcao || ''}`}</option>)}
+      </datalist>
+
       {/* Barra da semana */}
       <div className="card flex flex-wrap items-center gap-3 p-3">
         <CalendarRange className="h-5 w-5 text-omega-600" aria-hidden="true" />
@@ -491,18 +624,25 @@ export default function ProgramacaoS1() {
         {prog ? <SeloStatus status={prog.status} /> : null}
         {prog?.status === 'EMITIDA' && prog.emitida_em ? <span className="text-xs text-slate-500">emitida em {formatarDataHora(prog.emitida_em)}</span> : null}
         <span className="ml-auto flex flex-wrap gap-2">
-          <button type="button" className="btn-neutro" onClick={() => setModalSemana(true)}><Copy className="h-4 w-4" /> Nova semana</button>
-          <button type="button" className="btn-neutro" disabled={importando} onClick={() => arquivoRef.current?.click()}>
-            <FileUp className="h-4 w-4" /> {importando ? 'Importando...' : 'Importar planilha'}
+          <button type="button" className="btn-primario" disabled={Boolean(ocupado)} onClick={copiarSemanaAnterior}
+            title="Cria a semana seguinte à última programação, copiando tudo dela">
+            <Copy className="h-4 w-4" /> {ocupado === 'copiar' ? 'Copiando...' : programacoes.length ? 'Copiar semana anterior' : 'Criar semana atual'}
           </button>
-          <input ref={arquivoRef} type="file" accept=".xlsx" className="hidden" onChange={(e) => e.target.files?.[0] && importar(e.target.files[0])} />
+          <button type="button" className="btn-neutro !px-2" title="Criar outra semana (escolher data ou origem)" aria-label="Criar outra semana" onClick={() => setModalSemana(true)}>
+            <CalendarPlus className="h-4 w-4" />
+          </button>
+          {prog ? (
+            <button type="button" className="btn-neutro" disabled={Boolean(ocupado)} onClick={exportar}>
+              <Download className="h-4 w-4" /> {ocupado === 'exportar' ? 'Gerando...' : 'Exportar .xlsx'}
+            </button>
+          ) : null}
           {prog && editavel ? (
-            <button type="button" className="btn-primario" onClick={() => window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão.`) && mudarStatus(emitirProgramacao, (p) => `${nomeSemana(p)} emitida.`)}>
+            <button type="button" className="btn-neutro" onClick={() => window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão.`) && mudarStatus(emitirProgramacao, (p) => `${nomeSemana(p)} emitida.`)}>
               <Lock className="h-4 w-4" /> Emitir {rev(prog.revisao)}
             </button>
           ) : null}
           {prog && !editavel ? (
-            <button type="button" className="btn-primario" onClick={() => mudarStatus(novaRevisaoProgramacao, (p) => `Revisão ${rev(p.revisao)} aberta.`)}>
+            <button type="button" className="btn-neutro" onClick={() => mudarStatus(novaRevisaoProgramacao, (p) => `Revisão ${rev(p.revisao)} aberta.`)}>
               <Unlock className="h-4 w-4" /> Nova revisão ({rev((prog.revisao ?? 0) + 1)})
             </button>
           ) : null}
@@ -514,7 +654,7 @@ export default function ProgramacaoS1() {
 
       {!prog && !carregando ? (
         <div className="card space-y-2 p-8 text-center text-sm text-slate-500">
-          <p>Crie a programação da próxima semana ou importe a planilha usada na reunião (Programação_S+1_Sem_NN revNN.xlsx).</p>
+          <p>Nenhuma programação. Clique em <strong>Criar semana atual</strong> para começar.</p>
         </div>
       ) : null}
       {carregando && !prog ? <div className="flex justify-center py-10"><Spinner /></div> : null}
@@ -533,16 +673,30 @@ export default function ProgramacaoS1() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <CartaoNumero titulo="Efetivo ativo" valor={resumo.efetivo_ativo} detalhe={`${resumo.total_pessoas} na lista`} />
-            <CartaoNumero titulo="Frentes de obra" valor={contagemTipo('OBRA')} detalhe={`${contagemTipo('APOIO')} de apoio`} />
-            <CartaoNumero titulo="Disponíveis" valor={disponiveisSeg} detalhe="sem frente (segunda)" />
+            <CartaoNumero titulo="Efetivo do contrato" valor={efetivo.length || resumo.efetivo_ativo}
+              detalhe={efetivo.length ? `${efetivo.filter((c) => c.situacao === 'DISPONIVEL').length} disponíveis` : `${resumo.total_pessoas} na lista`} />
+            <CartaoNumero titulo="Frentes de obra" valor={contagemTipo('OBRA')} detalhe={`${contagemTipo('APOIO')} itinerantes`} />
+            <CartaoNumero titulo="Sem programação" valor={resumo.saldo_pelo_efetivo ? resumo.nao_programados.length : resumo.por_tipo.DISPONIVEL[0]}
+              detalhe={resumo.saldo_pelo_efetivo ? 'disponíveis fora da semana' : 'sem frente (segunda)'} />
             <CartaoNumero titulo="Férias / INSS" valor={resumo.afastados} />
             <CartaoNumero titulo="Conflitos" valor={resumo.conflitos.length} detalhe="mesma pessoa, mesmo dia" alerta={resumo.conflitos.length > 0} />
           </div>
 
+          {semObra > 0 ? (
+            <div className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {semObra} frente(s) de obra sem vínculo com obra em andamento. Use <strong>Editar frente</strong> para escolher a obra.
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-lg bg-slate-100 p-1">
-              {[['programacao', 'Programação', CalendarRange], ['saldo', 'Saldo por função', Users], ['conflitos', `Conflitos (${resumo.conflitos.length})`, AlertTriangle]].map(([id, rotulo, Icone]) => (
+              {[
+                ['programacao', 'Programação', CalendarRange],
+                ['efetivo', 'Efetivo do contrato', HardHat],
+                ['saldo', 'Saldo por função', Users],
+                ['conflitos', `Conflitos (${resumo.conflitos.length})`, AlertTriangle],
+              ].map(([id, rotulo, Icone]) => (
                 <button key={id} type="button" className={`rounded-md px-3 py-1.5 text-sm font-semibold ${aba === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'}`} onClick={() => setAba(id)}>
                   <Icone className="mr-1 inline h-4 w-4" aria-hidden="true" /> {rotulo}
                 </button>
@@ -567,11 +721,12 @@ export default function ProgramacaoS1() {
                 {editavel ? <button type="button" className="btn-primario" onClick={() => setModalFrente(true)}><Plus className="h-4 w-4" /> Frente</button> : null}
               </div>
               {frentesFiltradas.map((f) => (
-                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} />
+                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} efetivoPorMatricula={efetivoPorMatricula} />
               ))}
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>
           ) : null}
+          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} /> : null}
           {aba === 'saldo' ? <SaldoPorFuncao resumo={resumo} datas={datas} /> : null}
           {aba === 'conflitos' ? <Conflitos conflitos={resumo.conflitos} datas={datas} /> : null}
         </>

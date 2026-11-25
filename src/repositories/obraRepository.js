@@ -95,6 +95,10 @@ const CATEGORIA_SEM_ATA = 'CADEIA_DE_AJUDA';
 /** Filtro Prisma: obras em que a Ata é obrigatória (qualquer categoria, menos Cadeia de Ajuda). */
 const ATA_E_OBRIGATORIA = [{ categoria: null }, { categoria: { not: CATEGORIA_SEM_ATA } }];
 
+/** Canteiro central: estrutura permanente do contrato, sem OSI nem Ata de Partida. */
+const CATEGORIA_CANTEIRO = 'CANTEIRO_CENTRAL';
+const NAO_E_CANTEIRO = { OR: [{ categoria: null }, { categoria: { not: CATEGORIA_CANTEIRO } }] };
+
 /**
  * Calcula a régua de pendências documentais obrigatórias (ISO 9001):
  * OSI assinada anexada e Ata de Reunião de Partida anexada (esta dispensada na
@@ -102,6 +106,9 @@ const ATA_E_OBRIGATORIA = [{ categoria: null }, { categoria: { not: CATEGORIA_SE
  * sistema não conclui a pendência: ela só é cumprida com o documento assinado.
  */
 function calcularPendencias(obra) {
+  if (obra.categoria === CATEGORIA_CANTEIRO) {
+    return { osi: false, ata: false, ata_obrigatoria: false, total: 0, completa: true };
+  }
   // A Ata de Partida é obrigatória na Carteira da Coordenação (e em obra ainda
   // sem categoria); a Cadeia de Ajuda exige apenas a OSI.
   const ataObrigatoria = obra.categoria !== CATEGORIA_SEM_ATA;
@@ -341,14 +348,19 @@ async function findAll(filtros = {}) {
   // Régua de pendências documentais (OSI e Ata de Partida).
   if (pendencia === 'osi') {
     where.osi_anexo_url = null;
+    where.AND = [NAO_E_CANTEIRO];
   } else if (pendencia === 'ata') {
     where.ata_partida_url = null;
     where.OR = ATA_E_OBRIGATORIA;
+    where.AND = [NAO_E_CANTEIRO];
   } else if (pendencia === 'pendentes') {
     where.OR = [{ osi_anexo_url: null }, { ata_partida_url: null, OR: ATA_E_OBRIGATORIA }];
+    where.AND = [NAO_E_CANTEIRO];
   } else if (pendencia === 'ok') {
-    where.osi_anexo_url = { not: null };
-    where.OR = [{ ata_partida_url: { not: null } }, { categoria: CATEGORIA_SEM_ATA }];
+    where.OR = [
+      { osi_anexo_url: { not: null }, OR: [{ ata_partida_url: { not: null } }, { categoria: CATEGORIA_SEM_ATA }] },
+      { categoria: CATEGORIA_CANTEIRO },
+    ];
   }
 
   // Filtros sobre os dados do orçamento (relação 1:1).
