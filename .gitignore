@@ -18,5 +18,5 @@ vendor/
 # Relatórios gerados pelos scripts de importação/conferência
 scripts/saida/
 
-# Quadros originais da capa do login (10 MB): o sistema usa as versões otimizadas em frontend/public/brand/capa
+# Quadros originais da capa do login (16 MB): o sistema usa o vídeo gerado em frontend/public/brand/capa
 Omega LOGO/CAPA Login/
