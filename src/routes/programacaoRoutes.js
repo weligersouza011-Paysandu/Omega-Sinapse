@@ -26,6 +26,9 @@ router.use(autorizar(...PERFIS_PROGRAMACAO));
 router.get('/obras', acao(() => service.listarObras()));
 router.get('/efetivo', acao(() => service.listarEfetivo()));
 
+// Detalhamento da obra: programação e efetivo nominal de uma obra (?recorte=proxima|atual|ultima ou ?programacao_id=).
+router.get('/por-obra/:obraId', acao((req) => service.programacaoDaObra(req.params.obraId, req.query || {})));
+
 // Início da reunião: nova semana copiando a anterior.
 router.post('/proxima', acao((req) => service.criarProxima(req.user), 201));
 
@@ -50,6 +53,8 @@ router.put('/:id', acao((req) => service.atualizar(req.params.id, req.body || {}
 router.delete('/:id', acao((req) => service.excluir(req.params.id, req.user)));
 router.post('/:id/emitir', acao((req) => service.emitir(req.params.id)));
 router.post('/:id/revisao', acao((req) => service.novaRevisao(req.params.id)));
+// Efetivo nominal: cadastra quem foi programado e ainda não está no efetivo e liga as pessoas ao cadastro.
+router.post('/:id/sincronizar-efetivo', acao((req) => service.sincronizarEfetivo(req.params.id)));
 router.post('/:id/frentes', acao((req) => service.criarFrente(req.params.id, req.body || {}), 201));
 // Exportação .xlsx no layout da reunião.
 router.get('/:id/exportar', async (req, res, next) => {

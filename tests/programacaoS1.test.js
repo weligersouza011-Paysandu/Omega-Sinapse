@@ -161,3 +161,42 @@ test('exportação usa o layout da reunião e pode ser lida de volta', () => {
   const wb = XLSX.read(buffer, { type: 'buffer' });
   assert.deepEqual(wb.SheetNames, ['PRG S+1_', 'SALDO POR FUNÇÃO']);
 });
+
+test('recorte de semana: próxima (S+1), atual e última', () => {
+  const lista = [
+    { id: 1, data_inicio: new Date('2026-11-16T00:00:00Z') },
+    { id: 2, data_inicio: new Date('2026-11-23T00:00:00Z') },
+    { id: 3, data_inicio: new Date('2026-11-30T00:00:00Z') },
+  ];
+  const hoje = new Date('2026-11-25T15:00:00Z'); // quarta da semana 48
+  assert.equal(u.escolherProgramacao(lista, 'proxima', hoje).id, 3);
+  assert.equal(u.escolherProgramacao(lista, 'atual', hoje).id, 2);
+  assert.equal(u.escolherProgramacao(lista, 'ultima', hoje).id, 3);
+  assert.equal(u.escolherProgramacao(lista.slice(0, 2), 'proxima', hoje), null);
+  assert.equal(u.escolherProgramacao([], 'atual', hoje), null);
+});
+
+test('visão da obra: só as frentes da obra e o efetivo nominal com dias (pessoa em 2 equipes unifica)', () => {
+  const prog = {
+    frentes: [
+      { id: 1, obra_id: 10, equipes: [
+        { codigo: 'MEC-01', alocacoes: [
+          { matricula: '1', nome: 'B', funcao: 'SOLDADOR', colaborador_id: 7, dias: [true, true, false, false, false, false, false] },
+          { matricula: '2', nome: 'A', funcao: 'PINTOR', dias: [true, false, false, false, false, false, false] },
+        ] },
+        { codigo: 'AND-01', alocacoes: [{ matricula: '1', nome: 'B', dias: [false, false, true, false, false, false, false] }] },
+      ] },
+      { id: 2, obra_id: 11, equipes: [{ codigo: 'X', alocacoes: [{ matricula: '3', nome: 'C', dias: [true, true, true, true, true, false, false] }] }] },
+      { id: 3, obra_id: null, equipes: [] },
+    ],
+  };
+  const v = u.visaoDaObra(prog, '10');
+  assert.deepEqual(v.frentes.map((f) => f.id), [1]);
+  assert.equal(v.total_pessoas, 2);
+  assert.deepEqual(v.efetivo_nominal.map((p) => p.nome), ['A', 'B']);
+  const b = v.efetivo_nominal.find((p) => p.matricula === '1');
+  assert.deepEqual(b.dias, [true, true, true, false, false, false, false]);
+  assert.deepEqual(b.equipes, ['MEC-01', 'AND-01']);
+  assert.equal(b.colaborador_id, 7);
+  assert.deepEqual(v.programados_por_dia, [2, 1, 1, 0, 0, 0, 0]);
+});
