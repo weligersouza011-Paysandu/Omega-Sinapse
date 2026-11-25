@@ -399,7 +399,65 @@ function montarPlanilhaProgramacao(XLSX, programacao, resumo) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
+/** Recortes de semana aceitos na consulta por obra. */
+const RECORTES_SEMANA = ['proxima', 'atual', 'ultima'];
+
+/**
+ * Escolhe a programação de um recorte: "proxima" (S+1, semana seguinte a `hoje`), "atual" (semana de `hoje`)
+ * ou "ultima" (a mais recente cadastrada). Devolve o item da lista ou null.
+ * @param {Array<{ id, data_inicio }>} lista
+ */
+function escolherProgramacao(lista, recorte = 'proxima', hoje = new Date()) {
+  if (!Array.isArray(lista) || lista.length === 0) return null;
+  if (recorte === 'ultima') {
+    return [...lista].sort((a, b) => new Date(b.data_inicio) - new Date(a.data_inicio))[0];
+  }
+  const base = new Date(hoje);
+  if (recorte === 'proxima') base.setUTCDate(base.getUTCDate() + 7);
+  const segunda = segundaDaSemana(base)?.toISOString().slice(0, 10);
+  return lista.find((p) => new Date(p.data_inicio).toISOString().slice(0, 10) === segunda) || null;
+}
+
+/**
+ * Recorte de uma programação para UMA obra: as frentes ligadas a ela e o efetivo nominal programado
+ * (matrícula, nome, função, equipe e dias), com programados por dia (pessoas distintas).
+ */
+function visaoDaObra(programacao, obraId) {
+  const id = Number(obraId);
+  const frentes = (programacao.frentes || []).filter((f) => Number(f.obra_id) === id);
+  const porPessoa = new Map();
+  frentes.forEach((f) => (f.equipes || []).forEach((e) => (e.alocacoes || []).forEach((a) => {
+    const chave = chavePessoa(a);
+    const dias = normalizarDias(a.dias);
+    const atual = porPessoa.get(chave);
+    if (atual) {
+      atual.dias = atual.dias.map((v, i) => v || dias[i]);
+      atual.equipes.push(e.codigo || null);
+      return;
+    }
+    porPessoa.set(chave, {
+      matricula: a.matricula || null,
+      nome: a.nome,
+      funcao: a.funcao || null,
+      colaborador_id: a.colaborador_id ?? null,
+      frente_id: f.id ?? null,
+      equipes: [e.codigo || null],
+      dias,
+    });
+  })));
+  const efetivo = [...porPessoa.values()].sort((a, b) => String(a.nome).localeCompare(String(b.nome)));
+  return {
+    frentes,
+    efetivo_nominal: efetivo,
+    total_pessoas: efetivo.length,
+    programados_por_dia: DIAS_SEMANA.map((_, i) => efetivo.filter((p) => p.dias[i]).length),
+  };
+}
+
 module.exports = {
+  RECORTES_SEMANA,
+  escolherProgramacao,
+  visaoDaObra,
   lerPlanilhaEfetivo,
   montarPlanilhaProgramacao,
   DIAS_SEMANA,

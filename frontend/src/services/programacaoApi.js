@@ -11,6 +11,10 @@ export const emitirProgramacao = async (id) => (await api.post(`/programacoes/${
 export const novaRevisaoProgramacao = async (id) => (await api.post(`/programacoes/${id}/revisao`)).data;
 export const listarObrasProgramacao = async () => (await api.get('/programacoes/obras')).data;
 export const listarEfetivoProgramacao = async () => (await api.get('/programacoes/efetivo')).data;
+/** Efetivo nominal a partir da programação (cadastra quem falta e liga as pessoas ao cadastro). */
+export const sincronizarEfetivoProgramacao = async (id) => (await api.post(`/programacoes/${id}/sincronizar-efetivo`)).data;
+/** Programação e efetivo nominal de uma obra (recorte: proxima | atual | ultima, ou programacao_id). */
+export const obterProgramacaoDaObra = async (obraId, params = { recorte: 'proxima' }) => (await api.get(`/programacoes/por-obra/${obraId}`, { params })).data;
 /** Início da reunião: nova semana copiando a última programação. */
 export const criarProximaProgramacao = async () => (await api.post('/programacoes/proxima', {}, { timeout: 120000 })).data;
 

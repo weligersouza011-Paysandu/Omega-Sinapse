@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  CalendarDays,
   CalendarRange,
   FileSpreadsheet,
   FileText,
@@ -22,6 +23,7 @@ import AbaProjecaoObra from '../components/obras/AbaProjecaoObra.jsx';
 import AbaVisaoGeral from '../components/obras/AbaVisaoGeral.jsx';
 import ConfiguracaoObra from '../components/obras/ConfiguracaoObra.jsx';
 import AbaRdoObra from '../components/obras/AbaRdoObra.jsx';
+import AbaProgramacaoS1Obra from '../components/obras/AbaProgramacaoS1Obra.jsx';
 import { useAuth } from '../context/AuthContext.jsx';
 import { useCabecalhoPagina } from '../context/CabecalhoContext.jsx';
 import { useObraDetalhe } from '../hooks/useObras.js';
@@ -37,7 +39,12 @@ const ABAS = [
   { id: 'medicao', label: 'Medição', Icone: ReceiptText },
   { id: 'projecao', label: 'Projeção Financeira', Icone: Wallet },
   { id: 'relatorios', label: 'RDO (Relatório de Diário de Obra)', Icone: NotebookPen },
+  // Programação semanal de mão de obra: só o planejamento acessa (a API é restrita a esses perfis).
+  { id: 'programacao-s1', label: 'Programação S+1', Icone: CalendarDays, perfis: PERFIS_ESCRITA },
 ];
+
+/** Abas que o perfil do usuário pode ver. */
+const abasDoUsuario = (perfil) => ABAS.filter((item) => !item.perfis || item.perfis.includes(perfil));
 
 /**
  * Edição da obra (status, OSI, planejadores, documentos de partida, localizações): fica fora da
@@ -171,14 +178,16 @@ export default function DetalheObra() {
   useEffect(() => {
     if (!obra) return undefined;
     const anterior = document.title;
-    document.title = `${obra.ss || obra.pep || `Obra ${obra.id}`} · Sinapse`;
+    // Canteiro central sem SS: o PEP é técnico, então o título usa a descrição da base.
+    const nome = obra.ss || (obra.categoria === 'CANTEIRO_CENTRAL' ? obra.descricao?.slice(0, 60) : obra.pep) || `Obra ${obra.id}`;
+    document.title = `${nome} · Sinapse`;
     return () => {
       document.title = anterior;
     };
   }, [obra]);
 
   function selecionarAba(novaAba) {
-    if (novaAba === VISAO_EDICAO || ABAS.some((item) => item.id === novaAba)) {
+    if (novaAba === VISAO_EDICAO || abasDoUsuario(usuario?.perfil).some((item) => item.id === novaAba)) {
       setAba(novaAba);
     }
   }
@@ -229,7 +238,7 @@ export default function DetalheObra() {
         aria-label="Seções do detalhamento da obra"
       >
         <div className="flex gap-1 overflow-x-auto">
-          {ABAS.map((item) => (
+          {abasDoUsuario(usuario?.perfil).map((item) => (
             <BotaoAba key={item.id} aba={item} ativa={aba === item.id} onSelecionar={selecionarAba} />
           ))}
         </div>
@@ -249,6 +258,8 @@ export default function DetalheObra() {
         {aba === '6wla' ? (
           <AbaProgramacao6Semanas obra={obra} podeEditar={podeEditar} onIrParaAba={selecionarAba} />
         ) : null}
+
+        {aba === 'programacao-s1' && podeEditar ? <AbaProgramacaoS1Obra obra={obra} /> : null}
 
         {aba === 'relatorios' ? (
           <AbaRdoObra obra={obra} podeEditar={podeEditar} onObraAtualizada={aplicarAtualizacao} />

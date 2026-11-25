@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Lock, Plus, Search, Trash2, Unlock, Users } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, Users } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { Secao } from '../components/rdo/SecoesRdo.jsx';
@@ -10,6 +10,7 @@ import {
   atualizarAlocacao, atualizarEquipe, atualizarFrente, baixarExportacaoProgramacao, criarAlocacao, criarEquipe, criarFrente,
   criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
   listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
+  sincronizarEfetivoProgramacao,
 } from '../services/programacaoApi.js';
 import { formatarData, formatarDataHora } from '../utils/formatters.js';
 
@@ -33,7 +34,62 @@ function datasDaSemana(dataInicio) {
   });
 }
 
-const rotuloObra = (o) => `${o.ss || `Obra ${o.id}`}${o.categoria === 'CANTEIRO_CENTRAL' ? ' · Canteiro Central' : ''} · ${o.descricao?.slice(0, 70) || ''}`;
+const STATUS_OBRA = {
+  EM_ANDAMENTO: { label: 'Em andamento', cor: 'border-emerald-300 bg-emerald-50 text-emerald-700' },
+  PARA_INICIAR: { label: 'Para iniciar', cor: 'border-slate-300 bg-slate-100 text-slate-600' },
+  PARALISADA: { label: 'Paralisada', cor: 'border-amber-300 bg-amber-50 text-amber-700' },
+  CONCLUIDA: { label: 'Concluída', cor: 'border-amber-300 bg-amber-50 text-amber-700' },
+};
+
+function SeloStatusObra({ status }) {
+  const s = STATUS_OBRA[status];
+  return s ? <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${s.cor}`}>{s.label}</span> : null;
+}
+
+const semAcento = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+
+/**
+ * Seletor de obra com busca por SS, PEP/CC, OSI, descrição ou "Canteiro Central". Lista todas as obras
+ * cadastradas; em andamento (e canteiro central) aparecem primeiro.
+ */
+function ListaBuscaObras({ obras, atualId, onEscolher, altura = 'max-h-[50vh]' }) {
+  const [busca, setBusca] = useState('');
+  const termos = semAcento(busca).split(/\s+/).filter(Boolean);
+  const filtradas = obras.filter((o) => {
+    const texto = semAcento(`${o.ss || ''} ${o.pep || ''} ${o.osi_numero || ''} ${o.descricao || ''} ${o.categoria === 'CANTEIRO_CENTRAL' ? 'CANTEIRO CENTRAL' : ''} ${STATUS_OBRA[o.status]?.label || ''}`);
+    return termos.every((t) => texto.includes(t));
+  });
+  return (
+    <div className="space-y-3">
+        <span className="relative block">
+          <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
+          <input autoFocus className="campo !pl-8" placeholder="Ex.: SS113/24, 998, CEP, canteiro..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+        </span>
+        <div className={`${altura} divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200`}>
+          {filtradas.map((o) => (
+            <button key={o.id} type="button" onClick={() => onEscolher(o)}
+              className={`flex w-full flex-wrap items-center gap-2 px-3 py-2 text-left text-sm hover:bg-omega-50 ${o.id === atualId ? 'bg-omega-50' : ''}`}>
+              <span className="font-mono text-xs font-bold text-slate-800">{o.ss || `Obra ${o.id}`}</span>
+              {o.categoria === 'CANTEIRO_CENTRAL' ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-700">Canteiro Central</span> : null}
+              <SeloStatusObra status={o.status} />
+              {o.id === atualId ? <span className="text-[11px] font-bold text-omega-700">vinculada</span> : null}
+              <span className="w-full truncate text-xs text-slate-600">{o.descricao || '—'}</span>
+              <span className="w-full text-[11px] text-slate-400">PEP {o.pep || '—'}{o.osi_numero ? ` · OSI ${o.osi_numero}` : ''}</span>
+            </button>
+          ))}
+          {filtradas.length === 0 ? <p className="px-3 py-6 text-center text-sm text-slate-500">Nenhuma obra encontrada.</p> : null}
+        </div>
+    </div>
+  );
+}
+
+function ModalSeletorObra({ aberto, obras, atualId, titulo = 'Vincular obra', onFechar, onEscolher }) {
+  return (
+    <ModalBase aberto={aberto} titulo={titulo} subtitulo="Busque por SS, PEP/CC, OSI, descrição ou Canteiro Central." onFechar={onFechar} tamanho="lg">
+      <div className="p-5">{aberto ? <ListaBuscaObras obras={obras} atualId={atualId} onEscolher={onEscolher} /> : null}</div>
+    </ModalBase>
+  );
+}
 
 const somaDias = (alocacoes) => DIAS.map((_, i) => alocacoes.reduce((s, a) => s + (a.dias?.[i] ? 1 : 0), 0));
 
@@ -181,7 +237,13 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula }) {
 
 function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula }) {
   const [editando, setEditando] = useState(false);
+  // Seletor de obra: null (fechado) ou o tipo a gravar junto com a obra escolhida.
+  const [seletor, setSeletor] = useState(null);
   const pessoas = frente.equipes.reduce((s, e) => s + e.alocacoes.length, 0);
+  const vincular = async (obra) => {
+    const ok = await executar(() => atualizarFrente(frente.id, { tipo: 'OBRA', obra_id: obra.id }));
+    if (ok) setSeletor(null);
+  };
   const ss = frente.obra?.orcamento?.ss || frente.codigo;
   const titulo = (
     <span className="flex flex-wrap items-center gap-2">
@@ -197,13 +259,26 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className={`rounded-full border px-2 py-0.5 font-bold ${TIPOS[frente.tipo]?.cor}`}>{TIPOS[frente.tipo]?.label}</span>
           {frente.obra ? (
-            <Link to={`/obras/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">Abrir obra {frente.obra.orcamento?.ss}</Link>
+            <>
+              <span className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2 py-0.5" title={frente.obra.orcamento?.descricao || ''}>
+                <span className="font-semibold text-slate-500">Obra</span>
+                <span className="font-mono font-bold text-slate-800">{frente.obra.orcamento?.ss || `#${frente.obra.id}`}</span>
+                <span className="max-w-[22rem] truncate text-slate-600">{frente.obra.orcamento?.descricao}</span>
+              </span>
+              {frente.obra.categoria === 'CANTEIRO_CENTRAL' ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 font-bold text-slate-700">Canteiro Central</span> : null}
+              {frente.obra.status !== 'EM_ANDAMENTO' ? <SeloStatusObra status={frente.obra.status} /> : null}
+              <Link to={`/obras/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">Abrir obra</Link>
+              <Link to={`/rdo/obra/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">RDOs da obra</Link>
+              {editavel ? <button type="button" className="font-semibold text-slate-500 underline-offset-2 hover:underline" onClick={() => setSeletor('OBRA')}>Trocar obra</button> : null}
+            </>
           ) : frente.tipo === 'OBRA' ? (
-            <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 font-bold text-red-700">
-              <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />Vincule a uma obra em andamento{editavel ? ' (Editar frente)' : ''}
-            </span>
+            <>
+              <span className="rounded-full border border-red-300 bg-red-50 px-2 py-0.5 font-bold text-red-700">
+                <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />Frente sem obra vinculada
+              </span>
+              {editavel ? <button type="button" className="btn-primario !px-2 !py-1 text-xs" onClick={() => setSeletor('OBRA')}><Link2 className="h-3.5 w-3.5" /> Vincular obra</button> : null}
+            </>
           ) : frente.tipo === 'APOIO' ? <span className="text-slate-500">Atende todas as frentes</span> : null}
-          {frente.obra ? <Link to={`/rdo/obra/${frente.obra.id}`} className="font-semibold text-omega-700 hover:underline">RDOs da obra</Link> : null}
           {editavel ? (
             <span className="ml-auto flex gap-2">
               <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setEditando((v) => !v)}>{editando ? 'Fechar edição' : 'Editar frente'}</button>
@@ -223,21 +298,18 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
             <div><label className="rotulo">Responsável</label><CampoSalvo editavel valor={frente.responsavel} onSalvar={(v) => executar(() => atualizarFrente(frente.id, { responsavel: v }))} /></div>
             <div>
               <label className="rotulo">Tipo</label>
-              <select className="campo" value={frente.tipo} onChange={(e) => executar(() => atualizarFrente(frente.id, e.target.value === 'OBRA' && !frente.obra_id && obras[0] ? { tipo: 'OBRA', obra_id: obras[0].id } : { tipo: e.target.value }))}>
+              {/* Virar frente de obra exige escolher a obra: abre o seletor. */}
+              <select className="campo" value={frente.tipo} onChange={(e) => (e.target.value === 'OBRA' && !frente.obra_id
+                ? setSeletor('OBRA')
+                : executar(() => atualizarFrente(frente.id, { tipo: e.target.value })))}>
                 {Object.entries(TIPOS).map(([v, t]) => <option key={v} value={v}>{t.label}</option>)}
               </select>
             </div>
-            {frente.tipo === 'OBRA' ? (
-              <div className="sm:col-span-2 lg:col-span-5">
-                <label className="rotulo">Obra em andamento</label>
-                <select className="campo" value={frente.obra_id || ''} onChange={(e) => e.target.value && executar(() => atualizarFrente(frente.id, { obra_id: e.target.value }))}>
-                  <option value="" disabled>Selecione a obra</option>
-                  {obras.map((o) => <option key={o.id} value={o.id}>{rotuloObra(o)}</option>)}
-                </select>
-              </div>
-            ) : null}
           </div>
         ) : null}
+
+        <ModalSeletorObra aberto={Boolean(seletor)} obras={obras} atualId={frente.obra_id}
+          titulo={`Vincular obra · ${frente.titulo}`} onFechar={() => setSeletor(null)} onEscolher={vincular} />
 
         {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} />)}
         {frente.equipes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma equipe nesta frente.</p> : null}
@@ -301,7 +373,18 @@ function Conflitos({ conflitos, datas }) {
  * Efetivo do contrato (cadastro de colaboradores, o mesmo que o RDO usa na mão de obra) cruzado com a
  * semana: onde cada pessoa está programada e quem está disponível sem programação.
  */
-function EfetivoContrato({ efetivo, prog }) {
+/** Faixa SEG..DOM com os dias programados (pessoa pode estar em mais de uma equipe). */
+function DiasProgramados({ dias }) {
+  return (
+    <span className="inline-flex gap-0.5" aria-label="Dias programados">
+      {DIAS.map((d, i) => (
+        <span key={d} title={d} className={`flex h-4 w-5 items-center justify-center rounded text-[9px] font-bold ${dias[i] ? 'bg-omega-600 text-white' : 'bg-slate-100 text-slate-300'}`}>{d[0]}</span>
+      ))}
+    </span>
+  );
+}
+
+function EfetivoContrato({ efetivo, prog, onSincronizar, sincronizando }) {
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('');
   const ondeEsta = useMemo(() => {
@@ -325,6 +408,7 @@ function EfetivoContrato({ efetivo, prog }) {
       return true;
     });
   const semProgramacao = efetivo.filter((c) => c.situacao === 'DISPONIVEL' && !ondeEsta.has(c.matricula)).length;
+  const foraDoEfetivo = prog.resumo?.fora_do_efetivo || [];
 
   return (
     <div className="space-y-3">
@@ -339,7 +423,18 @@ function EfetivoContrato({ efetivo, prog }) {
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
           <input className="campo !w-64 !pl-8" placeholder="Buscar no efetivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </span>
+        <button type="button" className="btn-neutro" disabled={sincronizando} onClick={onSincronizar}
+          title="Cadastra no efetivo quem foi programado com matrícula e ainda não está nele, e liga cada pessoa programada ao seu cadastro">
+          <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} /> Atualizar efetivo pela programação
+        </button>
       </div>
+      {foraDoEfetivo.length > 0 ? (
+        <div className="card border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mr-1 inline h-4 w-4" />
+          {foraDoEfetivo.length} pessoa(s) programada(s) fora do efetivo do contrato: {foraDoEfetivo.slice(0, 6).map((p) => p.nome).join(', ')}{foraDoEfetivo.length > 6 ? '…' : ''}.
+          {' '}Use <strong>Atualizar efetivo pela programação</strong> (quem não tem matrícula precisa dela para entrar no efetivo).
+        </div>
+      ) : null}
       {efetivo.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato (cadastro de colaboradores do RDO).</div> : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
@@ -367,9 +462,16 @@ function EfetivoContrato({ efetivo, prog }) {
                       {c.ferias_inicio ? <span className="ml-1 text-[11px] text-slate-500">férias {formatarData(c.ferias_inicio)}–{formatarData(c.ferias_fim)}</span> : null}
                     </td>
                     <td className="px-3 py-1.5 text-xs">
-                      {locais.length
-                        ? locais.map((l) => `${l.equipe.codigo || '—'} · ${l.frente.obra?.orcamento?.ss || l.frente.codigo || l.frente.titulo}`).join(' | ')
-                        : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
+                      {locais.length ? (
+                        <span className="flex flex-col gap-1">
+                          {locais.map((l) => (
+                            <span key={`${l.equipe.id}`} className="flex flex-wrap items-center gap-2">
+                              <DiasProgramados dias={l.dias || []} />
+                              <span>{l.equipe.codigo || '—'} · {l.frente.obra?.orcamento?.ss || l.frente.codigo || l.frente.titulo}</span>
+                            </span>
+                          ))}
+                        </span>
+                      ) : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
                     </td>
                   </tr>
                 );
@@ -427,10 +529,10 @@ function ModalNovaSemana({ aberto, onFechar, programacoes, onCriada }) {
 function ModalNovaFrente({ aberto, onFechar, obras, onSalvar }) {
   const [f, setF] = useState({ titulo: '', tipo: 'OBRA', codigo: '', responsavel: '', obra_id: '' });
   useEffect(() => { if (aberto) setF({ titulo: '', tipo: 'OBRA', codigo: '', responsavel: '', obra_id: '' }); }, [aberto]);
-  const escolherObra = (id) => {
-    const obra = obras.find((o) => String(o.id) === id);
-    setF((atual) => ({ ...atual, obra_id: id, codigo: obra?.ss || atual.codigo, titulo: atual.titulo || obra?.descricao?.slice(0, 200) || '' }));
+  const escolherObra = (obra) => {
+    setF((atual) => ({ ...atual, obra_id: obra.id, codigo: obra.ss || atual.codigo, titulo: atual.titulo || obra.descricao?.slice(0, 200) || '' }));
   };
+  const obraEscolhida = obras.find((o) => o.id === f.obra_id);
   return (
     <ModalBase aberto={aberto} titulo="Nova frente de serviço" onFechar={onFechar} tamanho="md">
       <div className="space-y-3">
@@ -442,12 +544,15 @@ function ModalNovaFrente({ aberto, onFechar, obras, onSalvar }) {
         </div>
         {f.tipo === 'OBRA' ? (
           <div>
-            <label className="rotulo">Obra em andamento</label>
-            <select className="campo" value={f.obra_id} onChange={(e) => escolherObra(e.target.value)}>
-              <option value="">Selecione a obra</option>
-              {obras.map((o) => <option key={o.id} value={o.id}>{rotuloObra(o)}</option>)}
-            </select>
-            {obras.length === 0 ? <p className="mt-1 text-xs text-red-600">Nenhuma obra em andamento cadastrada em Obras.</p> : null}
+            <label className="rotulo">Obra {obraEscolhida ? '' : '(busque por SS, PEP/CC, OSI, descrição ou Canteiro Central)'}</label>
+            {obraEscolhida ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-omega-300 bg-omega-50 px-3 py-2 text-sm">
+                <span className="font-mono font-bold text-slate-800">{obraEscolhida.ss || `Obra ${obraEscolhida.id}`}</span>
+                <SeloStatusObra status={obraEscolhida.status} />
+                <span className="min-w-0 flex-1 truncate text-slate-600">{obraEscolhida.descricao}</span>
+                <button type="button" className="text-xs font-semibold text-omega-700 hover:underline" onClick={() => setF({ ...f, obra_id: '' })}>Trocar</button>
+              </div>
+            ) : <ListaBuscaObras obras={obras} atualId={null} onEscolher={escolherObra} altura="max-h-56" />}
           </div>
         ) : null}
         <div><label className="rotulo">Título</label><input className="campo" value={f.titulo} onChange={(e) => setF({ ...f, titulo: e.target.value })} /></div>
@@ -550,6 +655,21 @@ export default function ProgramacaoS1() {
       await carregarLista(p.id);
       setProg(p);
       toast.sucesso(`${nomeSemana(p)} criada${ultima ? ` a partir da semana ${ultima.semana}` : ''}.`);
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setOcupado('');
+    }
+  };
+
+  /** Efetivo nominal: cadastra quem foi programado e não está no efetivo, e liga as pessoas ao cadastro. */
+  const sincronizarEfetivo = async () => {
+    setOcupado('efetivo');
+    try {
+      const r = await sincronizarEfetivoProgramacao(prog.id);
+      setEfetivo(await listarEfetivoProgramacao());
+      await recarregar();
+      toast.sucesso(`Efetivo atualizado: ${r.criados} colaborador(es) novo(s), ${r.vinculadas} pessoa(s) ligada(s) ao cadastro.`);
     } catch (err) {
       toast.erro(err.message);
     } finally {
@@ -685,7 +805,7 @@ export default function ProgramacaoS1() {
           {semObra > 0 ? (
             <div className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              {semObra} frente(s) de obra sem vínculo com obra em andamento. Use <strong>Editar frente</strong> para escolher a obra.
+              {semObra} frente(s) de obra sem obra vinculada. Use <strong>Vincular obra</strong> no card da frente.
             </div>
           ) : null}
 
@@ -726,7 +846,7 @@ export default function ProgramacaoS1() {
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>
           ) : null}
-          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} /> : null}
+          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} onSincronizar={sincronizarEfetivo} sincronizando={ocupado === 'efetivo'} /> : null}
           {aba === 'saldo' ? <SaldoPorFuncao resumo={resumo} datas={datas} /> : null}
           {aba === 'conflitos' ? <Conflitos conflitos={resumo.conflitos} datas={datas} /> : null}
         </>
