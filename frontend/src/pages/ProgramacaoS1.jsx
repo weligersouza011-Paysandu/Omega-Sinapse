@@ -374,46 +374,191 @@ function Conflitos({ conflitos, datas }) {
  * semana: onde cada pessoa está programada e quem está disponível sem programação.
  */
 /** Faixa SEG..DOM com os dias programados (pessoa pode estar em mais de uma equipe). */
-function DiasProgramados({ dias }) {
+/**
+ * Faixa SEG..DOM. `contagem[i]` = em quantos lugares a pessoa está no dia (2+ = conflito, em âmbar).
+ */
+function DiasProgramados({ contagem, tamanho = 'h-5 w-6 text-[10px]' }) {
   return (
     <span className="inline-flex gap-0.5" aria-label="Dias programados">
-      {DIAS.map((d, i) => (
-        <span key={d} title={d} className={`flex h-4 w-5 items-center justify-center rounded text-[9px] font-bold ${dias[i] ? 'bg-omega-600 text-white' : 'bg-slate-100 text-slate-300'}`}>{d[0]}</span>
-      ))}
+      {DIAS.map((d, i) => {
+        const n = contagem[i] || 0;
+        const cor = n > 1 ? 'bg-amber-500 text-white' : n === 1 ? 'bg-omega-600 text-white' : 'bg-slate-100 text-slate-300';
+        return <span key={d} title={n > 1 ? `${d}: em ${n} lugares` : d} className={`flex items-center justify-center rounded font-bold ${tamanho} ${cor}`}>{d[0]}</span>;
+      })}
     </span>
   );
 }
 
-function EfetivoContrato({ efetivo, prog, onSincronizar, sincronizando }) {
+const rotuloFrente = (f) => `${f.obra?.orcamento?.ss || f.codigo || TIPOS[f.tipo]?.label || ''} · ${f.titulo}`;
+
+/**
+ * Distribui uma ou mais pessoas do efetivo numa frente/equipe da semana, nos dias escolhidos.
+ * A equipe pode ser uma existente da frente ou uma nova (código e disciplina).
+ */
+function ModalDistribuir({ aberto, pessoas, prog, ondeEsta, onFechar, onConfirmar }) {
+  const [frenteId, setFrenteId] = useState('');
+  const [equipeId, setEquipeId] = useState('');
+  const [novaEquipe, setNovaEquipe] = useState({ codigo: '', disciplina: '' });
+  const [dias, setDias] = useState([true, true, true, true, true, false, false]);
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => {
+    if (!aberto) return;
+    setFrenteId('');
+    setEquipeId('');
+    setNovaEquipe({ codigo: '', disciplina: '' });
+    setDias([true, true, true, true, true, false, false]);
+  }, [aberto]);
+
+  const frente = prog.frentes.find((f) => String(f.id) === String(frenteId));
+  const grupos = Object.entries(TIPOS).map(([tipo, t]) => [t.label, prog.frentes.filter((f) => f.tipo === tipo)]).filter(([, l]) => l.length);
+  // Quem já está programado em algum dos dias escolhidos (vai ficar em dois lugares).
+  const conflitos = pessoas.filter((p) => (ondeEsta.get(p.matricula) || []).some((l) => dias.some((v, i) => v && l.dias?.[i])));
+
+  const confirmar = async () => {
+    setSalvando(true);
+    const ok = await onConfirmar({ frente, equipeId: equipeId === 'nova' ? null : Number(equipeId), novaEquipe, dias });
+    setSalvando(false);
+    if (ok) onFechar();
+  };
+
+  const pronto = frente && equipeId && (equipeId !== 'nova' || novaEquipe.disciplina.trim() || novaEquipe.codigo.trim()) && dias.some(Boolean);
+  return (
+    <ModalBase aberto={aberto} titulo={`Distribuir ${pessoas.length === 1 ? pessoas[0].nome : `${pessoas.length} pessoas`}`}
+      subtitulo="Escolha a obra/frente, a equipe e os dias da semana." onFechar={onFechar} tamanho="lg">
+      <div className="space-y-4 p-5">
+        {pessoas.length > 1 ? (
+          <p className="max-h-20 overflow-y-auto rounded-lg bg-slate-50 p-2 text-xs text-slate-600">{pessoas.map((p) => p.nome).join(' · ')}</p>
+        ) : null}
+        <div>
+          <label className="rotulo" htmlFor="distribuir-frente">Obra / frente</label>
+          <select id="distribuir-frente" className="campo" value={frenteId} onChange={(e) => { setFrenteId(e.target.value); setEquipeId(''); }}>
+            <option value="">Selecione...</option>
+            {grupos.map(([rotulo, lista]) => (
+              <optgroup key={rotulo} label={rotulo}>
+                {lista.map((f) => <option key={f.id} value={f.id}>{rotuloFrente(f)}</option>)}
+              </optgroup>
+            ))}
+          </select>
+        </div>
+        {frente ? (
+          <div>
+            <label className="rotulo" htmlFor="distribuir-equipe">Equipe</label>
+            <select id="distribuir-equipe" className="campo" value={equipeId} onChange={(e) => setEquipeId(e.target.value)}>
+              <option value="">Selecione...</option>
+              {frente.equipes.map((e) => <option key={e.id} value={e.id}>{e.codigo || 'Equipe'} · {e.disciplina || '—'} ({e.alocacoes.length})</option>)}
+              <option value="nova">+ Nova equipe nesta frente</option>
+            </select>
+            {equipeId === 'nova' ? (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input className="campo" placeholder="Código (ex.: MEC-04)" value={novaEquipe.codigo} onChange={(e) => setNovaEquipe({ ...novaEquipe, codigo: e.target.value })} />
+                <input className="campo" placeholder="Disciplina (ex.: MECÂNICA)" value={novaEquipe.disciplina} onChange={(e) => setNovaEquipe({ ...novaEquipe, disciplina: e.target.value })} />
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        <div>
+          <p className="rotulo">Dias</p>
+          <div className="flex gap-1">
+            {DIAS.map((d, i) => (
+              <button key={d} type="button" aria-pressed={dias[i]} onClick={() => setDias(dias.map((v, j) => (j === i ? !v : v)))}
+                className={`h-8 w-12 rounded text-xs font-bold ${dias[i] ? 'bg-omega-600 text-white' : 'bg-slate-100 text-slate-400'}`}>{d}</button>
+            ))}
+          </div>
+        </div>
+        {conflitos.length ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+            <AlertTriangle className="mr-1 inline h-3.5 w-3.5" />
+            Já programado(s) em algum desses dias: {conflitos.map((p) => p.nome).join(', ')}. Vai aparecer em Conflitos; ajuste os dias na outra frente se for troca.
+          </p>
+        ) : null}
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-neutro" onClick={onFechar}>Cancelar</button>
+          <button type="button" className="btn-primario" disabled={!pronto || salvando} onClick={confirmar}>{salvando ? 'Distribuindo...' : 'Distribuir'}</button>
+        </div>
+      </div>
+    </ModalBase>
+  );
+}
+
+/**
+ * Efetivo do contrato: TODO o efetivo (cadastro de colaboradores, o mesmo da mão de obra do RDO) e quem
+ * foi programado fora dele, no mesmo formato do efetivo da obra — onde cada pessoa está e os dias SEG–DOM.
+ * É daqui que o efetivo é distribuído nas obras.
+ */
+function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sincronizando }) {
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('');
+  const [selecionados, setSelecionados] = useState(new Set());
+  const [distribuindo, setDistribuindo] = useState(null); // lista de pessoas
+
+  // Onde cada matrícula está na semana (frente, equipe, dias).
   const ondeEsta = useMemo(() => {
     const mapa = new Map();
     prog.frentes.forEach((f) => f.equipes.forEach((e) => e.alocacoes.forEach((a) => {
       if (!a.matricula) return;
       const lista = mapa.get(a.matricula) || [];
-      lista.push({ frente: f, equipe: e, dias: a.dias });
+      lista.push({ frente: f, equipe: e, dias: a.dias || [] });
       mapa.set(a.matricula, lista);
     })));
     return mapa;
   }, [prog]);
 
+  // Todo o efetivo + quem foi programado com matrícula fora do cadastro.
+  const pessoas = useMemo(() => {
+    const doCadastro = efetivo.map((c) => ({ ...c, chave: `c${c.id}`, foraDoEfetivo: false }));
+    const noCadastro = new Set(efetivo.map((c) => c.matricula).filter(Boolean));
+    const fora = (prog.resumo?.fora_do_efetivo || []).filter((p) => p.matricula && !noCadastro.has(p.matricula))
+      .map((p) => ({ chave: `m${p.matricula}`, matricula: p.matricula, nome: p.nome, funcao: p.funcao, situacao: 'DISPONIVEL', foraDoEfetivo: true }));
+    return [...doCadastro, ...fora];
+  }, [efetivo, prog]);
+
+  const contagemDias = (matricula) => DIAS.map((_, i) => (ondeEsta.get(matricula) || []).filter((l) => l.dias[i]).length);
   const termo = busca.trim().toUpperCase();
-  const linhas = efetivo
+  const linhas = pessoas
     .filter((c) => !termo || `${c.nome} ${c.matricula || ''} ${c.funcao || ''} ${c.disciplina || ''} ${c.supervisor || ''}`.toUpperCase().includes(termo))
     .filter((c) => {
       const programado = ondeEsta.has(c.matricula);
       if (filtro === 'sem') return c.situacao === 'DISPONIVEL' && !programado;
+      if (filtro === 'programados') return programado;
       if (filtro === 'indisponiveis') return c.situacao === 'INDISPONIVEL';
       return true;
     });
-  const semProgramacao = efetivo.filter((c) => c.situacao === 'DISPONIVEL' && !ondeEsta.has(c.matricula)).length;
-  const foraDoEfetivo = prog.resumo?.fora_do_efetivo || [];
+  const contar = (f) => pessoas.filter(f).length;
+  const semProgramacao = contar((c) => c.situacao === 'DISPONIVEL' && !ondeEsta.has(c.matricula));
+  const foraDoEfetivo = contar((c) => c.foraDoEfetivo);
+
+  const alternar = (chave) => setSelecionados((atual) => {
+    const novo = new Set(atual);
+    if (novo.has(chave)) novo.delete(chave); else novo.add(chave);
+    return novo;
+  });
+  const todosVisiveisMarcados = linhas.length > 0 && linhas.every((c) => selecionados.has(c.chave));
+  const marcarVisiveis = () => setSelecionados((atual) => {
+    const novo = new Set(atual);
+    linhas.forEach((c) => (todosVisiveisMarcados ? novo.delete(c.chave) : novo.add(c.chave)));
+    return novo;
+  });
+  const listaSelecionada = pessoas.filter((c) => selecionados.has(c.chave));
+
+  const distribuir = ({ frente, equipeId, novaEquipe, dias }) => executar(async () => {
+    let destino = equipeId;
+    if (!destino) destino = (await criarEquipe(frente.id, { codigo: novaEquipe.codigo, disciplina: novaEquipe.disciplina })).id;
+    for (const p of distribuindo) {
+      // eslint-disable-next-line no-await-in-loop
+      await criarAlocacao(destino, { matricula: p.matricula, nome: p.nome, funcao: p.funcao || '', dias });
+    }
+    setSelecionados(new Set());
+  });
 
   return (
     <div className="space-y-3">
       <div className="card flex flex-wrap items-center gap-2 p-3">
-        {[['', `Todos (${efetivo.length})`], ['sem', `Disponíveis sem programação (${semProgramacao})`], ['indisponiveis', 'Indisponíveis']].map(([v, rotulo]) => (
+        {[
+          ['', `Todos (${pessoas.length})`],
+          ['sem', `Disponíveis sem programação (${semProgramacao})`],
+          ['programados', `Programados (${contar((c) => ondeEsta.has(c.matricula))})`],
+          ['indisponiveis', `Indisponíveis (${contar((c) => c.situacao === 'INDISPONIVEL')})`],
+        ].map(([v, rotulo]) => (
           <button key={v || 'todos'} type="button" onClick={() => setFiltro(v)}
             className={`rounded-full border px-3 py-1 text-xs font-semibold ${filtro === v ? 'border-omega-600 bg-omega-600 text-white' : 'border-slate-200 text-slate-600 hover:border-omega-300'}`}>
             {rotulo}
@@ -425,61 +570,82 @@ function EfetivoContrato({ efetivo, prog, onSincronizar, sincronizando }) {
         </span>
         <button type="button" className="btn-neutro" disabled={sincronizando} onClick={onSincronizar}
           title="Cadastra no efetivo quem foi programado com matrícula e ainda não está nele, e liga cada pessoa programada ao seu cadastro">
-          <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} /> Atualizar efetivo pela programação
+          <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} /> Atualizar efetivo
         </button>
       </div>
-      {foraDoEfetivo.length > 0 ? (
-        <div className="card border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          <AlertTriangle className="mr-1 inline h-4 w-4" />
-          {foraDoEfetivo.length} pessoa(s) programada(s) fora do efetivo do contrato: {foraDoEfetivo.slice(0, 6).map((p) => p.nome).join(', ')}{foraDoEfetivo.length > 6 ? '…' : ''}.
-          {' '}Use <strong>Atualizar efetivo pela programação</strong> (quem não tem matrícula precisa dela para entrar no efetivo).
+
+      {editavel && listaSelecionada.length ? (
+        <div className="card flex flex-wrap items-center gap-3 border-omega-300 p-3 text-sm">
+          <span className="font-semibold text-slate-800">{listaSelecionada.length} selecionado(s)</span>
+          <button type="button" className="btn-primario" onClick={() => setDistribuindo(listaSelecionada)}><HardHat className="h-4 w-4" /> Distribuir nas obras</button>
+          <button type="button" className="text-xs font-semibold text-slate-500 hover:underline" onClick={() => setSelecionados(new Set())}>Limpar seleção</button>
         </div>
       ) : null}
-      {efetivo.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato (cadastro de colaboradores do RDO).</div> : (
+
+      {foraDoEfetivo > 0 ? (
+        <div className="card border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          <AlertTriangle className="mr-1 inline h-4 w-4" />
+          {foraDoEfetivo} pessoa(s) programada(s) ainda fora do efetivo do contrato (marcadas na lista). Use <strong>Atualizar efetivo</strong> para cadastrá-las.
+        </div>
+      ) : null}
+
+      {pessoas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato (cadastro de colaboradores do RDO).</div> : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
+                {editavel ? (
+                  <th className="w-8 px-3 py-2">
+                    <input type="checkbox" aria-label="Selecionar todos da lista" checked={todosVisiveisMarcados} onChange={marcarVisiveis} />
+                  </th>
+                ) : null}
                 <th className="px-3 py-2">Mat.</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Função</th>
-                <th className="px-3 py-2">Disciplina</th><th className="px-3 py-2">Supervisor</th><th className="px-3 py-2">Situação</th>
-                <th className="px-3 py-2">Nesta semana</th>
+                <th className="px-3 py-2">Situação</th><th className="px-3 py-2">Obra / equipe</th><th className="px-3 py-2">SEG–DOM</th>
+                {editavel ? <th className="px-3 py-2" /> : null}
               </tr>
             </thead>
             <tbody>
               {linhas.map((c) => {
                 const locais = ondeEsta.get(c.matricula) || [];
                 return (
-                  <tr key={c.id} className="border-t border-slate-100">
+                  <tr key={c.chave} className={`border-t border-slate-100 ${selecionados.has(c.chave) ? 'bg-omega-50/60' : ''}`}>
+                    {editavel ? (
+                      <td className="px-3 py-1.5"><input type="checkbox" aria-label={`Selecionar ${c.nome}`} checked={selecionados.has(c.chave)} onChange={() => alternar(c.chave)} /></td>
+                    ) : null}
                     <td className="px-3 py-1.5 font-mono text-xs text-slate-600">{c.matricula || '—'}</td>
-                    <td className="px-3 py-1.5 font-medium text-slate-800">{c.nome}</td>
+                    <td className="px-3 py-1.5 font-medium text-slate-800">
+                      {c.nome}
+                      {c.foraDoEfetivo ? <span className="ml-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">fora do efetivo</span> : null}
+                    </td>
                     <td className="px-3 py-1.5 text-xs text-slate-600">{c.funcao || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.disciplina || '—'}</td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.supervisor || '—'}</td>
                     <td className="px-3 py-1.5">
                       {c.situacao === 'INDISPONIVEL'
                         ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">Indisponível</span>
                         : <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Disponível</span>}
-                      {c.ferias_inicio ? <span className="ml-1 text-[11px] text-slate-500">férias {formatarData(c.ferias_inicio)}–{formatarData(c.ferias_fim)}</span> : null}
+                      {c.ferias_inicio ? <span className="block text-[10px] text-slate-500">férias {formatarData(c.ferias_inicio)}–{formatarData(c.ferias_fim)}</span> : null}
                     </td>
-                    <td className="px-3 py-1.5 text-xs">
-                      {locais.length ? (
-                        <span className="flex flex-col gap-1">
-                          {locais.map((l) => (
-                            <span key={`${l.equipe.id}`} className="flex flex-wrap items-center gap-2">
-                              <DiasProgramados dias={l.dias || []} />
-                              <span>{l.equipe.codigo || '—'} · {l.frente.obra?.orcamento?.ss || l.frente.codigo || l.frente.titulo}</span>
-                            </span>
-                          ))}
-                        </span>
-                      ) : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
+                    <td className="px-3 py-1.5 text-xs text-slate-600">
+                      {locais.length
+                        ? locais.map((l) => <span key={l.equipe.id} className="block">{l.frente.obra?.orcamento?.ss || l.frente.codigo || TIPOS[l.frente.tipo]?.label} · {l.equipe.codigo || '—'}</span>)
+                        : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
                     </td>
+                    <td className="px-3 py-1.5"><DiasProgramados contagem={contagemDias(c.matricula)} /></td>
+                    {editavel ? (
+                      <td className="px-3 py-1.5 text-right">
+                        <button type="button" className="btn-neutro !px-2 !py-1 text-xs" disabled={!c.matricula} onClick={() => setDistribuindo([c])}>Distribuir</button>
+                      </td>
+                    ) : null}
                   </tr>
                 );
               })}
+              {linhas.length === 0 ? <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">Ninguém encontrado.</td></tr> : null}
             </tbody>
           </table>
         </div>
       )}
+
+      <ModalDistribuir aberto={Boolean(distribuindo)} pessoas={distribuindo || []} prog={prog} ondeEsta={ondeEsta}
+        onFechar={() => setDistribuindo(null)} onConfirmar={distribuir} />
     </div>
   );
 }
@@ -846,7 +1012,7 @@ export default function ProgramacaoS1() {
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>
           ) : null}
-          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} onSincronizar={sincronizarEfetivo} sincronizando={ocupado === 'efetivo'} /> : null}
+          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} editavel={editavel} executar={executar} onSincronizar={sincronizarEfetivo} sincronizando={ocupado === 'efetivo'} /> : null}
           {aba === 'saldo' ? <SaldoPorFuncao resumo={resumo} datas={datas} /> : null}
           {aba === 'conflitos' ? <Conflitos conflitos={resumo.conflitos} datas={datas} /> : null}
         </>
