@@ -24,7 +24,11 @@ router.use(autorizar(...PERFIS_PROGRAMACAO));
 
 // Apoio: obras em andamento (para vincular uma frente) e o efetivo do contrato.
 router.get('/obras', acao(() => service.listarObras()));
-router.get('/efetivo', acao(() => service.listarEfetivo()));
+router.get('/efetivo', acao((req) => service.listarEfetivo({ todos: ['1', 'true'].includes(String(req.query?.todos || '')) })));
+// Efetivo do contrato: mobilizar (nova pessoa ou volta), desmobilizar e situação (disponível/indisponível).
+router.post('/efetivo/mobilizar', acao((req) => service.mobilizarColaborador(req.body || {}), 201));
+router.post('/efetivo/:id/desmobilizar', acao((req) => service.desmobilizarColaborador(req.params.id, req.body || {})));
+router.put('/efetivo/:id', acao((req) => service.atualizarColaboradorEfetivo(req.params.id, req.body || {})));
 
 // Detalhamento da obra: programação e efetivo nominal de uma obra (?recorte=proxima|atual|ultima ou ?programacao_id=).
 router.get('/por-obra/:obraId', acao((req) => service.programacaoDaObra(req.params.obraId, req.query || {})));

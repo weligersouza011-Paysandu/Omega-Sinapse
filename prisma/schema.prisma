@@ -1370,26 +1370,28 @@ model FuncaoMaoObra {
 
 /// Colaborador de campo (cadastro manual; não é usuário do sistema).
 model Colaborador {
-  id               Int             @id @default(autoincrement())
-  nome             String          @db.VarChar(255)
-  matricula        String?         @unique @db.VarChar(30)
+  id                  Int             @id @default(autoincrement())
+  nome                String          @db.VarChar(255)
+  matricula           String?         @unique @db.VarChar(30)
   /// Função de planejamento (a usada na programação e no RDO).
-  funcao_id        Int?
-  ativo            Boolean         @default(true)
+  funcao_id           Int?
+  ativo               Boolean         @default(true)
   /// Efetivo do contrato: cargo formal (função Omega), disciplina, liderança e situação.
-  cargo            String?         @db.VarChar(160)
-  disciplina       String?         @db.VarChar(60)
-  supervisor       String?         @db.VarChar(120)
-  encarregado      String?         @db.VarChar(120)
-  situacao         SituacaoEfetivo @default(DISPONIVEL)
-  ferias_inicio    DateTime?       @db.Date
-  ferias_fim       DateTime?       @db.Date
+  cargo               String?         @db.VarChar(160)
+  disciplina          String?         @db.VarChar(60)
+  supervisor          String?         @db.VarChar(120)
+  encarregado         String?         @db.VarChar(120)
+  situacao            SituacaoEfetivo @default(DISPONIVEL)
+  ferias_inicio       DateTime?       @db.Date
+  ferias_fim          DateTime?       @db.Date
   /// Primeiro dia do colaborador na obra/contrato.
-  data_mobilizacao DateTime?       @db.Date
+  data_mobilizacao    DateTime?       @db.Date
+  /// Último dia no contrato (desmobilização). Desmobilizado = `ativo` falso.
+  data_desmobilizacao DateTime?       @db.Date
   /// Contrato a cujo efetivo o colaborador pertence.
-  contrato_id      Int?
-  created_at       DateTime        @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
+  contrato_id         Int?
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @default(now()) @updatedAt @db.Timestamptz(6)
 
   funcao                FuncaoMaoObra?        @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
   contrato              Contrato?             @relation(fields: [contrato_id], references: [id], onDelete: SetNull)

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, Users } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, UserMinus, UserPlus, Users } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { Secao } from '../components/rdo/SecoesRdo.jsx';
@@ -10,11 +10,12 @@ import {
   atualizarAlocacao, atualizarEquipe, atualizarFrente, baixarExportacaoProgramacao, criarAlocacao, criarEquipe, criarFrente,
   criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
   listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
-  sincronizarEfetivoProgramacao,
+  sincronizarEfetivoProgramacao, mobilizarColaborador, desmobilizarColaborador, atualizarColaboradorEfetivo,
 } from '../services/programacaoApi.js';
 import { formatarData, formatarDataHora } from '../utils/formatters.js';
 
 const ID_LISTA_EFETIVO = 'programacao-efetivo-contrato';
+const ID_LISTA_FUNCOES = 'programacao-funcoes';
 
 const DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
 const TIPOS = {
@@ -235,6 +236,26 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula }) {
   );
 }
 
+/** Informações da obra vinculada para a faixa da frente: descrição, PEP, OSI, responsáveis e local. */
+function infoDaObra(obra) {
+  if (!obra) return [];
+  const o = obra.orcamento || {};
+  const nomes = (lista) => [...new Set(lista.filter(Boolean))].join(', ');
+  const planejadores = nomes([...(obra.planejadores || []).map((p) => p.usuario?.nome), obra.planejador?.nome]);
+  const campos = [
+    ['Obra', o.descricao],
+    ['PEP', o.pep],
+    ['OSI', obra.osi_numero],
+    ['Planejador', planejadores],
+    ['Fiscal', nomes((o.fiscais || []).map((f) => f.nome))],
+    ['Encarregado', nomes((obra.encarregados || []).map((e) => e.usuario?.nome))],
+    ['Local', o.endereco],
+    ['Contrato', obra.contrato?.id_vale],
+    ['Situação', obra.status !== 'EM_ANDAMENTO' ? STATUS_OBRA[obra.status]?.label || obra.status : null],
+  ];
+  return campos.filter(([, v]) => v);
+}
+
 function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula }) {
   const [editando, setEditando] = useState(false);
   // Seletor de obra: null (fechado) ou o tipo a gravar junto com a obra escolhida.
@@ -245,10 +266,20 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
     if (ok) setSeletor(null);
   };
   const ss = frente.obra?.orcamento?.ss || frente.codigo;
+  const dadosObra = infoDaObra(frente.obra);
   const titulo = (
-    <span className="flex flex-wrap items-center gap-2">
-      {ss ? <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-xs">{ss}</span> : null}
-      <span>{frente.titulo}</span>
+    <span className="flex min-w-0 flex-col gap-1">
+      <span className="flex flex-wrap items-center gap-2">
+        {ss ? <span className="rounded bg-white/15 px-1.5 py-0.5 font-mono text-xs">{ss}</span> : null}
+        <span>{frente.titulo}</span>
+      </span>
+      {dadosObra.length ? (
+        <span className="flex flex-wrap gap-x-4 gap-y-0.5 text-xs font-normal text-white/85">
+          {dadosObra.map(([rotulo, valor]) => (
+            <span key={rotulo}><span className="text-white/60">{rotulo}:</span> <span className="font-semibold text-white">{valor}</span></span>
+          ))}
+        </span>
+      ) : null}
     </span>
   );
   const resumo = `${frente.responsavel ? `Resp. ${frente.responsavel} · ` : ''}${pessoas} pessoa(s) · ${DIAS.map((d, i) => totais?.[i] ?? 0).slice(0, 6).join('/')}`;
@@ -485,11 +516,112 @@ function ModalDistribuir({ aberto, pessoas, prog, ondeEsta, onFechar, onConfirma
  * foi programado fora dele, no mesmo formato do efetivo da obra — onde cada pessoa está e os dias SEG–DOM.
  * É daqui que o efetivo é distribuído nas obras.
  */
-function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sincronizando }) {
+const hojeIso = () => {
+  const h = new Date();
+  return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
+};
+
+/**
+ * Mobilizar (entrar no efetivo do contrato, pessoa nova ou que volta) ou desmobilizar (sair).
+ * `pessoa` preenchida = ação sobre alguém da lista; vazia = mobilizar uma pessoa nova.
+ */
+function ModalMobilizacao({ modo, pessoa, efetivo, onFechar, onConcluido }) {
+  const toast = useToast();
+  const [form, setForm] = useState({});
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => {
+    if (!modo) return;
+    setForm({
+      matricula: pessoa?.matricula || '', nome: pessoa?.nome || '', funcao: pessoa?.funcao || '', cargo: pessoa?.cargo || '',
+      disciplina: pessoa?.disciplina || '', supervisor: pessoa?.supervisor || '', encarregado: pessoa?.encarregado || '', data: hojeIso(),
+    });
+  }, [modo, pessoa]);
+  const campo = (k) => ({ value: form[k] ?? '', onChange: (e) => setForm((f) => ({ ...f, [k]: e.target.value })) });
+
+  // Matrícula de alguém desmobilizado: traz o cadastro dele.
+  const aoSairDaMatricula = () => {
+    if (pessoa || !form.matricula) return;
+    const c = efetivo.find((x) => x.matricula === form.matricula.trim());
+    if (c) {
+      setForm((f) => ({
+        ...f, nome: f.nome || c.nome, funcao: f.funcao || c.funcao || '', cargo: f.cargo || c.cargo || '',
+        disciplina: f.disciplina || c.disciplina || '', supervisor: f.supervisor || c.supervisor || '', encarregado: f.encarregado || c.encarregado || '',
+      }));
+    }
+  };
+  const jaCadastrado = !pessoa && efetivo.find((x) => x.matricula && x.matricula === String(form.matricula || '').trim());
+
+  const salvar = async (e) => {
+    e.preventDefault();
+    setSalvando(true);
+    try {
+      if (modo === 'desmobilizar') {
+        await desmobilizarColaborador(pessoa.id, { data: form.data });
+        toast.sucesso(`${pessoa.nome} desmobilizado(a).`);
+      } else {
+        const r = await mobilizarColaborador(form);
+        toast.sucesso(`${form.nome || pessoa?.nome} ${r.reativado ? 'mobilizado(a) de volta' : 'mobilizado(a)'}. Agora programe em uma frente.`);
+      }
+      await onConcluido();
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const desmobilizar = modo === 'desmobilizar';
+  return (
+    <ModalBase aberto={Boolean(modo)} onFechar={onFechar} titulo={desmobilizar ? `Desmobilizar · ${pessoa?.nome || ''}` : pessoa ? `Mobilizar · ${pessoa.nome}` : 'Mobilizar pessoa no contrato'}>
+      <form className="space-y-3" onSubmit={salvar}>
+        {desmobilizar ? (
+          <>
+            <p className="text-sm text-slate-600">A pessoa sai do efetivo do contrato: deixa de aparecer para a programação e para o RDO. O histórico continua.</p>
+            {pessoa?.locais?.length ? (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-sm text-amber-800">
+                <AlertTriangle className="mr-1 inline h-4 w-4" />Ela está programada nesta semana em {pessoa.locais.length} equipe(s). Retire-a da programação se ela não for trabalhar.
+              </p>
+            ) : null}
+          </>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div><label className="rotulo">Matrícula *</label><input className="campo" required disabled={Boolean(pessoa)} onBlur={aoSairDaMatricula} {...campo('matricula')} /></div>
+            <div><label className="rotulo">Nome {pessoa || jaCadastrado ? '' : '*'}</label><input className="campo" required={!pessoa && !jaCadastrado} {...campo('nome')} /></div>
+            <div><label className="rotulo">Função (planejamento)</label><input className="campo" list={ID_LISTA_FUNCOES} {...campo('funcao')} /></div>
+            <div><label className="rotulo">Função Omega (cargo)</label><input className="campo" {...campo('cargo')} /></div>
+            <div><label className="rotulo">Disciplina</label><input className="campo" {...campo('disciplina')} /></div>
+            <div><label className="rotulo">Supervisor</label><input className="campo" {...campo('supervisor')} /></div>
+            <div><label className="rotulo">Encarregado</label><input className="campo" {...campo('encarregado')} /></div>
+            {jaCadastrado ? <p className="self-end text-xs text-slate-500">Matrícula já cadastrada ({jaCadastrado.nome}): ela volta ao efetivo.</p> : null}
+          </div>
+        )}
+        <div className="max-w-[12rem]"><label className="rotulo">{desmobilizar ? 'Data da desmobilização' : 'Data da mobilização'}</label><input type="date" className="campo" required {...campo('data')} /></div>
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-neutro" onClick={onFechar}>Cancelar</button>
+          <button type="submit" className={desmobilizar ? 'btn-neutro !border-red-300 !text-red-700' : 'btn-primario'} disabled={salvando}>
+            {salvando ? 'Salvando...' : desmobilizar ? 'Desmobilizar' : 'Mobilizar'}
+          </button>
+        </div>
+      </form>
+    </ModalBase>
+  );
+}
+
+const FILTROS_EFETIVO = [
+  ['mobilizados', 'Mobilizados'],
+  ['sem', 'Precisam de programação'],
+  ['programados', 'Programados'],
+  ['indisponiveis', 'Férias / INSS / indisponíveis'],
+  ['desmobilizados', 'Desmobilizados'],
+  ['todos', 'Todos'],
+];
+
+function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sincronizando, onEfetivoAlterado, filtro, setFiltro }) {
+  const toast = useToast();
   const [busca, setBusca] = useState('');
-  const [filtro, setFiltro] = useState('');
   const [selecionados, setSelecionados] = useState(new Set());
   const [distribuindo, setDistribuindo] = useState(null); // lista de pessoas
+  const [movimento, setMovimento] = useState(null); // { modo, pessoa }
 
   // Onde cada matrícula está na semana (frente, equipe, dias).
   const ondeEsta = useMemo(() => {
@@ -503,39 +635,44 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
     return mapa;
   }, [prog]);
 
-  // Todo o efetivo + quem foi programado com matrícula fora do cadastro.
+  // Todo o efetivo do contrato (mobilizados e desmobilizados) + quem foi programado com matrícula fora do cadastro.
   const pessoas = useMemo(() => {
     const doCadastro = efetivo.map((c) => ({ ...c, chave: `c${c.id}`, foraDoEfetivo: false }));
     const noCadastro = new Set(efetivo.map((c) => c.matricula).filter(Boolean));
     const fora = (prog.resumo?.fora_do_efetivo || []).filter((p) => p.matricula && !noCadastro.has(p.matricula))
-      .map((p) => ({ chave: `m${p.matricula}`, matricula: p.matricula, nome: p.nome, funcao: p.funcao, situacao: 'DISPONIVEL', foraDoEfetivo: true }));
-    return [...doCadastro, ...fora];
-  }, [efetivo, prog]);
+      .map((p) => ({ chave: `m${p.matricula}`, matricula: p.matricula, nome: p.nome, funcao: p.funcao, situacao: 'DISPONIVEL', mobilizado: true, foraDoEfetivo: true }));
+    return [...doCadastro, ...fora].map((c) => ({ ...c, locais: ondeEsta.get(c.matricula) || [] }));
+  }, [efetivo, prog, ondeEsta]);
 
-  const contagemDias = (matricula) => DIAS.map((_, i) => (ondeEsta.get(matricula) || []).filter((l) => l.dias[i]).length);
+  const precisa = (c) => c.mobilizado && c.situacao === 'DISPONIVEL' && c.locais.length === 0;
+  const regra = {
+    mobilizados: (c) => c.mobilizado,
+    sem: precisa,
+    programados: (c) => c.locais.length > 0,
+    indisponiveis: (c) => c.mobilizado && c.situacao === 'INDISPONIVEL',
+    desmobilizados: (c) => !c.mobilizado,
+    todos: () => true,
+  };
+  const contar = (f) => pessoas.filter(regra[f]).length;
+  const contagemDias = (c) => DIAS.map((_, i) => c.locais.filter((l) => l.dias[i]).length);
   const termo = busca.trim().toUpperCase();
   const linhas = pessoas
-    .filter((c) => !termo || `${c.nome} ${c.matricula || ''} ${c.funcao || ''} ${c.disciplina || ''} ${c.supervisor || ''}`.toUpperCase().includes(termo))
-    .filter((c) => {
-      const programado = ondeEsta.has(c.matricula);
-      if (filtro === 'sem') return c.situacao === 'DISPONIVEL' && !programado;
-      if (filtro === 'programados') return programado;
-      if (filtro === 'indisponiveis') return c.situacao === 'INDISPONIVEL';
-      return true;
-    });
-  const contar = (f) => pessoas.filter(f).length;
-  const semProgramacao = contar((c) => c.situacao === 'DISPONIVEL' && !ondeEsta.has(c.matricula));
-  const foraDoEfetivo = contar((c) => c.foraDoEfetivo);
+    .filter(regra[filtro] || regra.mobilizados)
+    .filter((c) => !termo || `${c.nome} ${c.matricula || ''} ${c.funcao || ''} ${c.cargo || ''} ${c.disciplina || ''} ${c.supervisor || ''} ${c.encarregado || ''}`.toUpperCase().includes(termo))
+    // Quem precisa de programação primeiro; depois por nome.
+    .sort((a, b) => Number(precisa(b)) - Number(precisa(a)) || a.nome.localeCompare(b.nome));
+  const foraDoEfetivo = contar('todos') - efetivo.length;
 
   const alternar = (chave) => setSelecionados((atual) => {
     const novo = new Set(atual);
     if (novo.has(chave)) novo.delete(chave); else novo.add(chave);
     return novo;
   });
-  const todosVisiveisMarcados = linhas.length > 0 && linhas.every((c) => selecionados.has(c.chave));
+  const marcaveis = linhas.filter((c) => c.mobilizado && c.matricula);
+  const todosVisiveisMarcados = marcaveis.length > 0 && marcaveis.every((c) => selecionados.has(c.chave));
   const marcarVisiveis = () => setSelecionados((atual) => {
     const novo = new Set(atual);
-    linhas.forEach((c) => (todosVisiveisMarcados ? novo.delete(c.chave) : novo.add(c.chave)));
+    marcaveis.forEach((c) => (todosVisiveisMarcados ? novo.delete(c.chave) : novo.add(c.chave)));
     return novo;
   });
   const listaSelecionada = pessoas.filter((c) => selecionados.has(c.chave));
@@ -550,24 +687,33 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
     setSelecionados(new Set());
   });
 
+  const mudarSituacao = async (c, situacao) => {
+    try {
+      await atualizarColaboradorEfetivo(c.id, { situacao });
+      await onEfetivoAlterado();
+    } catch (err) {
+      toast.erro(err.message);
+    }
+  };
+
+  const th = 'whitespace-nowrap px-2 py-2';
+  const td = 'px-2 py-1.5';
   return (
     <div className="space-y-3">
       <div className="card flex flex-wrap items-center gap-2 p-3">
-        {[
-          ['', `Todos (${pessoas.length})`],
-          ['sem', `Disponíveis sem programação (${semProgramacao})`],
-          ['programados', `Programados (${contar((c) => ondeEsta.has(c.matricula))})`],
-          ['indisponiveis', `Indisponíveis (${contar((c) => c.situacao === 'INDISPONIVEL')})`],
-        ].map(([v, rotulo]) => (
-          <button key={v || 'todos'} type="button" onClick={() => setFiltro(v)}
-            className={`rounded-full border px-3 py-1 text-xs font-semibold ${filtro === v ? 'border-omega-600 bg-omega-600 text-white' : 'border-slate-200 text-slate-600 hover:border-omega-300'}`}>
-            {rotulo}
+        {FILTROS_EFETIVO.map(([v, rotulo]) => (
+          <button key={v} type="button" onClick={() => setFiltro(v)}
+            className={`rounded-full border px-3 py-1 text-xs font-semibold ${filtro === v ? 'border-omega-600 bg-omega-600 text-white' : v === 'sem' && contar('sem') > 0 ? 'border-amber-300 bg-amber-50 text-amber-800 hover:border-amber-400' : 'border-slate-200 text-slate-600 hover:border-omega-300'}`}>
+            {rotulo} ({contar(v)})
           </button>
         ))}
         <span className="relative ml-auto">
           <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-slate-400" />
           <input className="campo !w-64 !pl-8" placeholder="Buscar no efetivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </span>
+        <button type="button" className="btn-primario" onClick={() => setMovimento({ modo: 'mobilizar', pessoa: null })}>
+          <UserPlus className="h-4 w-4" /> Mobilizar pessoa
+        </button>
         <button type="button" className="btn-neutro" disabled={sincronizando} onClick={onSincronizar}
           title="Cadastra no efetivo quem foi programado com matrícula e ainda não está nele, e liga cada pessoa programada ao seu cadastro">
           <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} /> Atualizar efetivo
@@ -589,56 +735,85 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
         </div>
       ) : null}
 
-      {pessoas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato (cadastro de colaboradores do RDO).</div> : (
+      {pessoas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhum colaborador no efetivo do contrato. Use <strong>Mobilizar pessoa</strong>.</div> : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead>
+            <thead className="bg-slate-50">
               <tr className="text-left text-[11px] uppercase tracking-wide text-slate-500">
                 {editavel ? (
-                  <th className="w-8 px-3 py-2">
+                  <th className="w-8 px-2 py-2">
                     <input type="checkbox" aria-label="Selecionar todos da lista" checked={todosVisiveisMarcados} onChange={marcarVisiveis} />
                   </th>
                 ) : null}
-                <th className="px-3 py-2">Mat.</th><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Função</th>
-                <th className="px-3 py-2">Situação</th><th className="px-3 py-2">Obra / equipe</th><th className="px-3 py-2">SEG–DOM</th>
-                {editavel ? <th className="px-3 py-2" /> : null}
+                <th className={th}>Mat.</th><th className={th}>Nome</th><th className={th}>Função Omega</th><th className={th}>Função planej.</th>
+                <th className={th}>Disciplina</th><th className={th}>Supervisor</th><th className={th}>Encarregado</th>
+                <th className={th}>Situação</th><th className={th}>Mobilização</th><th className={th}>Programação da semana</th><th className={th}>SEG–DOM</th>
+                <th className={`${th} sticky right-0 bg-slate-50`} />
               </tr>
             </thead>
             <tbody>
               {linhas.map((c) => {
-                const locais = ondeEsta.get(c.matricula) || [];
+                const alerta = precisa(c);
                 return (
-                  <tr key={c.chave} className={`border-t border-slate-100 ${selecionados.has(c.chave) ? 'bg-omega-50/60' : ''}`}>
+                  <tr key={c.chave} className={`border-t border-slate-100 ${!c.mobilizado ? 'text-slate-400' : ''} ${selecionados.has(c.chave) ? 'bg-omega-50/60' : alerta ? 'bg-amber-50/70' : ''}`}>
                     {editavel ? (
-                      <td className="px-3 py-1.5"><input type="checkbox" aria-label={`Selecionar ${c.nome}`} checked={selecionados.has(c.chave)} onChange={() => alternar(c.chave)} /></td>
+                      <td className={td}>
+                        {c.mobilizado && c.matricula ? <input type="checkbox" aria-label={`Selecionar ${c.nome}`} checked={selecionados.has(c.chave)} onChange={() => alternar(c.chave)} /> : null}
+                      </td>
                     ) : null}
-                    <td className="px-3 py-1.5 font-mono text-xs text-slate-600">{c.matricula || '—'}</td>
-                    <td className="px-3 py-1.5 font-medium text-slate-800">
+                    <td className={`${td} font-mono text-xs`}>{c.matricula || '—'}</td>
+                    <td className={`${td} font-medium ${c.mobilizado ? 'text-slate-800' : ''}`}>
                       {c.nome}
                       {c.foraDoEfetivo ? <span className="ml-1 rounded-full border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">fora do efetivo</span> : null}
                     </td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600">{c.funcao || '—'}</td>
-                    <td className="px-3 py-1.5">
-                      {c.situacao === 'INDISPONIVEL'
-                        ? <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">Indisponível</span>
-                        : <span className="rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Disponível</span>}
+                    <td className={`${td} text-xs`}>{c.cargo || '—'}</td>
+                    <td className={`${td} text-xs`}>{c.funcao || '—'}</td>
+                    <td className={`${td} text-xs`}>{c.disciplina || '—'}</td>
+                    <td className={`${td} text-xs`}>{c.supervisor || '—'}</td>
+                    <td className={`${td} text-xs`}>{c.encarregado || '—'}</td>
+                    <td className={td}>
+                      {!c.mobilizado ? (
+                        <span className="rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">Desmobilizado</span>
+                      ) : c.foraDoEfetivo ? '—' : (
+                        <select aria-label={`Situação de ${c.nome}`} value={c.situacao} onChange={(e) => mudarSituacao(c, e.target.value)}
+                          className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${c.situacao === 'INDISPONIVEL' ? 'border-slate-300 bg-slate-100 text-slate-600' : 'border-emerald-300 bg-emerald-50 text-emerald-700'}`}>
+                          <option value="DISPONIVEL">Disponível</option>
+                          <option value="INDISPONIVEL">Indisponível</option>
+                        </select>
+                      )}
                       {c.ferias_inicio ? <span className="block text-[10px] text-slate-500">férias {formatarData(c.ferias_inicio)}–{formatarData(c.ferias_fim)}</span> : null}
                     </td>
-                    <td className="px-3 py-1.5 text-xs text-slate-600">
-                      {locais.length
-                        ? locais.map((l) => <span key={l.equipe.id} className="block">{l.frente.obra?.orcamento?.ss || l.frente.codigo || TIPOS[l.frente.tipo]?.label} · {l.equipe.codigo || '—'}</span>)
-                        : <span className={c.situacao === 'DISPONIVEL' ? 'font-semibold text-amber-700' : 'text-slate-400'}>sem programação</span>}
+                    <td className={`${td} whitespace-nowrap text-xs`}>
+                      {c.data_mobilizacao ? <span className="block">entrou {formatarData(c.data_mobilizacao)}</span> : null}
+                      {!c.mobilizado && c.data_desmobilizacao ? <span className="block">saiu {formatarData(c.data_desmobilizacao)}</span> : null}
+                      {!c.data_mobilizacao && c.mobilizado ? '—' : null}
                     </td>
-                    <td className="px-3 py-1.5"><DiasProgramados contagem={contagemDias(c.matricula)} /></td>
-                    {editavel ? (
-                      <td className="px-3 py-1.5 text-right">
-                        <button type="button" className="btn-neutro !px-2 !py-1 text-xs" disabled={!c.matricula} onClick={() => setDistribuindo([c])}>Distribuir</button>
-                      </td>
-                    ) : null}
+                    <td className={`${td} text-xs`}>
+                      {c.locais.length
+                        ? c.locais.map((l) => <span key={l.equipe.id} className="block">{l.frente.obra?.orcamento?.ss || l.frente.codigo || TIPOS[l.frente.tipo]?.label} · {l.equipe.codigo || '—'}</span>)
+                        : alerta
+                          ? <span className="inline-flex items-center gap-1 font-bold text-amber-700"><AlertTriangle className="h-3.5 w-3.5" />Sem programação: programar</span>
+                          : <span className="text-slate-400">—</span>}
+                    </td>
+                    <td className={td}>{c.mobilizado ? <DiasProgramados contagem={contagemDias(c)} /> : null}</td>
+                    <td className={`${td} sticky right-0 whitespace-nowrap bg-white text-right shadow-[-6px_0_6px_-6px_rgba(0,0,0,0.25)]`}>
+                      {c.mobilizado && !c.foraDoEfetivo ? (
+                        <span className="inline-flex gap-1">
+                          {editavel ? <button type="button" className={`${alerta ? 'btn-primario' : 'btn-neutro'} !px-2 !py-1 text-xs`} disabled={!c.matricula} onClick={() => setDistribuindo([c])}>Distribuir</button> : null}
+                          <button type="button" className="btn-neutro !px-2 !py-1 text-xs" title="Tirar do efetivo do contrato" onClick={() => setMovimento({ modo: 'desmobilizar', pessoa: c })}>
+                            <UserMinus className="h-3.5 w-3.5" /> Desmobilizar
+                          </button>
+                        </span>
+                      ) : !c.mobilizado ? (
+                        <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setMovimento({ modo: 'mobilizar', pessoa: c })}>
+                          <UserPlus className="h-3.5 w-3.5" /> Mobilizar
+                        </button>
+                      ) : null}
+                    </td>
                   </tr>
                 );
               })}
-              {linhas.length === 0 ? <tr><td colSpan={8} className="px-3 py-6 text-center text-sm text-slate-500">Ninguém encontrado.</td></tr> : null}
+              {linhas.length === 0 ? <tr><td colSpan={13} className="px-3 py-6 text-center text-sm text-slate-500">Ninguém encontrado.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -646,6 +821,8 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
 
       <ModalDistribuir aberto={Boolean(distribuindo)} pessoas={distribuindo || []} prog={prog} ondeEsta={ondeEsta}
         onFechar={() => setDistribuindo(null)} onConfirmar={distribuir} />
+      <ModalMobilizacao modo={movimento?.modo} pessoa={movimento?.pessoa} efetivo={efetivo}
+        onFechar={() => setMovimento(null)} onConcluido={async () => { setMovimento(null); await onEfetivoAlterado(); }} />
     </div>
   );
 }
@@ -750,7 +927,9 @@ export default function ProgramacaoS1() {
   const [selecionadaId, setSelecionadaId] = useState(null);
   const [prog, setProg] = useState(null);
   const [obras, setObras] = useState([]);
-  const [efetivo, setEfetivo] = useState([]);
+  const [efetivoCompleto, setEfetivoCompleto] = useState([]);
+  const efetivo = useMemo(() => efetivoCompleto.filter((c) => c.mobilizado !== false), [efetivoCompleto]);
+  const [filtroEfetivo, setFiltroEfetivo] = useState('mobilizados');
   const [carregando, setCarregando] = useState(false);
   const [aba, setAba] = useState('programacao');
   const [filtroTipo, setFiltroTipo] = useState('');
@@ -774,7 +953,7 @@ export default function ProgramacaoS1() {
   useEffect(() => {
     carregarLista().catch((err) => { toast.erro(err.message); setProgramacoes([]); });
     listarObrasProgramacao().then(setObras).catch(() => setObras([]));
-    listarEfetivoProgramacao().then(setEfetivo).catch(() => setEfetivo([]));
+    listarEfetivoProgramacao({ todos: true }).then(setEfetivoCompleto).catch(() => setEfetivoCompleto([]));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -833,7 +1012,7 @@ export default function ProgramacaoS1() {
     setOcupado('efetivo');
     try {
       const r = await sincronizarEfetivoProgramacao(prog.id);
-      setEfetivo(await listarEfetivoProgramacao());
+      setEfetivoCompleto(await listarEfetivoProgramacao({ todos: true }));
       await recarregar();
       toast.sucesso(`Efetivo atualizado: ${r.criados} colaborador(es) novo(s), ${r.vinculadas} pessoa(s) ligada(s) ao cadastro.`);
     } catch (err) {
@@ -842,6 +1021,12 @@ export default function ProgramacaoS1() {
       setOcupado('');
     }
   };
+
+  /** Depois de mobilizar/desmobilizar ou mudar a situação: recarrega o efetivo e o resumo da semana. */
+  const efetivoAlterado = useCallback(async () => {
+    setEfetivoCompleto(await listarEfetivoProgramacao({ todos: true }));
+    await recarregar();
+  }, [recarregar]);
 
   const exportar = async () => {
     setOcupado('exportar');
@@ -893,10 +1078,13 @@ export default function ProgramacaoS1() {
   const semObra = prog?.frentes.filter((f) => f.tipo === 'OBRA' && !f.obra_id).length ?? 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="w-full space-y-4">
       {/* Lista do efetivo do contrato para os campos de matrícula. */}
       <datalist id={ID_LISTA_EFETIVO}>
         {efetivo.filter((c) => c.matricula).map((c) => <option key={c.id} value={c.matricula}>{`${c.nome} · ${c.funcao || ''}`}</option>)}
+      </datalist>
+      <datalist id={ID_LISTA_FUNCOES}>
+        {[...new Set(efetivoCompleto.map((c) => c.funcao).filter(Boolean))].sort().map((f) => <option key={f} value={f} />)}
       </datalist>
 
       {/* Barra da semana */}
@@ -959,14 +1147,26 @@ export default function ProgramacaoS1() {
           </div>
 
           <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            <CartaoNumero titulo="Efetivo do contrato" valor={efetivo.length || resumo.efetivo_ativo}
+            <CartaoNumero titulo="Efetivo mobilizado" valor={efetivo.length || resumo.efetivo_ativo}
               detalhe={efetivo.length ? `${efetivo.filter((c) => c.situacao === 'DISPONIVEL').length} disponíveis` : `${resumo.total_pessoas} na lista`} />
             <CartaoNumero titulo="Frentes de obra" valor={contagemTipo('OBRA')} detalhe={`${contagemTipo('APOIO')} itinerantes`} />
             <CartaoNumero titulo="Sem programação" valor={resumo.saldo_pelo_efetivo ? resumo.nao_programados.length : resumo.por_tipo.DISPONIVEL[0]}
-              detalhe={resumo.saldo_pelo_efetivo ? 'disponíveis fora da semana' : 'sem frente (segunda)'} />
+              detalhe={resumo.saldo_pelo_efetivo ? 'mobilizados fora da semana' : 'sem frente (segunda)'} alerta={Boolean(resumo.saldo_pelo_efetivo && resumo.nao_programados.length)} />
             <CartaoNumero titulo="Férias / INSS" valor={resumo.afastados} />
             <CartaoNumero titulo="Conflitos" valor={resumo.conflitos.length} detalhe="mesma pessoa, mesmo dia" alerta={resumo.conflitos.length > 0} />
           </div>
+
+          {resumo.saldo_pelo_efetivo && resumo.nao_programados.length > 0 ? (
+            <div className="card flex flex-wrap items-center gap-2 border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              <span>
+                <strong>{resumo.nao_programados.length} pessoa(s) mobilizada(s) sem programação</strong> nesta semana. Programe cada uma em uma frente de serviço ou desmobilize.
+              </span>
+              <button type="button" className="btn-primario ml-auto !py-1 text-xs" onClick={() => { setFiltroEfetivo('sem'); setAba('efetivo'); }}>
+                <HardHat className="h-3.5 w-3.5" /> Ver e programar
+              </button>
+            </div>
+          ) : null}
 
           {semObra > 0 ? (
             <div className="card flex items-center gap-2 border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -1012,7 +1212,8 @@ export default function ProgramacaoS1() {
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>
           ) : null}
-          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivo} prog={prog} editavel={editavel} executar={executar} onSincronizar={sincronizarEfetivo} sincronizando={ocupado === 'efetivo'} /> : null}
+          {aba === 'efetivo' ? <EfetivoContrato efetivo={efetivoCompleto} prog={prog} editavel={editavel} executar={executar} onSincronizar={sincronizarEfetivo} sincronizando={ocupado === 'efetivo'}
+            onEfetivoAlterado={efetivoAlterado} filtro={filtroEfetivo} setFiltro={setFiltroEfetivo} /> : null}
           {aba === 'saldo' ? <SaldoPorFuncao resumo={resumo} datas={datas} /> : null}
           {aba === 'conflitos' ? <Conflitos conflitos={resumo.conflitos} datas={datas} /> : null}
         </>
