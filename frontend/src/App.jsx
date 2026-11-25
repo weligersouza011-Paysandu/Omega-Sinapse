@@ -25,6 +25,7 @@ const MeuPerfil = lazy(() => import('./pages/MeuPerfil.jsx'));
 const RdoLista = lazy(() => import('./pages/RdoLista.jsx'));
 const RdoDetalhe = lazy(() => import('./pages/RdoDetalhe.jsx'));
 const RdoObra = lazy(() => import('./pages/RdoObra.jsx'));
+const ProgramacaoS1 = lazy(() => import('./pages/ProgramacaoS1.jsx'));
 
 /** Fallback exibido enquanto o código de uma página é baixado. */
 function PaginaCarregando() {
@@ -197,6 +198,7 @@ export default function App() {
         <Route path="/rdo/obra/:obraId" element={<RotaPorPagina pagina="rdo"><RdoObra /></RotaPorPagina>} />
         <Route path="/rdo/novo" element={<RotaPorPagina pagina="rdo"><RdoDetalhe key="rdo-novo" novo /></RotaPorPagina>} />
         <Route path="/rdo/:id" element={<RotaPorPagina pagina="rdo"><RdoDetalhe key="rdo-existente" /></RotaPorPagina>} />
+        <Route path="/programacao-s1" element={<RotaPorPerfil perfis={['PLANEJADOR', 'SUPERVISOR', 'ADMIN']}><ProgramacaoS1 /></RotaPorPerfil>} />
       </Route>
 
       <Route path="*" element={<Inicio />} />

@@ -279,6 +279,7 @@ model Usuario {
   rdos_decididos          Rdo[]                           @relation("RdoDecisor")
   obras_encarregado       EncarregadoObra[]
   rdo_historico           RdoHistoricoStatus[]
+  programacoes_criadas    ProgramacaoSemanal[]            @relation("ProgramacaoAutor")
 
   @@map("usuarios")
 }
@@ -467,6 +468,8 @@ model Obra {
   rdos                  Rdo[]
   rdo_atividades        RdoAtividade[]
   avancos_atividade     AvancoAtividadeAprovado[]
+  /// Frentes desta obra nas programações semanais de mão de obra (S+1).
+  programacao_frentes   ProgramacaoFrente[]
 
   @@index([status])
   @@index([planejador_id])
@@ -1363,9 +1366,10 @@ model Colaborador {
   created_at DateTime @default(now()) @db.Timestamptz(6)
   updated_at DateTime @default(now()) @updatedAt @db.Timestamptz(6)
 
-  funcao      FuncaoMaoObra? @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
-  lancamentos RdoMaoObra[]
-  efetivo_rdo RdoEfetivo[]
+  funcao                FuncaoMaoObra?        @relation(fields: [funcao_id], references: [id], onDelete: SetNull)
+  lancamentos           RdoMaoObra[]
+  efetivo_rdo           RdoEfetivo[]
+  programacao_alocacoes ProgramacaoAlocacao[]
 
   @@index([funcao_id])
   @@map("colaboradores")
@@ -1625,4 +1629,116 @@ model AvancoAtividadeAprovado {
 
   @@index([obra_id, codigo_atividade, data])
   @@map("avanco_atividade_aprovado")
+}
+
+// -----------------------------------------------------------------------------
+// Programação S+1: programação semanal de mão de obra da semana seguinte, decidida na
+// reunião semanal (substitui a planilha "Programação_S+1_Sem_NN revNN.xlsx").
+// Semana → frentes de serviço (obra/SS ou apoio) → equipes (MEC-03, ELE-05...) → pessoas
+// com presença programada de segunda a domingo.
+// -----------------------------------------------------------------------------
+
+enum StatusProgramacao {
+  /// Em montagem para a reunião.
+  EM_ELABORACAO
+  /// Emitida (revisão vigente). Para alterar, abre-se uma nova revisão.
+  EMITIDA
+}
+
+enum TipoFrenteProgramacao {
+  /// Obra (SS) em execução.
+  OBRA
+  /// Apoio itinerante: sinaleiros, topografia, planejamento, segurança, transporte, RH...
+  APOIO
+  /// Efetivo disponível, ainda sem frente.
+  DISPONIVEL
+  /// Férias, INSS e demais afastamentos.
+  AFASTAMENTO
+}
+
+model ProgramacaoSemanal {
+  id            Int               @id @default(autoincrement())
+  ano           Int
+  /// Nº da semana (mesma regra do WEEKNUM do Excel usado na planilha: semanas começam no domingo).
+  semana        Int
+  /// Segunda-feira da semana programada.
+  data_inicio   DateTime          @db.Date
+  /// Revisão emitida (rev00, rev01, rev02...).
+  revisao       Int               @default(0)
+  status        StatusProgramacao @default(EM_ELABORACAO)
+  emitida_em    DateTime?         @db.Timestamptz(6)
+  observacoes   String?
+  criado_por_id Int?
+  created_at    DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime          @default(now()) @updatedAt @db.Timestamptz(6)
+
+  criado_por Usuario?            @relation("ProgramacaoAutor", fields: [criado_por_id], references: [id], onDelete: SetNull)
+  frentes    ProgramacaoFrente[]
+
+  @@unique([ano, semana])
+  @@map("programacoes_semanais")
+}
+
+model ProgramacaoFrente {
+  id             Int                   @id @default(autoincrement())
+  programacao_id Int
+  tipo           TipoFrenteProgramacao @default(OBRA)
+  /// Título do bloco na planilha (ex.: "RETIRADA DE PENDÊNCIAS USINA 02 E 03").
+  titulo         String                @db.VarChar(200)
+  /// Código da frente: SS da obra (ex.: SS113/24), "998" (canteiro) ou "ITINERANTE".
+  codigo         String?               @db.VarChar(60)
+  /// Responsável pela frente (supervisor/planejador), como informado na reunião.
+  responsavel    String?               @db.VarChar(120)
+  /// Obra do Sinapse vinculada (pela SS), quando houver.
+  obra_id        Int?
+  ordem          Int                   @default(0)
+
+  programacao ProgramacaoSemanal  @relation(fields: [programacao_id], references: [id], onDelete: Cascade)
+  obra        Obra?               @relation(fields: [obra_id], references: [id], onDelete: SetNull)
+  equipes     ProgramacaoEquipe[]
+
+  @@index([programacao_id, ordem])
+  @@index([obra_id])
+  @@map("programacao_frentes")
+}
+
+model ProgramacaoEquipe {
+  id         Int     @id @default(autoincrement())
+  frente_id  Int
+  /// Código da equipe (ex.: MEC-03, ELE-05, AND-02).
+  codigo     String? @db.VarChar(30)
+  /// Disciplina (MECÂNICA, ELÉTRICA, ANDAIME, CIVIL...).
+  disciplina String? @db.VarChar(120)
+  /// Principais atividades programadas para a semana.
+  atividades String?
+  /// Premissas, pendências e apoios necessários (material, munck, PT...).
+  premissas  String?
+  ordem      Int     @default(0)
+
+  frente    ProgramacaoFrente     @relation(fields: [frente_id], references: [id], onDelete: Cascade)
+  alocacoes ProgramacaoAlocacao[]
+
+  @@index([frente_id, ordem])
+  @@map("programacao_equipes")
+}
+
+model ProgramacaoAlocacao {
+  id             Int       @id @default(autoincrement())
+  equipe_id      Int
+  /// Colaborador do cadastro do RDO (casado pela matrícula), quando houver.
+  colaborador_id Int?
+  matricula      String?   @db.VarChar(30)
+  nome           String    @db.VarChar(255)
+  /// Função de planejamento (a mesma usada no saldo por função).
+  funcao         String?   @db.VarChar(120)
+  /// Presença programada de segunda (0) a domingo (6).
+  dias           Boolean[] @default([])
+  ordem          Int       @default(0)
+
+  equipe      ProgramacaoEquipe @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+  colaborador Colaborador?      @relation(fields: [colaborador_id], references: [id], onDelete: SetNull)
+
+  @@index([equipe_id, ordem])
+  @@index([matricula])
+  @@map("programacao_alocacoes")
 }

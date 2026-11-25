@@ -39,6 +39,16 @@ export const MODULOS = [
     icone: 'M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1Zm-2 2H6a1 1 0 0 0-1 1v13a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1M9 12h6M9 16h4',
   },
   {
+    id: 'programacao-s1',
+    rota: '/programacao-s1',
+    label: 'Programação S+1',
+    descricao: 'Programação semanal de mão de obra da semana seguinte (reunião de programação).',
+    ativo: true,
+    // Só o planejamento monta e emite a programação.
+    perfis: ['PLANEJADOR', 'SUPERVISOR', 'ADMIN'],
+    icone: 'M4 7h16M4 7v12a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V7M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2M8 2v4M16 2v4M8 12h3M8 16h3M14 12l1.5 1.5L18 11',
+  },
+  {
     id: 'planejamento',
     rota: '/planejamento',
     label: 'Dashboard de Planejamento',

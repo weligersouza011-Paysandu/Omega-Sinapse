@@ -137,8 +137,20 @@ const uploadPlanilhaQqp = multer({
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
 }).single('arquivo');
 
+/** Upload da planilha .xlsx da Programação S+1 (campo "arquivo"), em memória, até 10 MB. */
+const uploadPlanilhaProgramacao = multer({
+  storage,
+  fileFilter(req, file, cb) {
+    const extensao = path.extname(file.originalname || '').toLowerCase();
+    if (extensao === '.xlsx' || /spreadsheetml/.test(file.mimetype || '')) return cb(null, true);
+    return cb(new AppError(400, `Envie a planilha da programação em formato .xlsx (recebido: ${file.originalname}).`));
+  },
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+}).single('arquivo');
+
 module.exports = upload;
 module.exports.uploadPlanilhaQqp = uploadPlanilhaQqp;
+module.exports.uploadPlanilhaProgramacao = uploadPlanilhaProgramacao;
 module.exports.uploadPlanilhasMedicao = uploadPlanilhasMedicao;
 module.exports.upload = upload;
 module.exports.uploadCronograma = uploadCronograma;
