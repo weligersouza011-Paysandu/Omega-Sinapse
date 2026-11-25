@@ -83,12 +83,22 @@ function camposAlocacao(p, parcial) {
 
 /* ------------------------------ Consultas ------------------------------ */
 
+/** Dados da obra que aparecem na faixa da frente: identificação, local, responsáveis e contrato. */
+const SELECT_OBRA_FRENTE = {
+  id: true, status: true, categoria: true, osi_numero: true,
+  planejador: { select: { id: true, nome: true } },
+  planejadores: { orderBy: { ordem: 'asc' }, select: { usuario: { select: { id: true, nome: true } } } },
+  encarregados: { select: { usuario: { select: { id: true, nome: true } } } },
+  contrato: { select: { id: true, id_vale: true } },
+  orcamento: { select: { ss: true, pep: true, descricao: true, endereco: true, cliente: true, fiscais: { select: { nome: true, contato: true } } } },
+};
+
 const INCLUDE_COMPLETO = {
   criado_por: { select: { id: true, nome: true } },
   frentes: {
     orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
     include: {
-      obra: { select: { id: true, status: true, categoria: true, osi_numero: true, orcamento: { select: { ss: true, pep: true, descricao: true } } } },
+      obra: { select: SELECT_OBRA_FRENTE },
       equipes: {
         orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
         include: { alocacoes: { orderBy: [{ ordem: 'asc' }, { id: 'asc' }] } },
@@ -109,18 +119,103 @@ async function listar() {
  * Efetivo do contrato: colaboradores ativos do cadastro (o mesmo que o RDO usa na mão de obra),
  * com função, disciplina, liderança e situação.
  */
-async function listarEfetivo() {
+async function listarEfetivo({ todos = false } = {}) {
   const colaboradores = await prisma.colaborador.findMany({
-    where: { ativo: true },
+    where: todos ? {} : { ativo: true },
     orderBy: [{ nome: 'asc' }],
     select: {
       id: true, matricula: true, nome: true, cargo: true, disciplina: true, supervisor: true, encarregado: true,
       situacao: true, ferias_inicio: true, ferias_fim: true, data_mobilizacao: true,
+      ativo: true, data_desmobilizacao: true,
       funcao: { select: { id: true, nome: true } },
       contrato: { select: { id: true, id_vale: true, descricao: true } },
     },
   });
-  return colaboradores.map((c) => ({ ...c, funcao_id: c.funcao?.id ?? null, funcao: c.funcao?.nome ?? null }));
+  return colaboradores.map(({ ativo, ...c }) => ({ ...c, mobilizado: ativo, funcao_id: c.funcao?.id ?? null, funcao: c.funcao?.nome ?? null }));
+}
+
+/** Data (YYYY-MM-DD) informada ou hoje. */
+function dataOuHoje(valor, campo) {
+  if (vazio(valor)) {
+    const h = new Date();
+    return new Date(Date.UTC(h.getFullYear(), h.getMonth(), h.getDate()));
+  }
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(valor));
+  const d = m ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))) : null;
+  if (!d || Number.isNaN(d.getTime())) throw new AppError(400, `O campo "${campo}" deve ser uma data (AAAA-MM-DD).`);
+  return d;
+}
+
+async function funcaoPorNome(nome, cliente = prisma) {
+  const n = vazio(nome) ? null : String(nome).trim().toUpperCase().slice(0, 120);
+  return n ? cliente.funcaoMaoObra.upsert({ where: { nome: n }, update: {}, create: { nome: n } }) : null;
+}
+
+/**
+ * Mobiliza uma pessoa no efetivo do contrato. Matrícula já cadastrada: volta a ficar ativa (e disponível
+ * para a programação e o RDO). Matrícula nova: cria o colaborador no contrato do restante do efetivo.
+ */
+async function mobilizarColaborador(payload) {
+  const matricula = texto(payload.matricula, 'matricula', 30, true);
+  const data = dataOuHoje(payload.data, 'data');
+  const existente = await prisma.colaborador.findUnique({ where: { matricula }, select: { id: true } });
+  const funcao = await funcaoPorNome(payload.funcao);
+  const extras = {};
+  ['cargo', 'disciplina', 'supervisor', 'encarregado'].forEach((c) => {
+    if (!vazio(payload[c])) extras[c] = texto(payload[c], c, c === 'cargo' ? 160 : 120);
+  });
+  if (existente) {
+    await prisma.colaborador.update({
+      where: { id: existente.id },
+      data: {
+        ...extras, ativo: true, situacao: 'DISPONIVEL', data_mobilizacao: data, data_desmobilizacao: null,
+        ...(vazio(payload.nome) ? {} : { nome: texto(payload.nome, 'nome', 255) }),
+        ...(funcao ? { funcao_id: funcao.id } : {}),
+      },
+    });
+    return { id: existente.id, reativado: true };
+  }
+  const nome = texto(payload.nome, 'nome', 255, true);
+  const [contrato] = await prisma.colaborador.groupBy({
+    by: ['contrato_id'], where: { contrato_id: { not: null } }, _count: { _all: true }, orderBy: { _count: { contrato_id: 'desc' } }, take: 1,
+  });
+  const criado = await prisma.colaborador.create({
+    data: {
+      ...extras, matricula, nome, funcao_id: funcao?.id ?? null, situacao: 'DISPONIVEL', ativo: true,
+      data_mobilizacao: data, contrato_id: contrato?.contrato_id ?? null,
+    },
+    select: { id: true },
+  });
+  return { id: criado.id, reativado: false };
+}
+
+/** Desmobiliza (sai do efetivo do contrato): deixa de aparecer para a programação e o RDO; o histórico fica. */
+async function desmobilizarColaborador(id, payload = {}) {
+  const c = await prisma.colaborador.findUnique({ where: { id: idValido(id) }, select: { id: true } });
+  if (!c) throw new AppError(404, 'Colaborador não encontrado.');
+  await prisma.colaborador.update({ where: { id: c.id }, data: { ativo: false, data_desmobilizacao: dataOuHoje(payload.data, 'data') } });
+  return { ok: true };
+}
+
+/** Situação no efetivo: DISPONÍVEL / INDISPONÍVEL (férias, INSS, afastado), com o período de férias. */
+async function atualizarColaboradorEfetivo(id, payload = {}) {
+  const c = await prisma.colaborador.findUnique({ where: { id: idValido(id) }, select: { id: true } });
+  if (!c) throw new AppError(404, 'Colaborador não encontrado.');
+  const d = {};
+  if (tem(payload, 'situacao')) {
+    const s = String(payload.situacao || '').toUpperCase();
+    if (!['DISPONIVEL', 'INDISPONIVEL'].includes(s)) throw new AppError(400, 'Situação inválida. Valores aceitos: DISPONIVEL, INDISPONIVEL.');
+    d.situacao = s;
+  }
+  ['ferias_inicio', 'ferias_fim'].forEach((campo) => {
+    if (tem(payload, campo)) d[campo] = vazio(payload[campo]) ? null : dataOuHoje(payload[campo], campo);
+  });
+  ['cargo', 'disciplina', 'supervisor', 'encarregado'].forEach((campo) => {
+    if (tem(payload, campo)) d[campo] = texto(payload[campo], campo, campo === 'cargo' ? 160 : 120);
+  });
+  if (tem(payload, 'funcao')) d.funcao_id = (await funcaoPorNome(payload.funcao))?.id ?? null;
+  await prisma.colaborador.update({ where: { id: c.id }, data: d });
+  return { ok: true };
 }
 
 async function obter(id) {
@@ -174,10 +269,15 @@ async function validarVinculoObra(dados, atual = null) {
   }
   if (!obraId) throw new AppError(400, 'Frente de obra precisa estar ligada a uma obra cadastrada.');
   if (tem(dados, 'obra_id') || tem(dados, 'tipo')) {
-    const obra = await prisma.obra.findUnique({ where: { id: obraId }, select: { orcamento: { select: { ss: true } } } });
+    const obra = await prisma.obra.findUnique({
+      where: { id: obraId },
+      select: { orcamento: { select: { ss: true } }, planejador: { select: { nome: true } } },
+    });
     if (!obra) throw new AppError(400, 'Obra não encontrada.');
     dados.obra_id = obraId;
     if (obra.orcamento?.ss) dados.codigo = obra.orcamento.ss;
+    // Responsável da frente: se ninguém foi informado, vem o planejador principal da obra.
+    if (vazio(dados.responsavel) && vazio(atual?.responsavel) && obra.planejador?.nome) dados.responsavel = obra.planejador.nome.slice(0, 120);
   }
   return dados;
 }
@@ -426,7 +526,7 @@ async function criarFrente(programacaoId, payload) {
 
 async function atualizarFrente(id, payload) {
   const f = await frenteEditavel(id);
-  const atual = await prisma.programacaoFrente.findUnique({ where: { id: f.id }, select: { tipo: true, obra_id: true } });
+  const atual = await prisma.programacaoFrente.findUnique({ where: { id: f.id }, select: { tipo: true, obra_id: true, responsavel: true } });
   const dados = await validarVinculoObra(camposFrente(payload, true), atual);
   return prisma.programacaoFrente.update({ where: { id: f.id }, data: dados });
 }
@@ -633,6 +733,9 @@ module.exports = {
   listar,
   obter,
   listarEfetivo,
+  mobilizarColaborador,
+  desmobilizarColaborador,
+  atualizarColaboradorEfetivo,
   sincronizarEfetivo,
   programacaoDaObra,
   garantirColaboradores,

@@ -10,7 +10,11 @@ export const excluirProgramacao = async (id) => (await api.delete(`/programacoes
 export const emitirProgramacao = async (id) => (await api.post(`/programacoes/${id}/emitir`)).data;
 export const novaRevisaoProgramacao = async (id) => (await api.post(`/programacoes/${id}/revisao`)).data;
 export const listarObrasProgramacao = async () => (await api.get('/programacoes/obras')).data;
-export const listarEfetivoProgramacao = async () => (await api.get('/programacoes/efetivo')).data;
+/** Efetivo do contrato. `todos`: inclui os desmobilizados (campo `mobilizado`). */
+export const listarEfetivoProgramacao = async ({ todos = false } = {}) => (await api.get('/programacoes/efetivo', { params: todos ? { todos: 1 } : {} })).data;
+export const mobilizarColaborador = async (corpo) => (await api.post('/programacoes/efetivo/mobilizar', corpo)).data;
+export const desmobilizarColaborador = async (id, corpo = {}) => (await api.post(`/programacoes/efetivo/${id}/desmobilizar`, corpo)).data;
+export const atualizarColaboradorEfetivo = async (id, corpo) => (await api.put(`/programacoes/efetivo/${id}`, corpo)).data;
 /** Efetivo nominal a partir da programação (cadastra quem falta e liga as pessoas ao cadastro). */
 export const sincronizarEfetivoProgramacao = async (id) => (await api.post(`/programacoes/${id}/sincronizar-efetivo`)).data;
 /** Programação e efetivo nominal de uma obra (recorte: proxima | atual | ultima, ou programacao_id). */
