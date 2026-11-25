@@ -30,6 +30,8 @@ export async function baixarPdfRdo(id) {
 export const obterResumoObraRdo = async (obraId, params = {}) => (await api.get(`/rdos/obras/${obraId}/resumo`, { params })).data;
 export const listarFotosRdo = async (params = {}) => (await api.get('/rdos/fotos', { params })).data;
 export const listarSupervisores = async () => (await api.get('/rdo-cadastros/supervisores')).data;
+/** Programação S+1 da obra no dia: pessoas programadas e supervisor sugerido. */
+export const obterProgramacaoDoDiaRdo = async (obraId, data) => (await api.get(`/rdos/obras/${obraId}/programacao`, { params: { data } })).data;
 
 export const obterAvancoRdoObra = async (obraId) => (await api.get(`/obras/${obraId}/avanco-rdo`)).data;
 

@@ -27,6 +27,8 @@ rdos.use(autorizar(...PERFIS_RDO));
 // Apoio ao formulário: obras do escopo do usuário e atividades vigentes (com o % vigente).
 rdos.get('/obras', acao((req) => rdoService.listarObras(req.user)));
 rdos.get('/obras/:obraId/resumo', acao((req) => rdoService.resumoDaObra(req.params.obraId, req.query || {}, req.user)));
+// Programação S+1 da obra no dia: efetivo programado e supervisor sugerido (?data=AAAA-MM-DD).
+rdos.get('/obras/:obraId/programacao', acao((req) => rdoService.programacaoDoDia(req.params.obraId, req.query || {}, req.user)));
 rdos.get('/obras/:obraId/atividades', acao((req) => rdoService.listarAtividadesDaObra(req.params.obraId, req.user)));
 
 // Controle de fotos (todas as fotos de evidência, com filtros).

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle2, Download, Loader2, Plus, Save, Send, Trash2, Undo2 } from 'lucide-react';
+import { ArrowLeft, CalendarRange, CheckCircle2, Download, Loader2, Plus, Save, Send, Trash2, Undo2, UserPlus } from 'lucide-react';
 import EditorAtividade from '../components/rdo/EditorAtividade.jsx';
 import { Secao, SecaoDesvios, SecaoEfetivo, SecaoEquipamentos, SecaoPts } from '../components/rdo/SecoesRdo.jsx';
 import ModalBase from '../components/ModalBase.jsx';
@@ -20,6 +20,7 @@ import {
   listarSupervisores,
   obterAtividadesObraRdo,
   obterObrasRdo,
+  obterProgramacaoDoDiaRdo,
   obterRdo,
   removerFotoRdo,
 } from '../services/rdoApi.js';
@@ -32,11 +33,20 @@ import {
   atividadeVazia,
   chaveEfetivo,
   formParaPayload,
+  novaChave,
   formVazio,
   rdoParaForm,
 } from '../utils/rdo.js';
 
 const CATALOGOS_VAZIOS = { funcoes: [], colaboradores: [], equipamentos: [], motivos: [] };
+const revisao = (n) => `rev${String(n ?? 0).padStart(2, '0')}`;
+
+/** Pessoas da programação que ainda não estão no efetivo do RDO (itens nominais prontos para o formulário). */
+function faltandoNoEfetivo(programado, efetivo) {
+  const ja = new Set(efetivo.filter((e) => e.tipo === 'NOMINAL').map((e) => String(e.colaborador_id)));
+  return (programado?.pessoas || []).filter((p) => !ja.has(String(p.id)))
+    .map((p) => ({ chave: novaChave(), tipo: 'NOMINAL', funcao_id: '', colaborador_id: String(p.id), quantidade: '1', nome: p.nome }));
+}
 
 function SeletorClima({ rotulo, valor, editavel, onChange }) {
   return (
@@ -73,6 +83,8 @@ export default function RdoDetalhe({ novo = false }) {
   const [duplicadoId, setDuplicadoId] = useState(null);
   const [devolvendo, setDevolvendo] = useState(false);
   const [motivo, setMotivo] = useState('');
+  const [programado, setProgramado] = useState(null); // Programação S+1 da obra no dia
+  const [aplicouProgramacao, setAplicouProgramacao] = useState(false);
 
   const status = rdo?.status || 'RASCUNHO';
   const ehDono = novo || usuario?.perfil === 'ADMIN' || rdo?.encarregado?.id === usuario?.id;
@@ -132,6 +144,32 @@ export default function RdoDetalhe({ novo = false }) {
       ativo = false;
     };
   }, [form.obra_id, toast]);
+
+  // Programação S+1 da obra na data do RDO (efetivo programado e supervisor sugerido).
+  useEffect(() => {
+    if (!form.obra_id || !form.data || !editavel) { setProgramado(null); return undefined; }
+    let ativo = true;
+    obterProgramacaoDoDiaRdo(form.obra_id, form.data)
+      .then((r) => ativo && setProgramado(r))
+      .catch(() => ativo && setProgramado(null));
+    return () => {
+      ativo = false;
+    };
+  }, [form.obra_id, form.data, editavel]);
+
+  // RDO novo: já começa com quem foi programado e com o supervisor da programação.
+  useEffect(() => {
+    if (!novo || aplicouProgramacao || carregando || !programado?.programacao) return;
+    setAplicouProgramacao(true);
+    setForm((atual) => ({
+      ...atual,
+      efetivo: [...atual.efetivo, ...faltandoNoEfetivo(programado, atual.efetivo)],
+      supervisor_id: programado.supervisor_sugerido ? String(programado.supervisor_sugerido.id) : atual.supervisor_id,
+    }));
+  }, [novo, aplicouProgramacao, carregando, programado]);
+
+  const faltandoProgramados = useMemo(() => faltandoNoEfetivo(programado, form.efetivo), [programado, form.efetivo]);
+  const adicionarProgramados = () => alterarEfetivo([...form.efetivo, ...faltandoProgramados]);
 
   const usadosNoCronograma = useMemo(() => new Set(form.atividades.filter((a) => a.codigo_atividade).map((a) => a.codigo_atividade)), [form.atividades]);
   const pessoasUsadas = useMemo(() => new Set(form.atividades.flatMap((a) => a.mao_obra.map((m) => m.pessoa).filter(Boolean))), [form.atividades]);
@@ -329,6 +367,16 @@ export default function RdoDetalhe({ novo = false }) {
               {supervisores.map((s) => <option key={s.id} value={s.id}>{s.nome}</option>)}
             </select>
             <p className="mt-1 text-xs text-slate-400">Indicador usado nas análises de acompanhamento da obra.</p>
+            {editavel && programado?.programacao && (programado.supervisor_sugerido || programado.responsaveis.length) ? (
+              <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                <CalendarRange className="h-3.5 w-3.5 text-omega-600" aria-hidden="true" />
+                Na Programação S+1: <strong className="text-slate-700">{programado.supervisor_sugerido?.nome || programado.responsaveis[0]}</strong>
+                {programado.supervisor_sugerido && String(programado.supervisor_sugerido.id) !== String(form.supervisor_id) ? (
+                  <button type="button" className="font-semibold text-omega-700 hover:underline" onClick={() => alterarForm({ supervisor_id: String(programado.supervisor_sugerido.id) })}>Usar este supervisor</button>
+                ) : null}
+                {!programado.supervisor_sugerido ? <span className="text-amber-700">(sem usuário Supervisor com esse nome)</span> : null}
+              </p>
+            ) : null}
           </div>
           <SeletorClima rotulo="Clima — manhã" valor={form.clima_manha} editavel={editavel} onChange={(v) => alterarForm({ clima_manha: v })} />
           <SeletorClima rotulo="Clima — tarde" valor={form.clima_tarde} editavel={editavel} onChange={(v) => alterarForm({ clima_tarde: v })} />
@@ -350,6 +398,23 @@ export default function RdoDetalhe({ novo = false }) {
       </Secao>
 
       <Secao faixa titulo={`03 — Efetivo do Dia (${efetivoValido.length})`} resumo={`${efetivoValido.reduce((s, e) => s + (e.tipo === 'FUNCAO' ? Number(e.quantidade) || 0 : 1), 0)} pessoa(s)`}>
+        {editavel && programado?.programacao ? (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-omega-200 bg-omega-50/60 p-3 text-sm text-slate-700">
+            <CalendarRange className="h-4 w-4 shrink-0 text-omega-600" aria-hidden="true" />
+            <span>
+              Programação S+1 (semana {programado.programacao.semana}/{programado.programacao.ano} · {revisao(programado.programacao.revisao)}):
+              {' '}<strong>{programado.pessoas.length} pessoa(s)</strong> programada(s) nesta obra em {formatarData(form.data)}
+              {programado.sem_cadastro.length ? <span className="text-amber-700"> · {programado.sem_cadastro.length} sem cadastro no efetivo</span> : null}.
+            </span>
+            {faltandoProgramados.length ? (
+              <button type="button" className="btn-primario ml-auto !py-1 text-xs" onClick={adicionarProgramados}>
+                <UserPlus className="h-3.5 w-3.5" aria-hidden="true" /> Adicionar programados ({faltandoProgramados.length})
+              </button>
+            ) : programado.pessoas.length ? <span className="ml-auto text-xs font-semibold text-emerald-700">Todos os programados já estão no efetivo.</span> : null}
+          </div>
+        ) : editavel && form.obra_id && programado && !programado.programacao ? (
+          <p className="mb-3 text-xs text-slate-500">Esta semana ainda não tem Programação S+1 para puxar o efetivo.</p>
+        ) : null}
         <SecaoEfetivo itens={form.efetivo} editavel={editavel} catalogos={catalogos} usados={pessoasUsadas} onChange={alterarEfetivo} />
       </Secao>
 

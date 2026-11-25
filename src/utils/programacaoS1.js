@@ -454,8 +454,56 @@ function visaoDaObra(programacao, obraId) {
   };
 }
 
+/** Índice do dia (0 = segunda ... 6 = domingo) de uma data YYYY-MM-DD. */
+function indiceDoDia(data) {
+  const d = new Date(`${String(data).slice(0, 10)}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return null;
+  return (d.getUTCDay() + 6) % 7;
+}
+
+/**
+ * RDO: quem está programado para trabalhar numa obra num dia (pessoas distintas) e os responsáveis
+ * das frentes dessa obra. `programacao` traz frentes → equipes → alocações.
+ */
+function programadosNoDia(programacao, obraId, data) {
+  const i = indiceDoDia(data);
+  if (!programacao || i === null) return { pessoas: [], responsaveis: [] };
+  const visao = visaoDaObra(programacao, obraId);
+  const responsaveis = [...new Set(visao.frentes.map((f) => limpar(f.responsavel)).filter(Boolean))];
+  return { pessoas: visao.efetivo_nominal.filter((p) => p.dias[i]), responsaveis };
+}
+
+const nomeComparavel = (t) => limpar(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase()
+  .replace(/\b(DE|DA|DO|DOS|DAS|E)\b/g, ' ').replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Supervisor (usuário) que corresponde a um nome da programação: nome igual; senão primeiro e último
+ * nome iguais; senão um nome curto ("Jailson Texeira") contido no nome completo do usuário.
+ */
+function casarSupervisor(nomes, supervisores) {
+  const lista = (supervisores || []).map((s) => ({ s, n: nomeComparavel(s.nome) }));
+  for (const nome of nomes || []) {
+    const alvo = nomeComparavel(nome);
+    if (!alvo) continue;
+    const partes = alvo.split(' ');
+    const exato = lista.find((x) => x.n === alvo);
+    if (exato) return exato.s;
+    const pontas = lista.find((x) => {
+      const p = x.n.split(' ');
+      return p[0] === partes[0] && p[p.length - 1] === partes[partes.length - 1];
+    });
+    if (pontas) return pontas.s;
+    const contido = lista.filter((x) => partes.every((parte) => x.n.split(' ').includes(parte)));
+    if (contido.length === 1) return contido[0].s;
+  }
+  return null;
+}
+
 module.exports = {
   RECORTES_SEMANA,
+  indiceDoDia,
+  programadosNoDia,
+  casarSupervisor,
   escolherProgramacao,
   visaoDaObra,
   lerPlanilhaEfetivo,
