@@ -44,4 +44,9 @@ export const atualizarEquipe = async (id, corpo) => (await api.put(`/programacoe
 export const excluirEquipe = async (id) => (await api.delete(`/programacoes/equipes/${id}`)).data;
 export const criarAlocacao = async (equipeId, corpo) => (await api.post(`/programacoes/equipes/${equipeId}/alocacoes`, corpo)).data;
 export const atualizarAlocacao = async (id, corpo) => (await api.put(`/programacoes/alocacoes/${id}`, corpo)).data;
+/** Atividades programadas da equipe (linha do cronograma da obra ou serviço escrito). */
+export const obterCronogramaDaObraProgramacao = async (obraId) => (await api.get(`/programacoes/cronograma/${obraId}`)).data;
+export const criarItemAtividadeProgramacao = async (equipeId, corpo) => (await api.post(`/programacoes/equipes/${equipeId}/atividades`, corpo)).data;
+export const atualizarItemAtividadeProgramacao = async (id, corpo) => (await api.put(`/programacoes/atividades/${id}`, corpo)).data;
+export const excluirItemAtividadeProgramacao = async (id) => (await api.delete(`/programacoes/atividades/${id}`)).data;
 export const excluirAlocacao = async (id) => (await api.delete(`/programacoes/alocacoes/${id}`)).data;

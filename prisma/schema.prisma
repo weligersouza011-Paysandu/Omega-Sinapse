@@ -1744,11 +1744,32 @@ model ProgramacaoEquipe {
   premissas  String?
   ordem      Int     @default(0)
 
-  frente    ProgramacaoFrente     @relation(fields: [frente_id], references: [id], onDelete: Cascade)
-  alocacoes ProgramacaoAlocacao[]
+  frente          ProgramacaoFrente      @relation(fields: [frente_id], references: [id], onDelete: Cascade)
+  alocacoes       ProgramacaoAlocacao[]
+  /// Atividades programadas: linha do cronograma da obra ou texto livre, com observação.
+  itens_atividade ProgramacaoAtividade[]
 
   @@index([frente_id, ordem])
   @@map("programacao_equipes")
+}
+
+/// Atividade programada para uma equipe: uma linha do cronograma da obra (codigo_atividade) ou um
+/// serviço escrito (sem código, vira atividade fora de escopo no RDO). No RDO, lançar a atividade
+/// já traz a mão de obra da equipe programada no dia.
+model ProgramacaoAtividade {
+  id               Int     @id @default(autoincrement())
+  equipe_id        Int
+  /// Linha (EDT) do cronograma da obra; vazio = atividade escrita.
+  codigo_atividade String? @db.VarChar(60)
+  /// Descrição da linha do cronograma (cópia) ou o texto escrito.
+  descricao        String
+  observacao       String?
+  ordem            Int     @default(0)
+
+  equipe ProgramacaoEquipe @relation(fields: [equipe_id], references: [id], onDelete: Cascade)
+
+  @@index([equipe_id, ordem])
+  @@map("programacao_atividades")
 }
 
 model ProgramacaoAlocacao {

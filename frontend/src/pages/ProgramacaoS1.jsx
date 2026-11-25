@@ -10,7 +10,7 @@ import {
   atualizarAlocacao, atualizarEquipe, atualizarFrente, baixarExportacaoProgramacao, criarAlocacao, criarEquipe, criarFrente,
   criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
   listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
-  sincronizarEfetivoProgramacao, mobilizarColaborador, desmobilizarColaborador, atualizarColaboradorEfetivo,
+  sincronizarEfetivoProgramacao, obterCronogramaDaObraProgramacao, criarItemAtividadeProgramacao, atualizarItemAtividadeProgramacao, excluirItemAtividadeProgramacao, mobilizarColaborador, desmobilizarColaborador, atualizarColaboradorEfetivo,
 } from '../services/programacaoApi.js';
 import { formatarData, formatarDataHora } from '../utils/formatters.js';
 
@@ -130,7 +130,92 @@ function CampoSalvo({ valor, onSalvar, multilinha = false, className = 'campo', 
 }
 
 /** Tabela de uma equipe: pessoas × dias (clique na célula marca/desmarca o dia). */
-function Equipe({ equipe, editavel, executar, efetivoPorMatricula }) {
+/** Cronograma (linhas-folha da revisão vigente) por obra, carregado uma vez por página. */
+const cacheCronograma = new Map();
+function useCronogramaDaObra(obraId) {
+  const [dados, setDados] = useState(() => (obraId && cacheCronograma.get(obraId)?.valor) || null);
+  useEffect(() => {
+    if (!obraId) { setDados(null); return undefined; }
+    let ativo = true;
+    let item = cacheCronograma.get(obraId);
+    if (!item) {
+      item = { promessa: obterCronogramaDaObraProgramacao(obraId).then((r) => { item.valor = r; return r; }).catch(() => ({ versao: null, atividades: [] })) };
+      cacheCronograma.set(obraId, item);
+    }
+    item.promessa.then((r) => ativo && setDados(r));
+    return () => { ativo = false; };
+  }, [obraId]);
+  return dados;
+}
+
+const rotuloLinha = (l) => `${l.codigo_atividade} — ${l.descricao}`;
+
+/**
+ * Atividades programadas da equipe: cada item é uma linha do cronograma da obra (com observação)
+ * ou um serviço escrito. No RDO, a atividade lançada já vem com a mão de obra da equipe.
+ */
+function AtividadesProgramadas({ equipe, obraId, editavel, executar }) {
+  const cronograma = useCronogramaDaObra(obraId);
+  const [texto, setTexto] = useState('');
+  const [observacao, setObservacao] = useState('');
+  const idLista = `cronograma-obra-${obraId || 'nenhuma'}`;
+  const linhas = cronograma?.atividades || [];
+  const itens = equipe.itens_atividade || [];
+
+  const adicionar = async () => {
+    const t = texto.trim();
+    if (!t) return;
+    const linha = linhas.find((l) => rotuloLinha(l) === t || l.codigo_atividade === t);
+    const corpo = linha ? { codigo_atividade: linha.codigo_atividade, observacao } : { descricao: t, observacao };
+    if (await executar(() => criarItemAtividadeProgramacao(equipe.id, corpo))) { setTexto(''); setObservacao(''); }
+  };
+
+  return (
+    <div className="border-t border-slate-100 p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <p className="rotulo !mb-0">Atividades programadas</p>
+        <span className="text-[11px] text-slate-500">
+          linha do cronograma ou serviço escrito · no RDO, ao lançar a atividade a mão de obra desta equipe já vem preenchida
+        </span>
+      </div>
+      {itens.length ? (
+        <ul className="mb-2 space-y-1.5">
+          {itens.map((i) => (
+            <li key={i.id} className="flex flex-wrap items-start gap-2 rounded-md border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm">
+              {i.codigo_atividade
+                ? <span className="rounded border border-omega-300 bg-omega-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-omega-700" title="Linha do cronograma">{i.codigo_atividade}</span>
+                : <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700" title="Vira atividade fora de escopo no RDO">Escrita</span>}
+              <span className="min-w-[12rem] flex-1 font-medium text-slate-800">{i.descricao}</span>
+              <span className="w-full sm:w-72">
+                <CampoSalvo editavel={editavel} className="campo !py-1 text-xs" valor={i.observacao} placeholder="Observação"
+                  onSalvar={(v) => executar(() => atualizarItemAtividadeProgramacao(i.id, { observacao: v }))} />
+              </span>
+              {editavel ? (
+                <button type="button" className="rounded p-1 text-slate-400 hover:text-red-600" aria-label={`Remover ${i.descricao}`}
+                  onClick={() => executar(() => excluirItemAtividadeProgramacao(i.id))}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="mb-2 text-xs text-slate-400">Nenhuma atividade programada nesta equipe.</p>}
+      {editavel ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <datalist id={idLista}>{linhas.map((l) => <option key={l.codigo_atividade} value={rotuloLinha(l)} />)}</datalist>
+          <input className="campo !w-auto min-w-[18rem] flex-1 !py-1 text-xs" list={idLista} value={texto} onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && adicionar()}
+            placeholder={obraId ? (linhas.length ? 'Busque a linha do cronograma (código ou descrição) ou escreva o serviço' : 'Escreva o serviço (obra sem cronograma importado)') : 'Escreva o serviço (frente sem obra vinculada)'} />
+          <input className="campo !w-56 !py-1 text-xs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação (opcional)"
+            onKeyDown={(e) => e.key === 'Enter' && adicionar()} />
+          <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={adicionar}><Plus className="h-3.5 w-3.5" /> Adicionar atividade</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
   const [nova, setNova] = useState({ matricula: '', nome: '', funcao: '' });
   // Matrícula do efetivo do contrato: completa nome e função.
   const escolherMatricula = (matricula) => {
@@ -222,9 +307,11 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula }) {
         </table>
       </div>
 
+      <AtividadesProgramadas equipe={equipe} obraId={obraId} editavel={editavel} executar={executar} />
+
       <div className="grid gap-3 border-t border-slate-100 p-3 md:grid-cols-2">
         <div>
-          <p className="rotulo">Principais atividades</p>
+          <p className="rotulo">Principais atividades (texto)</p>
           <CampoSalvo multilinha editavel={editavel} valor={equipe.atividades} placeholder="> Atividade programada..." onSalvar={(v) => executar(() => atualizarEquipe(equipe.id, { atividades: v }))} />
         </div>
         <div>
@@ -342,7 +429,7 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
         <ModalSeletorObra aberto={Boolean(seletor)} obras={obras} atualId={frente.obra_id}
           titulo={`Vincular obra · ${frente.titulo}`} onFechar={() => setSeletor(null)} onEscolher={vincular} />
 
-        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} />)}
+        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} obraId={frente.obra_id} />)}
         {frente.equipes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma equipe nesta frente.</p> : null}
       </div>
     </Secao>
