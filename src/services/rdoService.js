@@ -6,6 +6,7 @@ const uploadService = require('./uploadService');
 const repo = require('../repositories/rdoRepository');
 const { escolherPercentualVigente, diaBrasilia } = require('../utils/avancoAtividade');
 const { totalHH, hhDoLancamento, esperaPtsMinutos, totalDesvios, normalizarPercentual, arredondar } = require('../utils/rdoCalculos');
+const { segundaDaSemana, programadosNoDia, casarSupervisor } = require('../utils/programacaoS1');
 
 /**
  * RDO — Relatório Diário de Obra.
@@ -153,6 +154,61 @@ async function listarObras(usuario) {
     cliente: o.orcamento?.cliente ?? null,
     supervisor_padrao: supervisores.get(o.id) || null,
   }));
+}
+
+/**
+ * GET /api/rdos/obras/:obraId/programacao?data=YYYY-MM-DD — o que a Programação S+1 previu para a obra
+ * no dia: pessoas programadas (ligadas ao cadastro de colaboradores, para o efetivo do RDO) e o
+ * supervisor sugerido (responsável da frente ou supervisor das pessoas, casado com um usuário Supervisor).
+ */
+async function programacaoDoDia(obraIdParam, query = {}, usuario) {
+  const obraId = idValido(obraIdParam, 'obraId');
+  const escopo = await escopoDeObras(usuario);
+  garantirObrasNoEscopo(escopo, [obraId]);
+  const data = String(query.data || '').slice(0, 10);
+  const segunda = /^\d{4}-\d{2}-\d{2}$/.test(data) ? segundaDaSemana(`${data}T00:00:00Z`) : null;
+  if (!segunda) throw new AppError(400, 'Informe a data (AAAA-MM-DD).');
+
+  const prisma = repo.prisma;
+  const programacao = await prisma.programacaoSemanal.findFirst({
+    where: { data_inicio: segunda },
+    include: { frentes: { where: { obra_id: obraId }, include: { equipes: { include: { alocacoes: true } } } } },
+  });
+  const vazio = { programacao: null, pessoas: [], sem_cadastro: [], responsaveis: [], supervisor_sugerido: null };
+  if (!programacao) return vazio;
+
+  const { pessoas, responsaveis } = programadosNoDia(programacao, obraId, data);
+  // Liga ao cadastro: pelo vínculo da alocação ou pela matrícula; só colaboradores ativos (mobilizados).
+  const ids = pessoas.map((p) => p.colaborador_id).filter(Boolean);
+  const matriculas = pessoas.map((p) => p.matricula).filter(Boolean);
+  const cadastro = await prisma.colaborador.findMany({
+    where: { ativo: true, OR: [{ id: { in: ids } }, { matricula: { in: matriculas } }] },
+    select: { id: true, nome: true, matricula: true, supervisor: true, funcao: { select: { nome: true } } },
+  });
+  const porId = new Map(cadastro.map((c) => [c.id, c]));
+  const porMatricula = new Map(cadastro.filter((c) => c.matricula).map((c) => [c.matricula, c]));
+  const ligados = new Map();
+  const semCadastro = [];
+  pessoas.forEach((p) => {
+    const c = (p.colaborador_id && porId.get(p.colaborador_id)) || (p.matricula && porMatricula.get(p.matricula));
+    if (c) ligados.set(c.id, { id: c.id, nome: c.nome, matricula: c.matricula, funcao: c.funcao?.nome || p.funcao || null, supervisor: c.supervisor });
+    else semCadastro.push({ nome: p.nome, matricula: p.matricula, funcao: p.funcao });
+  });
+  const colaboradores = [...ligados.values()].sort((a, b) => a.nome.localeCompare(b.nome));
+
+  // Supervisor: responsável da frente primeiro; depois o supervisor mais frequente entre as pessoas.
+  const contagem = new Map();
+  colaboradores.forEach((c) => c.supervisor && contagem.set(c.supervisor, (contagem.get(c.supervisor) || 0) + 1));
+  const nomes = [...responsaveis, ...[...contagem.entries()].sort((a, b) => b[1] - a[1]).map(([n]) => n)];
+  const supervisor = casarSupervisor(nomes, await repo.supervisoresAtivos());
+
+  return {
+    programacao: { id: programacao.id, ano: programacao.ano, semana: programacao.semana, revisao: programacao.revisao, status: programacao.status },
+    pessoas: colaboradores.map(({ supervisor: _s, ...c }) => c),
+    sem_cadastro: semCadastro,
+    responsaveis: nomes,
+    supervisor_sugerido: supervisor ? { id: supervisor.id, nome: supervisor.nome } : null,
+  };
 }
 
 /** GET /api/rdo-cadastros/supervisores — usuários Supervisor ativos (lista do campo "supervisor"). */
@@ -1063,6 +1119,7 @@ module.exports = {
   percentualVigente,
   listarObras,
   listarSupervisores,
+  programacaoDoDia,
   listarAtividadesDaObra,
   resumoAvancoDaObra,
   resumoDaObra,

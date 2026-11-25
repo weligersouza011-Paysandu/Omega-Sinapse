@@ -200,3 +200,34 @@ test('visão da obra: só as frentes da obra e o efetivo nominal com dias (pesso
   assert.equal(b.colaborador_id, 7);
   assert.deepEqual(v.programados_por_dia, [2, 1, 1, 0, 0, 0, 0]);
 });
+
+test('programadosNoDia: pessoas da obra no dia e responsáveis das frentes', () => {
+  const { programadosNoDia, indiceDoDia } = require('../src/utils/programacaoS1');
+  assert.equal(indiceDoDia('2026-11-23'), 0); // segunda
+  assert.equal(indiceDoDia('2026-11-29'), 6); // domingo
+  const prog = {
+    frentes: [
+      { id: 1, obra_id: 7, responsavel: 'Jailson Texeira', equipes: [{ codigo: 'ELE-01', alocacoes: [
+        { matricula: '1', nome: 'ANA', dias: [true, true, false, false, false, false, false] },
+        { matricula: '2', nome: 'BIA', dias: [false, true, true, false, false, false, false] },
+      ] }] },
+      { id: 2, obra_id: 8, responsavel: 'Outro', equipes: [{ codigo: 'X', alocacoes: [{ matricula: '3', nome: 'CAU', dias: [true, true, true, true, true, true, true] }] }] },
+    ],
+  };
+  const terca = programadosNoDia(prog, 7, '2026-11-24');
+  assert.deepEqual(terca.pessoas.map((p) => p.nome), ['ANA', 'BIA']);
+  assert.deepEqual(terca.responsaveis, ['Jailson Texeira']);
+  assert.deepEqual(programadosNoDia(prog, 7, '2026-11-25').pessoas.map((p) => p.nome), ['BIA']);
+  assert.deepEqual(programadosNoDia(prog, 7, '2026-11-26').pessoas, []);
+});
+
+test('casarSupervisor: nome igual, primeiro e último nome, ou nome curto contido', () => {
+  const { casarSupervisor } = require('../src/utils/programacaoS1');
+  const sup = [{ id: 1, nome: 'JAILSON TEXEIRA DOS SANTOS' }, { id: 2, nome: 'Marcos André Lima' }, { id: 3, nome: 'Marcos Souza' }];
+  assert.equal(casarSupervisor(['Jailson Texeira'], sup)?.id, 1);
+  assert.equal(casarSupervisor(['MARCOS ANDRE LIMA'], sup)?.id, 2);
+  assert.equal(casarSupervisor(['Marcos Lima'], sup)?.id, 2);
+  assert.equal(casarSupervisor(['Marcos'], sup), null); // ambíguo
+  assert.equal(casarSupervisor(['Fulano'], sup), null);
+  assert.equal(casarSupervisor(['Fulano', 'Marcos Souza'], sup)?.id, 3);
+});
