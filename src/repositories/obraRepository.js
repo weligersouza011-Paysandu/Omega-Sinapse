@@ -436,6 +436,7 @@ async function garantirParaOrcamento(orcamentoId, dados = {}) {
     create: {
       orcamento_id: orcamentoId,
       status: dados.status || 'PARA_INICIAR',
+      categoria: dados.categoria ?? null,
       planejador_id: dados.planejador_id ?? null,
       ...(dados.planejador_id
         ? { planejadores: { create: [{ usuario_id: dados.planejador_id, ordem: 0 }] } }
