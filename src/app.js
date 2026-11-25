@@ -17,6 +17,7 @@ const contratoRoutes = require('./routes/contratoRoutes');
 const projecaoBmmRoutes = require('./routes/projecaoBmmRoutes');
 const { autenticar, acessoCliente, bloquearPerfis } = require('./middlewares/auth');
 const rdoRoutes = require('./routes/rdoRoutes');
+const programacaoRoutes = require('./routes/programacaoRoutes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 // O encarregado (campo) só acessa o RDO: as demais APIs lhe respondem 403.
@@ -95,6 +96,8 @@ app.use('/api/uploads', autenticar, semEncarregado, acessoCliente(), uploadRoute
 // RDO (Relatório Diário de Obra): encarregado lança, planejador valida. Cliente não acessa.
 app.use('/api/rdos', autenticar, acessoCliente(), rdoRoutes.rdos);
 app.use('/api/rdo-cadastros', autenticar, acessoCliente(), rdoRoutes.cadastros);
+// Programação S+1: programação semanal de mão de obra (reunião de programação). Só planejamento.
+app.use('/api/programacoes', autenticar, semEncarregado, acessoCliente(), programacaoRoutes);
 
 // ---------------------------------------------------------------------------
 // Front-end (build do Vite) — deploy unificado
