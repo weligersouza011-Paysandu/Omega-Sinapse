@@ -325,9 +325,76 @@ function formatarOrcamento(orcamento) {
 /* Casos de uso                                                               */
 /* -------------------------------------------------------------------------- */
 
+/* -------------------------------------------------------------------------- */
+/* Canteiro Central                                                           */
+/* -------------------------------------------------------------------------- */
+
+/** Tipo de cadastro do formulário para a base administrativa/de apoio (ex.: 998 - CEP). */
+const TIPO_CANTEIRO_CENTRAL = 'CANTEIRO_CENTRAL';
+
+/** O payload pede um Canteiro Central (campo `tipo_cadastro`)? */
+function ehCanteiroCentral(payload) {
+  return String(payload?.tipo_cadastro ?? '').trim().toUpperCase() === TIPO_CANTEIRO_CENTRAL;
+}
+
+/** Campos exigidos no Canteiro Central: só identificação e localização da base. */
+const CAMPOS_OBRIGATORIOS_CANTEIRO = [
+  ['descricao', 'Nome / Descrição da base'],
+  ['endereco', 'Local / Referência'],
+];
+
+/**
+ * Normaliza o cadastro de um Canteiro Central. Não exige SS, PEP, fiscais, documentos, valor,
+ * justificativa nem foto: a base não tem orçamento comercial nem OS. O registro de orçamento é
+ * apenas técnico (valor 0) e fica fora de Orçamentos e dos indicadores (ver orcamentoRepository).
+ */
+function montarDadosCanteiro(payload, usuario) {
+  for (const [campo, rotulo] of CAMPOS_OBRIGATORIOS_CANTEIRO) {
+    if (estaVazio(payload[campo])) throw new AppError(400, `O campo "${rotulo}" é obrigatório.`);
+  }
+  const texto = (campo, max) => {
+    if (estaVazio(payload[campo])) return null;
+    const valor = String(payload[campo]).trim();
+    if (valor.length > max) throw new AppError(400, `O campo "${campo}" aceita no máximo ${max} caracteres.`);
+    return valor;
+  };
+  const ss = texto('ss', 60);
+  return {
+    pep: ss ? `CANTEIRO-${ss}`.slice(0, 100) : 'CANTEIRO-CENTRAL',
+    cliente: texto('cliente', 255) || CLIENTE_PADRAO,
+    ss,
+    descricao: texto('descricao', 5000),
+    endereco: texto('endereco', 5000),
+    documentos_referencia: null,
+    // Já nasce no ciclo de execução: a base existe e está em operação.
+    status: 'OSI_EMITIDA',
+    valor: 0,
+    art: null,
+    orcamentista_id: usuario.id,
+    planejador_id: null,
+    foto_1: estaVazio(payload.foto_1) ? '' : String(payload.foto_1).trim(),
+    foto_2: estaVazio(payload.foto_2) ? null : String(payload.foto_2).trim(),
+    foto_3: estaVazio(payload.foto_3) ? null : String(payload.foto_3).trim(),
+    observacao_inicial: 'Canteiro Central: base de apoio sem orçamento comercial (valor 0).',
+    fiscais: [],
+  };
+}
+
+/** Cria o Canteiro Central e a obra correspondente (EM ANDAMENTO, categoria CANTEIRO_CENTRAL). */
+async function criarCanteiroCentral(payload, usuario) {
+  const dados = montarDadosCanteiro(payload, usuario);
+  const orcamento = await orcamentoRepository.create(dados);
+  const obra = await obraRepository.garantirParaOrcamento(orcamento.id, {
+    status: 'EM_ANDAMENTO',
+    categoria: 'CANTEIRO_CENTRAL',
+  });
+  return { ...formatarOrcamento(orcamento), canteiro_central: true, obra_id: obra.id };
+}
+
 /** POST /api/orcamentos */
 async function criarOrcamento(payload, usuario) {
   validarUsuario(usuario);
+  if (ehCanteiroCentral(payload)) return criarCanteiroCentral(payload, usuario);
   validarCamposObrigatorios(payload, { parcial: false });
   validarPermissaoArt(payload, usuario);
   validarPermissaoPlanejador(payload, usuario);
@@ -796,6 +863,8 @@ module.exports = {
   STATUS_OBRAS,
   STATUS_INICIAL,
   criarOrcamento,
+  montarDadosCanteiro,
+  ehCanteiroCentral,
   obterOrcamentoPorId,
   listarOrcamentos,
   listarOpcoes,

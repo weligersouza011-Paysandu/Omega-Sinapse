@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ModalBase from './ModalBase.jsx';
 import Spinner from './Spinner.jsx';
 import Dropdown from './Dropdown.jsx';
@@ -30,6 +31,18 @@ function criarEstadoInicial() {
     fiscais: [criarFiscal()],
   };
 }
+
+/** Tipos de cadastro do formulário. Canteiro Central: base administrativa/de apoio, sem orçamento nem OS. */
+const TIPOS_CADASTRO = [
+  { value: 'ORCAMENTO', label: 'Orçamento de obra', descricao: 'Abertura de orçamento comercial (SS, PEP, fiscal, valor e fotos).' },
+  { value: 'CANTEIRO_CENTRAL', label: 'Canteiro Central', descricao: 'Base administrativa/de apoio (ex.: 998 - CEP), sem orçamento comercial nem OS.' },
+];
+
+/** Campos exigidos no Canteiro Central: só identificação e localização. */
+const OBRIGATORIOS_CANTEIRO = [
+  ['descricao', 'Nome / Descrição da base'],
+  ['endereco', 'Local / Referência'],
+];
 
 /** Campos de texto simples, na ordem em que a validação é apresentada. */
 const OBRIGATORIOS = [
@@ -65,6 +78,9 @@ function normalizar(texto) {
 /** Modal de abertura de orçamento com múltiplos fiscais e até 3 fotos. */
 export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [tipo, setTipo] = useState('ORCAMENTO');
+  const canteiro = tipo === 'CANTEIRO_CENTRAL';
   const [form, setForm] = useState(criarEstadoInicial);
   const [arquivos, setArquivos] = useState([null, null, null]);
   const [previews, setPreviews] = useState([null, null, null]);
@@ -78,6 +94,7 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
   // Limpa o formulário ao reabrir.
   useEffect(() => {
     if (aberto) {
+      setTipo('ORCAMENTO');
       setForm(criarEstadoInicial());
       setArquivos([null, null, null]);
       setPreviews([null, null, null]);
@@ -169,6 +186,11 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
 
   /** Valida os campos obrigatórios e devolve a primeira mensagem de erro. */
   function validarFormulario() {
+    if (canteiro) {
+      const faltandoCanteiro = OBRIGATORIOS_CANTEIRO.find(([campo]) => !String(form[campo]).trim());
+      return faltandoCanteiro ? `O campo ${faltandoCanteiro[1]} é obrigatório.` : '';
+    }
+
     const faltando = OBRIGATORIOS.find(([campo]) => !String(form[campo]).trim());
     if (faltando) {
       return `O campo ${faltando[1]} é obrigatório.`;
@@ -205,6 +227,11 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
     const mensagemValidacao = validarFormulario();
     if (mensagemValidacao) {
       setErro(mensagemValidacao);
+      return;
+    }
+
+    if (canteiro) {
+      await enviarCanteiro();
       return;
     }
 
@@ -245,6 +272,30 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
     }
   }
 
+  /** Canteiro Central: só identificação e local (foto opcional). Nasce como obra em andamento. */
+  async function enviarCanteiro() {
+    const dados = new FormData();
+    dados.append('tipo_cadastro', 'CANTEIRO_CENTRAL');
+    ['ss', 'cliente', 'descricao', 'endereco'].forEach((campo) => {
+      if (String(form[campo]).trim()) dados.append(campo, String(form[campo]).trim());
+    });
+    if (arquivos[0]) dados.append('foto_1', arquivos[0]);
+
+    setEnviando(true);
+    try {
+      const criado = await criarOrcamento(dados);
+      toast.sucesso('Canteiro Central criado. Ele está em Obras, como obra em andamento.');
+      onFechar();
+      if (criado?.obra_id) navigate(`/obras/${criado.obra_id}`);
+    } catch (err) {
+      const mensagem = err.message || 'Não foi possível criar o Canteiro Central.';
+      setErro(mensagem);
+      toast.erro(mensagem);
+    } finally {
+      setEnviando(false);
+    }
+  }
+
   const opcoesPep = peps.map((pep) => ({ value: pep, label: pep }));
   const opcoesStatus = STATUS_OPCOES.map((opcao) => ({
     value: opcao.value,
@@ -257,13 +308,106 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
   return (
     <ModalBase
       aberto={aberto}
-      titulo="Novo Orçamento"
-      subtitulo="Abertura de orçamento de obra — campos com * são obrigatórios."
+      titulo={canteiro ? 'Novo Canteiro Central' : 'Novo Orçamento'}
+      subtitulo={canteiro
+        ? 'Base administrativa/de apoio, sem orçamento comercial nem OS — campos com * são obrigatórios.'
+        : 'Abertura de orçamento de obra — campos com * são obrigatórios.'}
       onFechar={onFechar}
       tamanho="xl"
     >
       <form onSubmit={aoEnviar} noValidate>
         <div className="max-h-[68vh] space-y-5 overflow-y-auto px-5 py-5">
+          <section>
+            <p className="rotulo">Tipo de cadastro</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Tipo de cadastro">
+              {TIPOS_CADASTRO.map((opcao) => (
+                <button
+                  key={opcao.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={tipo === opcao.value}
+                  onClick={() => { setTipo(opcao.value); setErro(''); }}
+                  disabled={enviando}
+                  className={[
+                    'rounded-lg border px-3 py-2 text-left transition',
+                    tipo === opcao.value
+                      ? 'border-omega-600 bg-omega-50 ring-2 ring-omega-500/30'
+                      : 'border-slate-200 bg-white hover:border-omega-300',
+                  ].join(' ')}
+                >
+                  <span className="block text-sm font-bold text-slate-800">{opcao.label}</span>
+                  <span className="block text-xs text-slate-500">{opcao.descricao}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          {canteiro ? (
+            <>
+              <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="rotulo" htmlFor="canteiro_ss">SS / Código (opcional)</label>
+                  <input
+                    id="canteiro_ss"
+                    className="campo"
+                    placeholder="Ex.: SS998"
+                    value={form.ss}
+                    onChange={(e) => alterarCampo('ss', e.target.value)}
+                    disabled={enviando}
+                  />
+                </div>
+                <div>
+                  <label className="rotulo" htmlFor="canteiro_cliente">Cliente / Área</label>
+                  <input
+                    id="canteiro_cliente"
+                    className="campo"
+                    value={form.cliente}
+                    onChange={(e) => alterarCampo('cliente', e.target.value)}
+                    disabled={enviando}
+                  />
+                </div>
+              </section>
+              <section className="space-y-4">
+                <div>
+                  <label className="rotulo" htmlFor="canteiro_descricao">Nome / Descrição da base *</label>
+                  <input
+                    id="canteiro_descricao"
+                    className="campo"
+                    placeholder="Ex.: 998 - CEP (Centro de Empresas Parceiras)"
+                    value={form.descricao}
+                    onChange={(e) => alterarCampo('descricao', e.target.value)}
+                    disabled={enviando}
+                  />
+                </div>
+                <div>
+                  <label className="rotulo" htmlFor="canteiro_endereco">Local / Referência *</label>
+                  <input
+                    id="canteiro_endereco"
+                    className="campo"
+                    placeholder="Ex.: Serra Norte — Carajás"
+                    value={form.endereco}
+                    onChange={(e) => alterarCampo('endereco', e.target.value)}
+                    disabled={enviando}
+                  />
+                </div>
+                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Foto (opcional)</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="block w-full text-[11px] text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-omega-600 file:px-2 file:py-1 file:text-[11px] file:font-semibold file:text-white hover:file:bg-omega-700"
+                    onChange={(e) => selecionarFoto(0, e.target.files?.[0] || null)}
+                    disabled={enviando}
+                  />
+                </div>
+                <p className="text-xs text-slate-500">
+                  O Canteiro Central não tem valor nem orçamento: ele aparece em <strong>Obras</strong> como obra em andamento,
+                  recebe frentes na Programação S+1 e RDO, e fica fora da lista de Orçamentos e dos indicadores.
+                </p>
+              </section>
+            </>
+          ) : (
+          <>
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <label className="rotulo" htmlFor="ss">
@@ -553,6 +697,8 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
               ))}
             </div>
           </section>
+          </>
+          )}
 
           {erro ? (
             <div
@@ -566,7 +712,7 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4">
           <p className="text-xs text-slate-500">
-            {enviando ? 'Salvando orçamento e enviando fotos...' : ''}
+            {enviando ? (canteiro ? 'Salvando Canteiro Central...' : 'Salvando orçamento e enviando fotos...') : ''}
           </p>
           <div className="flex items-center gap-3">
             <button type="button" className="btn-neutro" onClick={onFechar} disabled={enviando}>
@@ -574,7 +720,7 @@ export default function ModalNovoOrcamento({ aberto, onFechar, onCriado }) {
             </button>
             <button type="submit" className="btn-primario" disabled={enviando}>
               {enviando ? <Spinner tamanho="sm" /> : null}
-              {enviando ? 'Enviando...' : 'Criar orçamento'}
+              {enviando ? 'Enviando...' : canteiro ? 'Criar Canteiro Central' : 'Criar orçamento'}
             </button>
           </div>
         </div>
