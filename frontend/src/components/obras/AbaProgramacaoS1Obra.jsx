@@ -127,7 +127,15 @@ export default function AbaProgramacaoS1Obra({ obra }) {
                     </div>
                     <div>
                       <p className="rotulo">Principais atividades</p>
-                      <p className="whitespace-pre-wrap text-sm text-slate-700">{e.atividades || '—'}</p>
+                      {(e.itens_atividade || []).map((i) => (
+                        <p key={i.id} className="text-sm text-slate-700">
+                          {i.codigo_atividade
+                            ? <span className="mr-1 rounded border border-omega-300 bg-omega-50 px-1 font-mono text-[11px] font-bold text-omega-700">{i.codigo_atividade}</span>
+                            : <span className="mr-1 rounded border border-amber-300 bg-amber-50 px-1 text-[11px] font-bold text-amber-700">Escrita</span>}
+                          {i.descricao}{i.observacao ? <span className="text-slate-500"> · {i.observacao}</span> : null}
+                        </p>
+                      ))}
+                      {e.atividades || !(e.itens_atividade || []).length ? <p className="whitespace-pre-wrap text-sm text-slate-700">{e.atividades || '—'}</p> : null}
                     </div>
                     <div>
                       <p className="rotulo">Premissas / pendências</p>

@@ -231,3 +231,20 @@ test('casarSupervisor: nome igual, primeiro e último nome, ou nome curto contid
   assert.equal(casarSupervisor(['Fulano'], sup), null);
   assert.equal(casarSupervisor(['Fulano', 'Marcos Souza'], sup)?.id, 3);
 });
+
+test('copiarFrentes leva as atividades programadas (cronograma e escritas) para a nova semana', () => {
+  const { copiarFrentes } = require('../src/services/programacaoService');
+  const [f] = copiarFrentes({
+    frentes: [{
+      tipo: 'OBRA', titulo: 'T', codigo: 'SS1', responsavel: null, obra_id: 4,
+      equipes: [{
+        codigo: 'MEC-03', disciplina: null, atividades: null, premissas: null, alocacoes: [],
+        itens_atividade: [{ id: 9, codigo_atividade: '1.1', descricao: 'Montar', observacao: 'PT cedo' }, { id: 10, codigo_atividade: null, descricao: 'Limpeza', observacao: null }],
+      }],
+    }],
+  });
+  assert.deepEqual(f.equipes[0].itens_atividade, [
+    { codigo_atividade: '1.1', descricao: 'Montar', observacao: 'PT cedo' },
+    { codigo_atividade: null, descricao: 'Limpeza', observacao: null },
+  ]);
+});

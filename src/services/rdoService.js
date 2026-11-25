@@ -6,7 +6,7 @@ const uploadService = require('./uploadService');
 const repo = require('../repositories/rdoRepository');
 const { escolherPercentualVigente, diaBrasilia } = require('../utils/avancoAtividade');
 const { totalHH, hhDoLancamento, esperaPtsMinutos, totalDesvios, normalizarPercentual, arredondar } = require('../utils/rdoCalculos');
-const { segundaDaSemana, programadosNoDia, casarSupervisor } = require('../utils/programacaoS1');
+const { segundaDaSemana, programadosNoDia, casarSupervisor, indiceDoDia, normalizarDias } = require('../utils/programacaoS1');
 
 /**
  * RDO — Relatório Diário de Obra.
@@ -172,9 +172,20 @@ async function programacaoDoDia(obraIdParam, query = {}, usuario) {
   const prisma = repo.prisma;
   const programacao = await prisma.programacaoSemanal.findFirst({
     where: { data_inicio: segunda },
-    include: { frentes: { where: { obra_id: obraId }, include: { equipes: { include: { alocacoes: true } } } } },
+    include: {
+      frentes: {
+        where: { obra_id: obraId },
+        orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
+        include: {
+          equipes: {
+            orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
+            include: { alocacoes: true, itens_atividade: { orderBy: [{ ordem: 'asc' }, { id: 'asc' }] } },
+          },
+        },
+      },
+    },
   });
-  const vazio = { programacao: null, pessoas: [], sem_cadastro: [], responsaveis: [], supervisor_sugerido: null };
+  const vazio = { programacao: null, pessoas: [], sem_cadastro: [], responsaveis: [], supervisor_sugerido: null, atividades: [] };
   if (!programacao) return vazio;
 
   const { pessoas, responsaveis } = programadosNoDia(programacao, obraId, data);
@@ -196,6 +207,26 @@ async function programacaoDoDia(obraIdParam, query = {}, usuario) {
   });
   const colaboradores = [...ligados.values()].sort((a, b) => a.nome.localeCompare(b.nome));
 
+  // Atividades programadas das equipes desta obra, com quem da equipe está programado no dia
+  // (para o RDO já lançar a mão de obra ao relacionar a atividade).
+  const dia = indiceDoDia(data);
+  const atividades = [];
+  programacao.frentes.forEach((f) => f.equipes.forEach((e) => {
+    const daEquipe = [...new Set(e.alocacoes
+      .filter((a) => normalizarDias(a.dias)[dia])
+      .map((a) => ((a.colaborador_id && porId.get(a.colaborador_id)) || (a.matricula && porMatricula.get(a.matricula)))?.id)
+      .filter(Boolean))];
+    e.itens_atividade.forEach((item) => atividades.push({
+      id: item.id,
+      codigo_atividade: item.codigo_atividade,
+      descricao: item.descricao,
+      observacao: item.observacao,
+      equipe: e.codigo || e.disciplina || null,
+      frente: f.titulo,
+      colaboradores: daEquipe,
+    }));
+  }));
+
   // Supervisor: responsável da frente primeiro; depois o supervisor mais frequente entre as pessoas.
   const contagem = new Map();
   colaboradores.forEach((c) => c.supervisor && contagem.set(c.supervisor, (contagem.get(c.supervisor) || 0) + 1));
@@ -208,6 +239,7 @@ async function programacaoDoDia(obraIdParam, query = {}, usuario) {
     sem_cadastro: semCadastro,
     responsaveis: nomes,
     supervisor_sugerido: supervisor ? { id: supervisor.id, nome: supervisor.nome } : null,
+    atividades,
   };
 }
 

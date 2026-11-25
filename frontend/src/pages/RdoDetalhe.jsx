@@ -168,6 +168,76 @@ export default function RdoDetalhe({ novo = false }) {
     }));
   }, [novo, aplicouProgramacao, carregando, programado]);
 
+  /** Efetivo com as pessoas indicadas (as que faltam entram como nominais) e a mão de obra delas na atividade. */
+  const comMaoObraDaEquipe = (efetivo, ids) => {
+    const ja = new Set(efetivo.filter((e) => e.tipo === 'NOMINAL').map((e) => String(e.colaborador_id)));
+    const nomes = new Map((programado?.pessoas || []).map((p) => [p.id, p.nome]));
+    const novos = ids.filter((id) => !ja.has(String(id)))
+      .map((id) => ({ chave: novaChave(), tipo: 'NOMINAL', funcao_id: '', colaborador_id: String(id), quantidade: '1', nome: nomes.get(id) || '' }));
+    return {
+      efetivo: [...efetivo, ...novos],
+      mao_obra: ids.map((id) => ({ chave: novaChave(), pessoa: `N${id}`, quantidade: '1', horas: '8' })),
+    };
+  };
+
+  const normalizarTexto = (t) => String(t || '').trim().toUpperCase();
+  const jaLancada = (item) => form.atividades.some((a) => (item.codigo_atividade
+    ? a.codigo_atividade === item.codigo_atividade
+    : a.fora_de_escopo && normalizarTexto(a.descricao_snapshot) === normalizarTexto(item.descricao).slice(0, 500)));
+
+  /** Lança no RDO uma atividade da Programação S+1, já com a mão de obra da equipe programada no dia. */
+  function lancarProgramada(item) {
+    const base = atividadeVazia();
+    let atividade;
+    if (item.codigo_atividade) {
+      const opcao = cronograma.atividades.find((o) => o.codigo_atividade === item.codigo_atividade);
+      if (!opcao) {
+        toast.erro(`A linha ${item.codigo_atividade} não está no cronograma vigente da obra.`);
+        return;
+      }
+      atividade = {
+        ...base,
+        codigo_atividade: opcao.codigo_atividade,
+        descricao_snapshot: opcao.descricao,
+        percentual_anterior: opcao.percentual_vigente,
+        concluida: opcao.concluida,
+        percentual_declarado: opcao.concluida ? '100' : String(opcao.percentual_vigente),
+        observacao: item.observacao || '',
+      };
+    } else {
+      // Serviço escrito na programação: entra como fora de escopo.
+      atividade = {
+        ...base,
+        fora_de_escopo: true,
+        descricao_snapshot: item.descricao.slice(0, 500),
+        justificativa: `Programada na Programação S+1${item.observacao ? `: ${item.observacao}` : ''}`.slice(0, 1000),
+        observacao: item.observacao || '',
+      };
+    }
+    setForm((atual) => {
+      const r = comMaoObraDaEquipe(atual.efetivo, item.colaboradores || []);
+      return { ...atual, efetivo: r.efetivo, atividades: [...atual.atividades, { ...atividade, mao_obra: r.mao_obra }] };
+    });
+  }
+
+  /** Ao relacionar uma linha do cronograma programada, a mão de obra da equipe já vem preenchida. */
+  function alterarAtividade(antiga, nova) {
+    setForm((atual) => {
+      let atividade = nova;
+      let { efetivo } = atual;
+      if (nova.codigo_atividade && nova.codigo_atividade !== antiga.codigo_atividade && nova.mao_obra.length === 0) {
+        const itens = (programado?.atividades || []).filter((i) => i.codigo_atividade === nova.codigo_atividade);
+        const ids = [...new Set(itens.flatMap((i) => i.colaboradores || []))];
+        if (ids.length) {
+          const r = comMaoObraDaEquipe(efetivo, ids);
+          efetivo = r.efetivo;
+          atividade = { ...nova, mao_obra: r.mao_obra, observacao: nova.observacao || itens.map((i) => i.observacao).filter(Boolean).join(' · ') };
+        }
+      }
+      return { ...atual, efetivo, atividades: atual.atividades.map((x) => (x.chave === antiga.chave ? atividade : x)) };
+    });
+  }
+
   const faltandoProgramados = useMemo(() => faltandoNoEfetivo(programado, form.efetivo), [programado, form.efetivo]);
   const adicionarProgramados = () => alterarEfetivo([...form.efetivo, ...faltandoProgramados]);
 
@@ -420,6 +490,38 @@ export default function RdoDetalhe({ novo = false }) {
 
       <Secao faixa titulo={`04 — Atividades (${form.atividades.length})`} resumo={`${totalHH.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} HH`}>
         <div className="space-y-3">
+          {editavel && programado?.atividades?.length ? (
+            <div className="rounded-lg border border-omega-200 bg-omega-50/60 p-3">
+              <p className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+                <CalendarRange className="h-4 w-4 text-omega-600" aria-hidden="true" /> Programado para esta obra (Programação S+1)
+              </p>
+              <ul className="space-y-1.5">
+                {programado.atividades.map((item) => {
+                  const lancada = jaLancada(item);
+                  return (
+                    <li key={item.id} className="flex flex-wrap items-center gap-2 rounded-md bg-white px-2 py-1.5 text-sm shadow-sm">
+                      {item.codigo_atividade
+                        ? <span className="rounded border border-omega-300 bg-omega-50 px-1.5 py-0.5 font-mono text-[11px] font-bold text-omega-700">{item.codigo_atividade}</span>
+                        : <span className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-bold text-amber-700" title="Entra como fora de escopo">Escrita</span>}
+                      <span className="min-w-[10rem] flex-1">
+                        <span className="font-medium text-slate-800">{item.descricao}</span>
+                        <span className="block text-xs text-slate-500">
+                          {item.equipe ? `Equipe ${item.equipe} · ` : ''}{item.colaboradores.length} pessoa(s) programada(s) hoje{item.observacao ? ` · ${item.observacao}` : ''}
+                        </span>
+                      </span>
+                      {lancada
+                        ? <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-700"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> No RDO</span>
+                        : (
+                          <button type="button" className="btn-primario !px-2 !py-1 text-xs" onClick={() => lancarProgramada(item)}>
+                            <Plus className="h-3.5 w-3.5" aria-hidden="true" /> Lançar com a mão de obra
+                          </button>
+                        )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
           {form.atividades.length === 0 ? <p className="text-sm text-slate-500">Nenhuma atividade lançada ainda.</p> : null}
           {form.atividades.map((a, indice) => (
             <EditorAtividade
@@ -433,7 +535,7 @@ export default function RdoDetalhe({ novo = false }) {
               modoValidacao={modoValidacao}
               valorValidado={validacoes[a.id]}
               onValidado={(valor) => setValidacoes((atual) => ({ ...atual, [a.id]: valor }))}
-              onChange={(nova) => alterarForm({ atividades: form.atividades.map((x) => (x.chave === a.chave ? nova : x)) })}
+              onChange={(nova) => alterarAtividade(a, nova)}
               onRemover={() => alterarForm({ atividades: form.atividades.filter((x) => x.chave !== a.chave) })}
               onEnviarFotos={enviarFotos}
               onRemoverFoto={removerFoto}

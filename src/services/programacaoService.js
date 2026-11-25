@@ -101,7 +101,10 @@ const INCLUDE_COMPLETO = {
       obra: { select: SELECT_OBRA_FRENTE },
       equipes: {
         orderBy: [{ ordem: 'asc' }, { id: 'asc' }],
-        include: { alocacoes: { orderBy: [{ ordem: 'asc' }, { id: 'asc' }] } },
+        include: {
+          alocacoes: { orderBy: [{ ordem: 'asc' }, { id: 'asc' }] },
+          itens_atividade: { orderBy: [{ ordem: 'asc' }, { id: 'asc' }] },
+        },
       },
     },
   },
@@ -407,6 +410,14 @@ async function gravarFrentes(tx, programacaoId, frentes) {
             atividades: e.atividades || null,
             premissas: e.premissas || null,
             ordem: ordemEquipe,
+            itens_atividade: {
+              create: (e.itens_atividade || []).map((i, ordemItem) => ({
+                codigo_atividade: i.codigo_atividade ? String(i.codigo_atividade).slice(0, 60) : null,
+                descricao: String(i.descricao || i.codigo_atividade || '').slice(0, 2000),
+                observacao: i.observacao || null,
+                ordem: ordemItem,
+              })),
+            },
             alocacoes: {
               create: e.alocacoes.map((a, ordemPessoa) => ({
                 matricula: a.matricula ? String(a.matricula).slice(0, 30) : null,
@@ -430,6 +441,7 @@ function copiarFrentes(origem) {
     tipo: f.tipo, titulo: f.titulo, codigo: f.codigo, responsavel: f.responsavel, obra_id: f.obra_id,
     equipes: f.equipes.map((e) => ({
       codigo: e.codigo, disciplina: e.disciplina, atividades: e.atividades, premissas: e.premissas,
+      itens_atividade: (e.itens_atividade || []).map((i) => ({ codigo_atividade: i.codigo_atividade, descricao: i.descricao, observacao: i.observacao })),
       alocacoes: e.alocacoes.map((a) => ({ matricula: a.matricula, nome: a.nome, funcao: a.funcao, dias: a.dias })),
     })),
   }));
@@ -508,6 +520,71 @@ async function novaRevisao(id) {
     data: { status: 'EM_ELABORACAO', revisao: { increment: 1 }, emitida_em: null },
   });
   return obter(programacaoId);
+}
+
+/* Atividades programadas da equipe (linha do cronograma ou texto) */
+
+/** Linhas (atividades-folha) da revisão vigente do cronograma de uma obra. */
+async function cronogramaDaObra(obraIdParam) {
+  const obraId = idValido(obraIdParam, 'obraId');
+  const versao = await prisma.versaoCronograma.findFirst({
+    where: { obra_id: obraId }, orderBy: { numero_revisao: 'desc' }, select: { id: true, versao: true },
+  });
+  if (!versao) return { versao: null, atividades: [] };
+  const atividades = await prisma.atividadeCronograma.findMany({
+    where: { versao_cronograma_id: versao.id, resumo: false },
+    orderBy: { ordem: 'asc' },
+    select: { codigo_atividade: true, descricao: true, data_inicio: true, data_fim: true, avanco_fisico_real: true },
+  });
+  return { versao, atividades };
+}
+
+/** Valida o item: com código, a linha tem de existir no cronograma da obra da frente (guarda a descrição). */
+async function camposItemAtividade(payload, equipeId, parcial) {
+  const d = {};
+  if (!parcial || tem(payload, 'codigo_atividade')) d.codigo_atividade = texto(payload.codigo_atividade, 'codigo_atividade', 60);
+  if (!parcial || tem(payload, 'descricao')) d.descricao = texto(payload.descricao, 'descricao', 2000);
+  if (!parcial || tem(payload, 'observacao')) d.observacao = texto(payload.observacao, 'observacao', 2000);
+  if (d.codigo_atividade) {
+    const equipe = await prisma.programacaoEquipe.findUnique({ where: { id: equipeId }, select: { frente: { select: { obra_id: true } } } });
+    const obraId = equipe?.frente?.obra_id;
+    if (!obraId) throw new AppError(400, 'Vincule a frente a uma obra para programar linhas do cronograma.');
+    const { atividades } = await cronogramaDaObra(obraId);
+    const linha = atividades.find((a) => a.codigo_atividade === d.codigo_atividade);
+    if (!linha) throw new AppError(400, `A linha ${d.codigo_atividade} não está no cronograma vigente da obra.`);
+    d.descricao = linha.descricao;
+  }
+  if (!parcial && !d.descricao) throw new AppError(400, 'Escreva a atividade ou escolha uma linha do cronograma.');
+  return d;
+}
+
+async function itemAtividadeEditavel(id) {
+  const i = await prisma.programacaoAtividade.findUnique({ where: { id: idValido(id) }, select: { id: true, equipe_id: true, codigo_atividade: true } });
+  if (!i) throw new AppError(404, 'Atividade programada não encontrada.');
+  await equipeEditavel(i.equipe_id);
+  return i;
+}
+
+async function criarItemAtividade(equipeId, payload = {}) {
+  const e = await equipeEditavel(equipeId);
+  const dados = await camposItemAtividade(payload, e.id, false);
+  const ordem = await prisma.programacaoAtividade.count({ where: { equipe_id: e.id } });
+  return prisma.programacaoAtividade.create({ data: { ...dados, equipe_id: e.id, ordem } });
+}
+
+async function atualizarItemAtividade(id, payload = {}) {
+  const i = await itemAtividadeEditavel(id);
+  // A descrição de uma linha do cronograma vem do cronograma; só a observação muda.
+  const p = i.codigo_atividade && !tem(payload, 'codigo_atividade') ? { ...payload, descricao: undefined } : payload;
+  if (p.descricao === undefined) delete p.descricao;
+  const dados = await camposItemAtividade(p, i.equipe_id, true);
+  return prisma.programacaoAtividade.update({ where: { id: i.id }, data: dados });
+}
+
+async function excluirItemAtividade(id) {
+  const i = await itemAtividadeEditavel(id);
+  await prisma.programacaoAtividade.delete({ where: { id: i.id } });
+  return { ok: true };
 }
 
 /* Frentes */
@@ -723,6 +800,11 @@ async function programacaoDaObra(obraIdParam, query = {}) {
 async function exportar(id) {
   const programacao = await obter(id);
   const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
+  // Na planilha, as atividades programadas (cronograma ou escritas) entram na coluna de atividades.
+  programacao.frentes.forEach((f) => f.equipes.forEach((e) => {
+    const linhas = (e.itens_atividade || []).map((i) => `> ${i.codigo_atividade ? `[${i.codigo_atividade}] ` : ''}${i.descricao}${i.observacao ? ` (${i.observacao})` : ''}`);
+    if (linhas.length) e.atividades = [e.atividades, ...linhas].filter(Boolean).join('\n');
+  }));
   return {
     nome: `Programacao_S+1_Sem_${programacao.semana}_${programacao.ano}_${rev}.xlsx`,
     conteudo: montarPlanilhaProgramacao(XLSX, programacao, programacao.resumo),
@@ -751,6 +833,10 @@ module.exports = {
   novaRevisao,
   criarFrente,
   atualizarFrente,
+  cronogramaDaObra,
+  criarItemAtividade,
+  atualizarItemAtividade,
+  excluirItemAtividade,
   excluirFrente,
   criarEquipe,
   atualizarEquipe,

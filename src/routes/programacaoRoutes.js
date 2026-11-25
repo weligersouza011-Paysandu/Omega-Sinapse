@@ -46,6 +46,11 @@ router.post('/frentes/:id/equipes', acao((req) => service.criarEquipe(req.params
 router.put('/equipes/:id', acao((req) => service.atualizarEquipe(req.params.id, req.body || {})));
 router.delete('/equipes/:id', acao((req) => service.excluirEquipe(req.params.id)));
 router.post('/equipes/:id/alocacoes', acao((req) => service.criarAlocacao(req.params.id, req.body || {}), 201));
+// Atividades programadas da equipe (linha do cronograma da obra ou texto) e o cronograma da obra.
+router.get('/cronograma/:obraId', acao((req) => service.cronogramaDaObra(req.params.obraId)));
+router.post('/equipes/:id/atividades', acao((req) => service.criarItemAtividade(req.params.id, req.body || {}), 201));
+router.put('/atividades/:id', acao((req) => service.atualizarItemAtividade(req.params.id, req.body || {})));
+router.delete('/atividades/:id', acao((req) => service.excluirItemAtividade(req.params.id)));
 router.put('/alocacoes/:id', acao((req) => service.atualizarAlocacao(req.params.id, req.body || {})));
 router.delete('/alocacoes/:id', acao((req) => service.excluirAlocacao(req.params.id)));
 
