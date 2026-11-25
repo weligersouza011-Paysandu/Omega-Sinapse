@@ -14,14 +14,72 @@
   }
 }
 
-/* Tela de login: as duas fotos de campo alternam com transição suave e um leve zoom.
-   A segunda foto roda defasada em meio ciclo; o zoom reinicia enquanto a foto está invisível. */
-@keyframes login-foto {
-  0% { opacity: 1; transform: scale(1); }
-  45% { opacity: 1; transform: scale(1.07); }
-  50% { opacity: 0; transform: scale(1.07); }
-  95% { opacity: 0; transform: scale(1); }
-  100% { opacity: 1; transform: scale(1); }
+/* ---------------------------------------------------------------- Tela de login
+   Entradas em cascata: cada elemento sobe, ganha nitidez e aparece, com o atraso dado por
+   --atraso. A curva "expo out" dá o arranque rápido e a chegada macia. */
+@keyframes login-surgir {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+@keyframes login-cartao {
+  from {
+    opacity: 0;
+    transform: translateY(32px) scale(0.96);
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+}
+
+/* A capa abre com um zoom lento, como uma câmera se afastando. */
+@keyframes login-capa {
+  from {
+    opacity: 0;
+    transform: scale(1.14);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Manchas de luz que flutuam devagar atrás do formulário. */
+@keyframes login-aurora {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(6%, -8%) scale(1.12);
+  }
+  66% {
+    transform: translate(-7%, 5%) scale(0.94);
+  }
+}
+
+@keyframes login-alerta {
+  0% { opacity: 0; transform: translateX(0); }
+  20% { opacity: 1; transform: translateX(-6px); }
+  40% { transform: translateX(5px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+  100% { opacity: 1; transform: none; }
+}
+
+@keyframes login-girar {
+  to { transform: rotate(360deg); }
 }
 
 @layer base {
@@ -131,21 +189,39 @@
     animation: kanban-entrada 220ms ease-out;
   }
 
-  .foto-login {
-    animation: login-foto 16s ease-in-out infinite;
-    will-change: opacity, transform;
+  .login-surgir {
+    animation: login-surgir 900ms cubic-bezier(0.16, 1, 0.3, 1) var(--atraso, 0ms) both;
   }
 
-  .foto-login-b {
-    animation-delay: -8s;
+  .login-cartao {
+    animation: login-cartao 1100ms cubic-bezier(0.16, 1, 0.3, 1) var(--atraso, 0ms) both;
+  }
+
+  .login-capa {
+    animation: login-capa 2600ms cubic-bezier(0.16, 1, 0.3, 1) both;
+    transform-origin: 30% 50%;
+  }
+
+  .login-aurora {
+    @apply pointer-events-none absolute rounded-full blur-3xl;
+    animation: login-aurora 22s ease-in-out infinite;
+  }
+
+  .login-alerta {
+    animation: login-alerta 500ms ease-out both;
+  }
+
+  .login-girar {
+    animation: login-girar 700ms linear infinite;
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .foto-login {
+    .login-surgir,
+    .login-cartao,
+    .login-capa,
+    .login-aurora,
+    .login-alerta {
       animation: none;
-    }
-    .foto-login-b {
-      opacity: 0;
     }
   }
 }
