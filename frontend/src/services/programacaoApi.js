@@ -15,6 +15,15 @@ export const listarEfetivoProgramacao = async ({ todos = false } = {}) => (await
 export const mobilizarColaborador = async (corpo) => (await api.post('/programacoes/efetivo/mobilizar', corpo)).data;
 export const desmobilizarColaborador = async (id, corpo = {}) => (await api.post(`/programacoes/efetivo/${id}/desmobilizar`, corpo)).data;
 export const atualizarColaboradorEfetivo = async (id, corpo) => (await api.put(`/programacoes/efetivo/${id}`, corpo)).data;
+/** Atualiza o efetivo do contrato pela aba "EFETIVO A DISTRIBUIR" da planilha da reunião. */
+export async function importarEfetivoProgramacao(arquivo) {
+  const formulario = new FormData();
+  formulario.append('arquivo', arquivo);
+  return (await api.post('/programacoes/efetivo/importar', formulario, { timeout: 180000 })).data;
+}
+/** Funções de planejamento cadastradas; nova função (Planejador/Admin). */
+export const listarFuncoesProgramacao = async () => (await api.get('/programacoes/funcoes')).data;
+export const criarFuncaoProgramacao = async (nome) => (await api.post('/programacoes/funcoes', { nome })).data;
 /** Efetivo nominal a partir da programação (cadastra quem falta e liga as pessoas ao cadastro). */
 export const sincronizarEfetivoProgramacao = async (id) => (await api.post(`/programacoes/${id}/sincronizar-efetivo`)).data;
 /** Programação e efetivo nominal de uma obra (recorte: proxima | atual | ultima, ou programacao_id). */
