@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarPlus, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, UserMinus, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, FileSpreadsheet, FileText, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, UserMinus, UserPlus, Users } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { Secao } from '../components/rdo/SecoesRdo.jsx';
@@ -11,10 +11,13 @@ import {
   criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
   listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
   sincronizarEfetivoProgramacao, obterCronogramaDaObraProgramacao, criarItemAtividadeProgramacao, atualizarItemAtividadeProgramacao, excluirItemAtividadeProgramacao, mobilizarColaborador, desmobilizarColaborador, atualizarColaboradorEfetivo,
+  importarEfetivoProgramacao, listarFuncoesProgramacao, criarFuncaoProgramacao, adicionarPessoasEquipe, baixarPdfProgramacao,
 } from '../services/programacaoApi.js';
+import { listarSupervisores } from '../services/rdoApi.js';
+import { ModalAdicionarPessoas, ModalNovaEquipe } from '../components/programacao/ModalEquipe.jsx';
+import CampoLista, { comparavel, opcaoDaLista } from '../components/CampoLista.jsx';
 import { formatarData, formatarDataHora } from '../utils/formatters.js';
 
-const ID_LISTA_EFETIVO = 'programacao-efetivo-contrato';
 const ID_LISTA_FUNCOES = 'programacao-funcoes';
 
 const DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
@@ -215,20 +218,9 @@ function AtividadesProgramadas({ equipe, obraId, editavel, executar }) {
   );
 }
 
-function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
-  const [nova, setNova] = useState({ matricula: '', nome: '', funcao: '' });
-  // Matrícula do efetivo do contrato: completa nome e função.
-  const escolherMatricula = (matricula) => {
-    const c = efetivoPorMatricula.get(matricula.trim());
-    setNova((atual) => (c ? { matricula, nome: c.nome, funcao: c.funcao || '' } : { ...atual, matricula }));
-  };
+function Equipe({ equipe, editavel, executar, prog, efetivo, obraId }) {
+  const [adicionando, setAdicionando] = useState(false);
   const totais = somaDias(equipe.alocacoes);
-
-  const adicionar = async () => {
-    if (!nova.nome.trim() && !nova.matricula.trim()) return;
-    const ok = await executar(() => criarAlocacao(equipe.id, nova));
-    if (ok) setNova({ matricula: '', nome: '', funcao: '' });
-  };
 
   return (
     <div className="rounded-lg border border-slate-200">
@@ -290,11 +282,10 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
             ))}
             {editavel ? (
               <tr className="border-t border-slate-100 bg-slate-50/60">
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Matrícula (efetivo)" list={ID_LISTA_EFETIVO} value={nova.matricula} onChange={(e) => escolherMatricula(e.target.value)} /></td>
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Nome (ou só a matrícula do cadastro)" value={nova.nome} onChange={(e) => setNova({ ...nova, nome: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Função" value={nova.funcao} onChange={(e) => setNova({ ...nova, funcao: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
-                <td colSpan={DIAS.length + 1} className="px-2 py-1">
-                  <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={adicionar}><Plus className="h-3.5 w-3.5" /> Adicionar pessoa</button>
+                <td colSpan={3 + DIAS.length + 1} className="px-2 py-1.5 text-center">
+                  <button type="button" className="btn-neutro !px-3 !py-1 text-xs" onClick={() => setAdicionando(true)}>
+                    <UserPlus className="h-3.5 w-3.5" /> Adicionar pessoa
+                  </button>
                 </td>
               </tr>
             ) : null}
@@ -308,6 +299,8 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
       </div>
 
       <AtividadesProgramadas equipe={equipe} obraId={obraId} editavel={editavel} executar={executar} />
+      <ModalAdicionarPessoas aberto={adicionando} equipe={equipe} prog={prog} efetivo={efetivo} onFechar={() => setAdicionando(false)}
+        onAdicionar={(pessoas) => executar(() => adicionarPessoasEquipe(equipe.id, pessoas))} />
 
       <div className="grid gap-3 border-t border-slate-100 p-3 md:grid-cols-2">
         <div>
@@ -343,8 +336,9 @@ function infoDaObra(obra) {
   return campos.filter(([, v]) => v);
 }
 
-function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula }) {
+function Frente({ frente, editavel, obras, executar, totais, prog, efetivo }) {
   const [editando, setEditando] = useState(false);
+  const [novaEquipe, setNovaEquipe] = useState(false);
   // Seletor de obra: null (fechado) ou o tipo a gravar junto com a obra escolhida.
   const [seletor, setSeletor] = useState(null);
   const pessoas = frente.equipes.reduce((s, e) => s + e.alocacoes.length, 0);
@@ -400,7 +394,7 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
           {editavel ? (
             <span className="ml-auto flex gap-2">
               <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setEditando((v) => !v)}>{editando ? 'Fechar edição' : 'Editar frente'}</button>
-              <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => executar(() => criarEquipe(frente.id, { disciplina: '' }))}><Plus className="h-3.5 w-3.5" /> Equipe</button>
+              <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setNovaEquipe(true)}><Plus className="h-3.5 w-3.5" /> Equipe</button>
               <button type="button" className="rounded p-1 text-slate-400 hover:text-red-600" aria-label="Excluir frente" title="Excluir frente"
                 onClick={() => window.confirm(`Excluir a frente "${frente.titulo}" com todas as equipes?`) && executar(() => excluirFrente(frente.id))}>
                 <Trash2 className="h-4 w-4" />
@@ -429,7 +423,9 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
         <ModalSeletorObra aberto={Boolean(seletor)} obras={obras} atualId={frente.obra_id}
           titulo={`Vincular obra · ${frente.titulo}`} onFechar={() => setSeletor(null)} onEscolher={vincular} />
 
-        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} obraId={frente.obra_id} />)}
+        <ModalNovaEquipe aberto={novaEquipe} frente={frente} prog={prog} efetivo={efetivo} onFechar={() => setNovaEquipe(false)}
+          onCriar={(dados) => executar(() => criarEquipe(frente.id, dados))} />
+        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} prog={prog} efetivo={efetivo} obraId={frente.obra_id} />)}
         {frente.equipes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma equipe nesta frente.</p> : null}
       </div>
     </Secao>
@@ -608,22 +604,119 @@ const hojeIso = () => {
   return `${h.getFullYear()}-${String(h.getMonth() + 1).padStart(2, '0')}-${String(h.getDate()).padStart(2, '0')}`;
 };
 
+/** Quem pode cadastrar função nova (a lista de funções é a base da programação e do RDO). */
+const PERFIS_NOVA_FUNCAO = ['PLANEJADOR', 'ADMIN'];
+
+/** Contagem por valor de um campo do efetivo, do mais usado para o menos usado. */
+function valoresDoEfetivo(efetivo, campo) {
+  const contagem = new Map();
+  efetivo.forEach((c) => {
+    const v = String(c[campo] || '').trim();
+    if (v) contagem.set(v, (contagem.get(v) || 0) + 1);
+  });
+  return [...contagem.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+/** Lista sem repetidos (por nome comparável), na ordem em que os itens chegam. */
+function semRepetidos(lista) {
+  const vistos = new Set();
+  return lista.filter((o) => {
+    const k = comparavel(o.nome);
+    if (!k || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  });
+}
+
+/**
+ * Pessoas para supervisor/encarregado, todas já da base: primeiro quem já exerce o papel no efetivo,
+ * depois os usuários do papel no Sinapse, quem tem o cargo e, por fim, o restante do efetivo mobilizado.
+ */
+function opcoesLideranca(efetivo, campo, palavra, usuarios = []) {
+  const ativos = efetivo.filter((c) => c.mobilizado !== false);
+  const temPalavra = (c) => comparavel(`${c.cargo || ''} ${c.funcao || ''}`).includes(palavra);
+  return semRepetidos([
+    ...valoresDoEfetivo(efetivo, campo).map(([nome, n]) => ({ nome, contato: `${palavra.toLowerCase()} de ${n} pessoa(s) no efetivo` })),
+    ...usuarios.map((u) => ({ nome: u.nome, contato: `usuário ${palavra.toLowerCase()} do Sinapse${u.matricula ? ` · mat. ${u.matricula}` : ''}` })),
+    ...ativos.filter(temPalavra).map((c) => ({ nome: c.nome, contato: `${c.matricula || 's/ mat.'} · ${c.cargo || c.funcao || ''}` })),
+    ...ativos.filter((c) => !temPalavra(c)).map((c) => ({ nome: c.nome, contato: `${c.matricula || 's/ mat.'} · ${c.cargo || c.funcao || ''}` })),
+  ]);
+}
+
+const CAMPOS_LISTA = [
+  ['funcao', 'Função (planejamento)'],
+  ['cargo', 'Função Omega (cargo)'],
+  ['disciplina', 'Disciplina'],
+  ['supervisor', 'Supervisor'],
+  ['encarregado', 'Encarregado'],
+];
+
 /**
  * Mobilizar (entrar no efetivo do contrato, pessoa nova ou que volta) ou desmobilizar (sair).
  * `pessoa` preenchida = ação sobre alguém da lista; vazia = mobilizar uma pessoa nova.
+ * Todos os campos são obrigatórios; função, cargo, disciplina, supervisor e encarregado vêm da base
+ * (com busca). Função e cargo novos: botão "+" (só o planejamento).
  */
 function ModalMobilizacao({ modo, pessoa, efetivo, onFechar, onConcluido }) {
   const toast = useToast();
+  const { usuario } = useAuth();
+  const podeNovaFuncao = PERFIS_NOVA_FUNCAO.includes(usuario?.perfil);
   const [form, setForm] = useState({});
+  const [erros, setErros] = useState({});
   const [salvando, setSalvando] = useState(false);
+  const [funcoesBase, setFuncoesBase] = useState([]);
+  const [supervisoresUsuarios, setSupervisoresUsuarios] = useState([]);
+  const [cargosNovos, setCargosNovos] = useState([]);
+
   useEffect(() => {
     if (!modo) return;
     setForm({
       matricula: pessoa?.matricula || '', nome: pessoa?.nome || '', funcao: pessoa?.funcao || '', cargo: pessoa?.cargo || '',
       disciplina: pessoa?.disciplina || '', supervisor: pessoa?.supervisor || '', encarregado: pessoa?.encarregado || '', data: hojeIso(),
     });
+    setErros({});
+    if (modo === 'mobilizar') {
+      listarFuncoesProgramacao().then(setFuncoesBase).catch(() => setFuncoesBase([]));
+      listarSupervisores().then(setSupervisoresUsuarios).catch(() => setSupervisoresUsuarios([]));
+    }
   }, [modo, pessoa]);
   const campo = (k) => ({ value: form[k] ?? '', onChange: (e) => setForm((f) => ({ ...f, [k]: e.target.value })) });
+  const definir = (k) => (v) => { setForm((f) => ({ ...f, [k]: v })); setErros((e) => ({ ...e, [k]: false })); };
+
+  const opcoes = useMemo(() => ({
+    funcao: semRepetidos([
+      ...funcoesBase.map((f) => ({ nome: f.nome })),
+      ...valoresDoEfetivo(efetivo, 'funcao').map(([nome]) => ({ nome })),
+    ]).map((o) => ({ ...o, contato: (() => { const n = efetivo.filter((c) => comparavel(c.funcao) === comparavel(o.nome)).length; return n ? `${n} pessoa(s) no efetivo` : 'sem pessoas ainda'; })() }))
+      .sort((a, b) => a.nome.localeCompare(b.nome)),
+    cargo: semRepetidos([
+      ...cargosNovos.map((nome) => ({ nome, contato: 'novo' })),
+      ...valoresDoEfetivo(efetivo, 'cargo').map(([nome, n]) => ({ nome, contato: `${n} pessoa(s) no efetivo` })),
+    ]).sort((a, b) => a.nome.localeCompare(b.nome)),
+    disciplina: valoresDoEfetivo(efetivo, 'disciplina').map(([nome, n]) => ({ nome, contato: `${n} pessoa(s) no efetivo` })),
+    supervisor: opcoesLideranca(efetivo, 'supervisor', 'SUPERVISOR', supervisoresUsuarios),
+    encarregado: opcoesLideranca(efetivo, 'encarregado', 'ENCARREGADO'),
+  }), [efetivo, funcoesBase, supervisoresUsuarios, cargosNovos]);
+
+  const novaFuncao = async (nome) => {
+    try {
+      const f = await criarFuncaoProgramacao(nome);
+      setFuncoesBase((lista) => (lista.some((x) => x.id === f.id) ? lista : [...lista, { id: f.id, nome: f.nome }]));
+      toast.sucesso(f.criada ? `Função "${f.nome}" cadastrada.` : `A função "${f.nome}" já existia.`);
+      setErros((e) => ({ ...e, funcao: false }));
+      return f.nome;
+    } catch (err) {
+      toast.erro(err.message);
+      throw err;
+    }
+  };
+  const novoCargo = async (nome) => {
+    const n = nome.trim().toUpperCase().replace(/\s+/g, ' ');
+    const existente = opcaoDaLista(opcoes.cargo, n);
+    if (!existente) setCargosNovos((lista) => [...lista, n]);
+    setErros((e) => ({ ...e, cargo: false }));
+    return existente?.nome || n;
+  };
 
   // Matrícula de alguém desmobilizado: traz o cadastro dele.
   const aoSairDaMatricula = () => {
@@ -640,13 +733,28 @@ function ModalMobilizacao({ modo, pessoa, efetivo, onFechar, onConcluido }) {
 
   const salvar = async (e) => {
     e.preventDefault();
+    let corpo = { ...form };
+    if (modo !== 'desmobilizar') {
+      // Cada campo de lista precisa ser um item da base (acento e caixa não importam: grava o nome da lista).
+      const faltando = {};
+      CAMPOS_LISTA.forEach(([k]) => {
+        const o = opcaoDaLista(opcoes[k], corpo[k]);
+        if (o) corpo = { ...corpo, [k]: o.nome }; else faltando[k] = true;
+      });
+      if (Object.keys(faltando).length) {
+        setErros(faltando);
+        const nomes = CAMPOS_LISTA.filter(([k]) => faltando[k]).map(([, r]) => r);
+        toast.erro(`Escolha da lista: ${nomes.join(', ')}.`);
+        return;
+      }
+    }
     setSalvando(true);
     try {
       if (modo === 'desmobilizar') {
         await desmobilizarColaborador(pessoa.id, { data: form.data });
         toast.sucesso(`${pessoa.nome} desmobilizado(a).`);
       } else {
-        const r = await mobilizarColaborador(form);
+        const r = await mobilizarColaborador(corpo);
         toast.sucesso(`${form.nome || pessoa?.nome} ${r.reativado ? 'mobilizado(a) de volta' : 'mobilizado(a)'}. Agora programe em uma frente.`);
       }
       await onConcluido();
@@ -658,9 +766,10 @@ function ModalMobilizacao({ modo, pessoa, efetivo, onFechar, onConcluido }) {
   };
 
   const desmobilizar = modo === 'desmobilizar';
+  const semPermissao = 'Só o planejamento (Planejador ou Admin) cadastra função nova';
   return (
     <ModalBase aberto={Boolean(modo)} onFechar={onFechar} titulo={desmobilizar ? `Desmobilizar · ${pessoa?.nome || ''}` : pessoa ? `Mobilizar · ${pessoa.nome}` : 'Mobilizar pessoa no contrato'}>
-      <form className="space-y-3" onSubmit={salvar}>
+      <form className="space-y-3 p-5" onSubmit={salvar}>
         {desmobilizar ? (
           <>
             <p className="text-sm text-slate-600">A pessoa sai do efetivo do contrato: deixa de aparecer para a programação e para o RDO. O histórico continua.</p>
@@ -671,16 +780,38 @@ function ModalMobilizacao({ modo, pessoa, efetivo, onFechar, onConcluido }) {
             ) : null}
           </>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div><label className="rotulo">Matrícula *</label><input className="campo" required disabled={Boolean(pessoa)} onBlur={aoSairDaMatricula} {...campo('matricula')} /></div>
-            <div><label className="rotulo">Nome {pessoa || jaCadastrado ? '' : '*'}</label><input className="campo" required={!pessoa && !jaCadastrado} {...campo('nome')} /></div>
-            <div><label className="rotulo">Função (planejamento)</label><input className="campo" list={ID_LISTA_FUNCOES} {...campo('funcao')} /></div>
-            <div><label className="rotulo">Função Omega (cargo)</label><input className="campo" {...campo('cargo')} /></div>
-            <div><label className="rotulo">Disciplina</label><input className="campo" {...campo('disciplina')} /></div>
-            <div><label className="rotulo">Supervisor</label><input className="campo" {...campo('supervisor')} /></div>
-            <div><label className="rotulo">Encarregado</label><input className="campo" {...campo('encarregado')} /></div>
-            {jaCadastrado ? <p className="self-end text-xs text-slate-500">Matrícula já cadastrada ({jaCadastrado.nome}): ela volta ao efetivo.</p> : null}
-          </div>
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div><label className="rotulo" htmlFor="mob-matricula">Matrícula *</label><input id="mob-matricula" className="campo" required inputMode="numeric" disabled={Boolean(pessoa)} onBlur={aoSairDaMatricula} {...campo('matricula')} /></div>
+              <div><label className="rotulo" htmlFor="mob-nome">Nome *</label><input id="mob-nome" className="campo" required {...campo('nome')} /></div>
+              <div>
+                <label className="rotulo" htmlFor="mob-funcao">Função (planejamento) *</label>
+                <CampoLista id="mob-funcao" value={form.funcao} onChange={definir('funcao')} opcoes={opcoes.funcao} invalido={erros.funcao}
+                  placeholder="Buscar função..." onAdicionar={novaFuncao} podeAdicionar={podeNovaFuncao} rotuloNovo="Nome da nova função"
+                  tituloAdicionar={podeNovaFuncao ? 'Cadastrar nova função de planejamento' : semPermissao} />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="mob-cargo">Função Omega (cargo) *</label>
+                <CampoLista id="mob-cargo" value={form.cargo} onChange={definir('cargo')} opcoes={opcoes.cargo} invalido={erros.cargo}
+                  placeholder="Buscar cargo..." onAdicionar={novoCargo} podeAdicionar={podeNovaFuncao} rotuloNovo="Nome do novo cargo"
+                  tituloAdicionar={podeNovaFuncao ? 'Adicionar nova função Omega (cargo)' : semPermissao} />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="mob-disciplina">Disciplina *</label>
+                <CampoLista id="mob-disciplina" value={form.disciplina} onChange={definir('disciplina')} opcoes={opcoes.disciplina} invalido={erros.disciplina} placeholder="Buscar disciplina..." />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="mob-supervisor">Supervisor *</label>
+                <CampoLista id="mob-supervisor" value={form.supervisor} onChange={definir('supervisor')} opcoes={opcoes.supervisor} invalido={erros.supervisor} placeholder="Buscar pessoa da base..." />
+              </div>
+              <div>
+                <label className="rotulo" htmlFor="mob-encarregado">Encarregado *</label>
+                <CampoLista id="mob-encarregado" value={form.encarregado} onChange={definir('encarregado')} opcoes={opcoes.encarregado} invalido={erros.encarregado} placeholder="Buscar pessoa da base..." />
+              </div>
+              {jaCadastrado ? <p className="self-end text-xs text-slate-500">Matrícula já cadastrada ({jaCadastrado.nome}): ela volta ao efetivo.</p> : null}
+            </div>
+            <p className="text-xs text-slate-500">Todos os campos são obrigatórios. Função, cargo, disciplina, supervisor e encarregado são escolhidos da base: digite para buscar.</p>
+          </>
         )}
         <div className="max-w-[12rem]"><label className="rotulo">{desmobilizar ? 'Data da desmobilização' : 'Data da mobilização'}</label><input type="date" className="campo" required {...campo('data')} /></div>
         <div className="flex justify-end gap-2">
@@ -709,6 +840,24 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
   const [selecionados, setSelecionados] = useState(new Set());
   const [distribuindo, setDistribuindo] = useState(null); // lista de pessoas
   const [movimento, setMovimento] = useState(null); // { modo, pessoa }
+  const [importandoEfetivo, setImportandoEfetivo] = useState(false);
+
+  // Planilha da reunião → efetivo do contrato (aba "EFETIVO A DISTRIBUIR"), por matrícula.
+  const importarPlanilhaEfetivo = async (e) => {
+    const arquivo = e.target.files?.[0];
+    e.target.value = '';
+    if (!arquivo) return;
+    setImportandoEfetivo(true);
+    try {
+      const r = await importarEfetivoProgramacao(arquivo);
+      toast.sucesso(`Efetivo atualizado pela planilha: ${r.atualizados} atualizado(s), ${r.criados} novo(s).`);
+      await onEfetivoAlterado();
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setImportandoEfetivo(false);
+    }
+  };
 
   // Onde cada matrícula está na semana (frente, equipe, dias).
   const ondeEsta = useMemo(() => {
@@ -801,6 +950,11 @@ function EfetivoContrato({ efetivo, prog, editavel, executar, onSincronizar, sin
         <button type="button" className="btn-primario" onClick={() => setMovimento({ modo: 'mobilizar', pessoa: null })}>
           <UserPlus className="h-4 w-4" /> Mobilizar pessoa
         </button>
+        <label className={`btn-neutro cursor-pointer ${importandoEfetivo ? 'pointer-events-none opacity-60' : ''}`}
+          title='Atualiza função Omega, função de planejamento, disciplina, supervisor, encarregado, situação e férias pela aba "EFETIVO A DISTRIBUIR" da planilha da reunião'>
+          <FileSpreadsheet className="h-4 w-4" /> {importandoEfetivo ? 'Atualizando...' : 'Atualizar pela planilha'}
+          <input type="file" accept=".xlsx" className="hidden" disabled={importandoEfetivo} onChange={importarPlanilhaEfetivo} />
+        </label>
         <button type="button" className="btn-neutro" disabled={sincronizando} onClick={onSincronizar}
           title="Cadastra no efetivo quem foi programado com matrícula e ainda não está nele, e liga cada pessoa programada ao seu cadastro">
           <RefreshCw className={`h-4 w-4 ${sincronizando ? 'animate-spin' : ''}`} /> Atualizar efetivo
@@ -1049,8 +1203,6 @@ export default function ProgramacaoS1() {
     obterProgramacao(selecionadaId).then(setProg).catch((err) => toast.erro(err.message)).finally(() => setCarregando(false));
   }, [selecionadaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const efetivoPorMatricula = useMemo(() => new Map(efetivo.filter((c) => c.matricula).map((c) => [c.matricula, c])), [efetivo]);
-
   /** Executa uma alteração e recarrega a programação. Retorna true se deu certo. */
   const executar = useCallback(async (operacao) => {
     try {
@@ -1115,6 +1267,38 @@ export default function ProgramacaoS1() {
     await recarregar();
   }, [recarregar]);
 
+  /** PDF da reunião S+1 (com a logo); `id` para baixar logo depois de emitir. */
+  const baixarPdf = async (id = prog.id) => {
+    setOcupado('pdf');
+    try {
+      const { blob, nome } = await baixarPdfProgramacao(id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nome;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setOcupado('');
+    }
+  };
+
+  /** Consolidar: emite a revisão (trava a edição) e já baixa o PDF da reunião. */
+  const emitirEConsolidar = async () => {
+    if (!window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão, e o PDF da reunião S+1 é gerado.`)) return;
+    try {
+      const p = await emitirProgramacao(prog.id);
+      setProg(p);
+      await carregarLista(p.id);
+      toast.sucesso(`${nomeSemana(p)} emitida. Gerando o PDF da reunião...`);
+      await baixarPdf(p.id);
+    } catch (err) {
+      toast.erro(err.message);
+    }
+  };
+
   const exportar = async () => {
     setOcupado('exportar');
     try {
@@ -1166,10 +1350,6 @@ export default function ProgramacaoS1() {
 
   return (
     <div className="w-full space-y-4">
-      {/* Lista do efetivo do contrato para os campos de matrícula. */}
-      <datalist id={ID_LISTA_EFETIVO}>
-        {efetivo.filter((c) => c.matricula).map((c) => <option key={c.id} value={c.matricula}>{`${c.nome} · ${c.funcao || ''}`}</option>)}
-      </datalist>
       <datalist id={ID_LISTA_FUNCOES}>
         {[...new Set(efetivoCompleto.map((c) => c.funcao).filter(Boolean))].sort().map((f) => <option key={f} value={f} />)}
       </datalist>
@@ -1197,9 +1377,14 @@ export default function ProgramacaoS1() {
               <Download className="h-4 w-4" /> {ocupado === 'exportar' ? 'Gerando...' : 'Exportar .xlsx'}
             </button>
           ) : null}
+          {prog ? (
+            <button type="button" className="btn-neutro" disabled={Boolean(ocupado)} onClick={() => baixarPdf()} title="PDF detalhado da reunião S+1, com a logo">
+              <FileText className="h-4 w-4" /> {ocupado === 'pdf' ? 'Gerando PDF...' : 'PDF da reunião'}
+            </button>
+          ) : null}
           {prog && editavel ? (
-            <button type="button" className="btn-neutro" onClick={() => window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão.`) && mudarStatus(emitirProgramacao, (p) => `${nomeSemana(p)} emitida.`)}>
-              <Lock className="h-4 w-4" /> Emitir {rev(prog.revisao)}
+            <button type="button" className="btn-neutro" disabled={Boolean(ocupado)} onClick={emitirEConsolidar} title="Trava a revisão e gera o PDF da reunião S+1">
+              <Lock className="h-4 w-4" /> Emitir {rev(prog.revisao)} + PDF
             </button>
           ) : null}
           {prog && !editavel ? (
@@ -1294,7 +1479,7 @@ export default function ProgramacaoS1() {
                 {editavel ? <button type="button" className="btn-primario" onClick={() => setModalFrente(true)}><Plus className="h-4 w-4" /> Frente</button> : null}
               </div>
               {frentesFiltradas.map((f) => (
-                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} efetivoPorMatricula={efetivoPorMatricula} />
+                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} prog={prog} efetivo={efetivo} />
               ))}
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>

@@ -1,6 +1,8 @@
 'use strict';
 
 const XLSX = require('xlsx');
+const { Prisma } = require('@prisma/client');
+const { gerarPdfProgramacao } = require('./programacaoPdfService');
 const AppError = require('../errors/AppError');
 const prisma = require('../config/prisma');
 const {
@@ -9,6 +11,7 @@ const {
   normalizarDias,
   normalizarSs,
   lerPlanilhaProgramacao,
+  lerPlanilhaEfetivo,
   calcularResumo,
   montarPlanilhaProgramacao,
   RECORTES_SEMANA,
@@ -23,6 +26,8 @@ const {
  */
 
 const PERFIS_EXCLUSAO = ['SUPERVISOR', 'ADMIN'];
+/** Quem pode criar uma função de planejamento nova. */
+const PERFIS_NOVA_FUNCAO = ['PLANEJADOR', 'ADMIN'];
 
 const vazio = (v) => v === undefined || v === null || String(v).trim() === '';
 const tem = (o, c) => Object.prototype.hasOwnProperty.call(o, c);
@@ -154,6 +159,102 @@ async function funcaoPorNome(nome, cliente = prisma) {
   return n ? cliente.funcaoMaoObra.upsert({ where: { nome: n }, update: {}, create: { nome: n } }) : null;
 }
 
+/** Funções de planejamento cadastradas (as do efetivo e as criadas pelo planejamento). */
+async function listarFuncoes() {
+  return prisma.funcaoMaoObra.findMany({ where: { ativo: true }, orderBy: { nome: 'asc' }, select: { id: true, nome: true } });
+}
+
+/** Nova função de planejamento (só Planejador e Admin: a lista é a base da programação e do RDO). */
+async function criarFuncao(payload = {}, usuario = null) {
+  if (usuario && !PERFIS_NOVA_FUNCAO.includes(usuario.perfil)) {
+    throw new AppError(403, 'Só o planejamento (Planejador ou Admin) pode cadastrar uma nova função.');
+  }
+  const nome = texto(payload.nome, 'nome', 120, true).toUpperCase().replace(/\s+/g, ' ');
+  const existente = await prisma.funcaoMaoObra.findUnique({ where: { nome }, select: { id: true, nome: true, ativo: true } });
+  if (existente) {
+    if (!existente.ativo) await prisma.funcaoMaoObra.update({ where: { id: existente.id }, data: { ativo: true } });
+    return { id: existente.id, nome: existente.nome, criada: false };
+  }
+  const criada = await prisma.funcaoMaoObra.create({ data: { nome }, select: { id: true, nome: true } });
+  return { ...criada, criada: true };
+}
+
+/**
+ * Atualiza o efetivo do contrato pela aba "EFETIVO A DISTRIBUIR": por matrícula, grava nome, função de
+ * planejamento, função Omega (cargo), disciplina, supervisor, encarregado, situação, férias e 1º dia na
+ * obra. Célula vazia não apaga o que já está no cadastro. Quem não está na planilha não é tocado;
+ * quem é novo entra mobilizado no contrato do restante do efetivo.
+ */
+async function gravarEfetivoDaPlanilha(efetivo) {
+  const [contrato] = await prisma.colaborador.groupBy({
+    by: ['contrato_id'], where: { contrato_id: { not: null } }, _count: { _all: true }, orderBy: { _count: { contrato_id: 'desc' } }, take: 1,
+  });
+  // Funções: cria de uma vez as que faltam e reativa as existentes.
+  const nomesFuncao = [...new Set(efetivo.map((c) => c.funcao).filter(Boolean).map((n) => String(n).trim().toUpperCase().slice(0, 120)))];
+  await prisma.funcaoMaoObra.createMany({ data: nomesFuncao.map((nome) => ({ nome })), skipDuplicates: true });
+  await prisma.funcaoMaoObra.updateMany({ where: { nome: { in: nomesFuncao }, ativo: false }, data: { ativo: true } });
+  const funcoes = new Map((await prisma.funcaoMaoObra.findMany({ where: { nome: { in: nomesFuncao } }, select: { id: true, nome: true } })).map((f) => [f.nome, f.id]));
+  const existentes = new Map((await prisma.colaborador.findMany({
+    where: { matricula: { in: efetivo.map((c) => c.matricula) } }, select: { id: true, matricula: true, contrato_id: true },
+  })).map((c) => [c.matricula, c]));
+
+  const novos = [];
+  const linhas = [];
+  efetivo.forEach((c) => {
+    const corte = (v, max) => (v ? String(v).slice(0, max) : null);
+    const dados = {
+      nome: c.nome.slice(0, 255),
+      situacao: c.situacao === 'INDISPONIVEL' ? 'INDISPONIVEL' : 'DISPONIVEL',
+      funcao_id: c.funcao ? funcoes.get(String(c.funcao).trim().toUpperCase().slice(0, 120)) ?? null : null,
+      cargo: corte(c.cargo, 160),
+      disciplina: corte(c.disciplina, 60),
+      supervisor: corte(c.supervisor, 120),
+      encarregado: corte(c.encarregado, 120),
+      ferias_inicio: c.ferias_inicio || null,
+      ferias_fim: c.ferias_fim || null,
+      data_mobilizacao: c.data_mobilizacao || null,
+    };
+    const atual = existentes.get(c.matricula);
+    if (atual) linhas.push(Prisma.sql`(${atual.id}::int, ${dados.nome}::varchar, ${dados.situacao}::"SituacaoEfetivo", ${dados.funcao_id}::int,
+      ${dados.cargo}::varchar, ${dados.disciplina}::varchar, ${dados.supervisor}::varchar, ${dados.encarregado}::varchar,
+      ${dados.ferias_inicio}::date, ${dados.ferias_fim}::date, ${dados.data_mobilizacao}::date)`);
+    else {
+      const semNulos = Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== null));
+      novos.push({ ...semNulos, matricula: c.matricula.slice(0, 30), ativo: true, contrato_id: contrato?.contrato_id ?? null });
+    }
+  });
+  if (novos.length) await prisma.colaborador.createMany({ data: novos, skipDuplicates: true });
+  // Um único UPDATE para todo o efetivo (o banco é remoto: uma ida só). Vazio na planilha mantém o cadastro.
+  if (linhas.length) {
+    await prisma.$executeRaw`
+      UPDATE colaboradores AS c SET
+        nome = v.nome, situacao = v.situacao,
+        funcao_id = COALESCE(v.funcao_id, c.funcao_id), cargo = COALESCE(v.cargo, c.cargo),
+        disciplina = COALESCE(v.disciplina, c.disciplina), supervisor = COALESCE(v.supervisor, c.supervisor),
+        encarregado = COALESCE(v.encarregado, c.encarregado), ferias_inicio = COALESCE(v.ferias_inicio, c.ferias_inicio),
+        ferias_fim = COALESCE(v.ferias_fim, c.ferias_fim), data_mobilizacao = COALESCE(v.data_mobilizacao, c.data_mobilizacao),
+        contrato_id = COALESCE(c.contrato_id, ${contrato?.contrato_id ?? null}::int), updated_at = now()
+      FROM (VALUES ${Prisma.join(linhas)}) AS v(id, nome, situacao, funcao_id, cargo, disciplina, supervisor, encarregado, ferias_inicio, ferias_fim, data_mobilizacao)
+      WHERE c.id = v.id`;
+  }
+  const criados = novos.length;
+  const atualizados = linhas.length;
+  return { total: efetivo.length, criados, atualizados, funcoes: funcoes.size };
+}
+
+/** Atualiza o efetivo do contrato enviando a planilha da reunião (só a aba "EFETIVO A DISTRIBUIR"). */
+async function importarEfetivo(arquivo) {
+  if (!arquivo?.buffer) throw new AppError(400, 'Envie a planilha no campo "arquivo".');
+  let efetivo;
+  try {
+    efetivo = lerPlanilhaEfetivo(XLSX, arquivo.buffer);
+  } catch (err) {
+    throw new AppError(400, `Não foi possível ler o efetivo da planilha: ${err.message}`);
+  }
+  if (efetivo.length === 0) throw new AppError(400, 'Nenhuma pessoa encontrada na aba "EFETIVO A DISTRIBUIR".');
+  return gravarEfetivoDaPlanilha(efetivo);
+}
+
 /**
  * Mobiliza uma pessoa no efetivo do contrato. Matrícula já cadastrada: volta a ficar ativa (e disponível
  * para a programação e o RDO). Matrícula nova: cria o colaborador no contrato do restante do efetivo.
@@ -162,6 +263,8 @@ async function mobilizarColaborador(payload) {
   const matricula = texto(payload.matricula, 'matricula', 30, true);
   const data = dataOuHoje(payload.data, 'data');
   const existente = await prisma.colaborador.findUnique({ where: { matricula }, select: { id: true } });
+  if (vazio(payload.nome)) throw new AppError(400, 'O campo "nome" é obrigatório.');
+  if (vazio(payload.funcao)) throw new AppError(400, 'O campo "funcao" (função de planejamento) é obrigatório.');
   const funcao = await funcaoPorNome(payload.funcao);
   const extras = {};
   ['cargo', 'disciplina', 'supervisor', 'encarregado'].forEach((c) => {
@@ -616,10 +719,48 @@ async function excluirFrente(id) {
 
 /* Equipes */
 
-async function criarEquipe(frenteId, payload) {
+/**
+ * Nova equipe na frente. Com `pessoas` (lista de { matricula, nome, funcao, dias }), a equipe já nasce
+ * com elas, tudo numa transação; nesse caso é preciso ao menos uma pessoa.
+ */
+async function criarEquipe(frenteId, payload = {}) {
   const f = await frenteEditavel(frenteId);
+  const dadosEquipe = camposEquipe(payload, false);
   const ordem = await prisma.programacaoEquipe.count({ where: { frente_id: f.id } });
-  return prisma.programacaoEquipe.create({ data: { ...camposEquipe(payload, false), frente_id: f.id, ordem } });
+  if (!Array.isArray(payload.pessoas)) {
+    return prisma.programacaoEquipe.create({ data: { ...dadosEquipe, frente_id: f.id, ordem } });
+  }
+  if (payload.pessoas.length === 0) throw new AppError(400, 'Coloque ao menos uma pessoa na equipe.');
+  if (!dadosEquipe.codigo && !dadosEquipe.disciplina) throw new AppError(400, 'Informe o código ou a disciplina da equipe.');
+  const pessoas = [];
+  for (const p of payload.pessoas) {
+    // eslint-disable-next-line no-await-in-loop
+    const dados = await completarPeloCadastro(camposAlocacao(p || {}, false));
+    if (!dados.nome) throw new AppError(400, 'Cada pessoa precisa de nome (ou de uma matrícula do efetivo).');
+    pessoas.push(dados);
+  }
+  return prisma.$transaction(async (tx) => {
+    const equipe = await tx.programacaoEquipe.create({ data: { ...dadosEquipe, frente_id: f.id, ordem } });
+    await tx.programacaoAlocacao.createMany({ data: pessoas.map((d, n) => ({ ...d, equipe_id: equipe.id, ordem: n })) });
+    return equipe;
+  });
+}
+
+/** Várias pessoas de uma vez numa equipe existente (modal "Adicionar pessoa"). */
+async function adicionarPessoas(equipeId, payload = {}) {
+  const e = await equipeEditavel(equipeId);
+  const lista = Array.isArray(payload.pessoas) ? payload.pessoas : [];
+  if (lista.length === 0) throw new AppError(400, 'Escolha ao menos uma pessoa.');
+  const pessoas = [];
+  for (const p of lista) {
+    // eslint-disable-next-line no-await-in-loop
+    const dados = await completarPeloCadastro(camposAlocacao(p || {}, false));
+    if (!dados.nome) throw new AppError(400, 'Cada pessoa precisa de nome (ou de uma matrícula do efetivo).');
+    pessoas.push(dados);
+  }
+  const ordem = await prisma.programacaoAlocacao.count({ where: { equipe_id: e.id } });
+  await prisma.programacaoAlocacao.createMany({ data: pessoas.map((d, n) => ({ ...d, equipe_id: e.id, ordem: ordem + n })) });
+  return { adicionadas: pessoas.length };
 }
 
 async function atualizarEquipe(id, payload) {
@@ -692,6 +833,13 @@ async function importar(arquivo, opcoes, usuario) {
     throw new AppError(400, `Não foi possível ler a planilha: ${err.message}`);
   }
   if (lida.frentes.length === 0) throw new AppError(400, 'Nenhuma frente de serviço encontrada na planilha.');
+  // A aba "EFETIVO A DISTRIBUIR" (quando existe) traz o efetivo do contrato completo: cargo, disciplina, liderança.
+  let efetivoPlanilha = [];
+  try {
+    efetivoPlanilha = lerPlanilhaEfetivo(XLSX, arquivo.buffer);
+  } catch {
+    efetivoPlanilha = [];
+  }
 
   const substituir = [true, 'true', '1', 1].includes(opcoes?.substituir);
   const existente = await prisma.programacaoSemanal.findUnique({ where: { ano_semana: { ano: lida.ano, semana: lida.semana } } });
@@ -718,6 +866,7 @@ async function importar(arquivo, opcoes, usuario) {
     return programacaoId;
   }, { timeout: 120000 });
 
+  if (efetivoPlanilha.length) await gravarEfetivoDaPlanilha(efetivoPlanilha);
   return obter(id);
 }
 
@@ -797,6 +946,14 @@ async function programacaoDaObra(obraIdParam, query = {}) {
 }
 
 /** Exporta a programação em .xlsx no layout da reunião. */
+/** PDF da reunião S+1 (layout detalhado, com a logo). */
+async function exportarPdf(id, usuario = null) {
+  const [programacao, efetivo] = await Promise.all([obter(id), listarEfetivo()]);
+  const conteudo = await gerarPdfProgramacao(programacao, { efetivo, geradoPor: usuario?.nome || null });
+  const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
+  return { nome: `Reuniao_S+1_Sem_${programacao.semana}_${programacao.ano}_${rev}.pdf`, conteudo };
+}
+
 async function exportar(id) {
   const programacao = await obter(id);
   const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
@@ -815,6 +972,10 @@ module.exports = {
   listar,
   obter,
   listarEfetivo,
+  listarFuncoes,
+  criarFuncao,
+  importarEfetivo,
+  gravarEfetivoDaPlanilha,
   mobilizarColaborador,
   desmobilizarColaborador,
   atualizarColaboradorEfetivo,
@@ -839,6 +1000,8 @@ module.exports = {
   excluirItemAtividade,
   excluirFrente,
   criarEquipe,
+  adicionarPessoas,
+  exportarPdf,
   atualizarEquipe,
   excluirEquipe,
   criarAlocacao,

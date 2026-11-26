@@ -15,6 +15,15 @@ export const listarEfetivoProgramacao = async ({ todos = false } = {}) => (await
 export const mobilizarColaborador = async (corpo) => (await api.post('/programacoes/efetivo/mobilizar', corpo)).data;
 export const desmobilizarColaborador = async (id, corpo = {}) => (await api.post(`/programacoes/efetivo/${id}/desmobilizar`, corpo)).data;
 export const atualizarColaboradorEfetivo = async (id, corpo) => (await api.put(`/programacoes/efetivo/${id}`, corpo)).data;
+/** Atualiza o efetivo do contrato pela aba "EFETIVO A DISTRIBUIR" da planilha da reunião. */
+export async function importarEfetivoProgramacao(arquivo) {
+  const formulario = new FormData();
+  formulario.append('arquivo', arquivo);
+  return (await api.post('/programacoes/efetivo/importar', formulario, { timeout: 180000 })).data;
+}
+/** Funções de planejamento cadastradas; nova função (Planejador/Admin). */
+export const listarFuncoesProgramacao = async () => (await api.get('/programacoes/funcoes')).data;
+export const criarFuncaoProgramacao = async (nome) => (await api.post('/programacoes/funcoes', { nome })).data;
 /** Efetivo nominal a partir da programação (cadastra quem falta e liga as pessoas ao cadastro). */
 export const sincronizarEfetivoProgramacao = async (id) => (await api.post(`/programacoes/${id}/sincronizar-efetivo`)).data;
 /** Programação e efetivo nominal de uma obra (recorte: proxima | atual | ultima, ou programacao_id). */
@@ -28,6 +37,15 @@ export async function baixarExportacaoProgramacao(id) {
   const nome = /filename="([^"]+)"/.exec(resposta.headers['content-disposition'] || '')?.[1];
   return { blob: resposta.data, nome: nome ? decodeURIComponent(nome) : `programacao-${id}.xlsx` };
 }
+
+/** Baixa o PDF da reunião S+1. */
+export async function baixarPdfProgramacao(id) {
+  const resposta = await api.get(`/programacoes/${id}/pdf`, { responseType: 'blob', timeout: 120000 });
+  const nome = /filename="([^"]+)"/.exec(resposta.headers['content-disposition'] || '')?.[1];
+  return { blob: resposta.data, nome: nome ? decodeURIComponent(nome) : `reuniao-s1-${id}.pdf` };
+}
+/** Várias pessoas de uma vez numa equipe: [{ matricula, nome, funcao, dias }]. */
+export const adicionarPessoasEquipe = async (equipeId, pessoas) => (await api.post(`/programacoes/equipes/${equipeId}/pessoas`, { pessoas })).data;
 
 export async function importarPlanilhaProgramacao(arquivo, substituir = false) {
   const formulario = new FormData();
