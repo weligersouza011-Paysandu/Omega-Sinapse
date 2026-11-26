@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CalendarPlus, FileSpreadsheet, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, UserMinus, UserPlus, Users } from 'lucide-react';
+import { AlertTriangle, CalendarPlus, FileSpreadsheet, FileText, CalendarRange, Copy, Download, HardHat, Link2, Lock, Plus, RefreshCw, Search, Trash2, Unlock, UserMinus, UserPlus, Users } from 'lucide-react';
 import ModalBase from '../components/ModalBase.jsx';
 import Spinner from '../components/Spinner.jsx';
 import { Secao } from '../components/rdo/SecoesRdo.jsx';
@@ -11,13 +11,13 @@ import {
   criarProgramacao, criarProximaProgramacao, emitirProgramacao, excluirAlocacao, excluirEquipe, excluirFrente, excluirProgramacao,
   listarEfetivoProgramacao, listarObrasProgramacao, listarProgramacoes, novaRevisaoProgramacao, obterProgramacao,
   sincronizarEfetivoProgramacao, obterCronogramaDaObraProgramacao, criarItemAtividadeProgramacao, atualizarItemAtividadeProgramacao, excluirItemAtividadeProgramacao, mobilizarColaborador, desmobilizarColaborador, atualizarColaboradorEfetivo,
-  importarEfetivoProgramacao, listarFuncoesProgramacao, criarFuncaoProgramacao,
+  importarEfetivoProgramacao, listarFuncoesProgramacao, criarFuncaoProgramacao, adicionarPessoasEquipe, baixarPdfProgramacao,
 } from '../services/programacaoApi.js';
 import { listarSupervisores } from '../services/rdoApi.js';
+import { ModalAdicionarPessoas, ModalNovaEquipe } from '../components/programacao/ModalEquipe.jsx';
 import CampoLista, { comparavel, opcaoDaLista } from '../components/CampoLista.jsx';
 import { formatarData, formatarDataHora } from '../utils/formatters.js';
 
-const ID_LISTA_EFETIVO = 'programacao-efetivo-contrato';
 const ID_LISTA_FUNCOES = 'programacao-funcoes';
 
 const DIAS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
@@ -218,20 +218,9 @@ function AtividadesProgramadas({ equipe, obraId, editavel, executar }) {
   );
 }
 
-function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
-  const [nova, setNova] = useState({ matricula: '', nome: '', funcao: '' });
-  // Matrícula do efetivo do contrato: completa nome e função.
-  const escolherMatricula = (matricula) => {
-    const c = efetivoPorMatricula.get(matricula.trim());
-    setNova((atual) => (c ? { matricula, nome: c.nome, funcao: c.funcao || '' } : { ...atual, matricula }));
-  };
+function Equipe({ equipe, editavel, executar, prog, efetivo, obraId }) {
+  const [adicionando, setAdicionando] = useState(false);
   const totais = somaDias(equipe.alocacoes);
-
-  const adicionar = async () => {
-    if (!nova.nome.trim() && !nova.matricula.trim()) return;
-    const ok = await executar(() => criarAlocacao(equipe.id, nova));
-    if (ok) setNova({ matricula: '', nome: '', funcao: '' });
-  };
 
   return (
     <div className="rounded-lg border border-slate-200">
@@ -293,11 +282,10 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
             ))}
             {editavel ? (
               <tr className="border-t border-slate-100 bg-slate-50/60">
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Matrícula (efetivo)" list={ID_LISTA_EFETIVO} value={nova.matricula} onChange={(e) => escolherMatricula(e.target.value)} /></td>
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Nome (ou só a matrícula do cadastro)" value={nova.nome} onChange={(e) => setNova({ ...nova, nome: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
-                <td className="px-2 py-1"><input className="campo !py-1 text-xs" placeholder="Função" value={nova.funcao} onChange={(e) => setNova({ ...nova, funcao: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && adicionar()} /></td>
-                <td colSpan={DIAS.length + 1} className="px-2 py-1">
-                  <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={adicionar}><Plus className="h-3.5 w-3.5" /> Adicionar pessoa</button>
+                <td colSpan={3 + DIAS.length + 1} className="px-2 py-1.5 text-center">
+                  <button type="button" className="btn-neutro !px-3 !py-1 text-xs" onClick={() => setAdicionando(true)}>
+                    <UserPlus className="h-3.5 w-3.5" /> Adicionar pessoa
+                  </button>
                 </td>
               </tr>
             ) : null}
@@ -311,6 +299,8 @@ function Equipe({ equipe, editavel, executar, efetivoPorMatricula, obraId }) {
       </div>
 
       <AtividadesProgramadas equipe={equipe} obraId={obraId} editavel={editavel} executar={executar} />
+      <ModalAdicionarPessoas aberto={adicionando} equipe={equipe} prog={prog} efetivo={efetivo} onFechar={() => setAdicionando(false)}
+        onAdicionar={(pessoas) => executar(() => adicionarPessoasEquipe(equipe.id, pessoas))} />
 
       <div className="grid gap-3 border-t border-slate-100 p-3 md:grid-cols-2">
         <div>
@@ -346,8 +336,9 @@ function infoDaObra(obra) {
   return campos.filter(([, v]) => v);
 }
 
-function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula }) {
+function Frente({ frente, editavel, obras, executar, totais, prog, efetivo }) {
   const [editando, setEditando] = useState(false);
+  const [novaEquipe, setNovaEquipe] = useState(false);
   // Seletor de obra: null (fechado) ou o tipo a gravar junto com a obra escolhida.
   const [seletor, setSeletor] = useState(null);
   const pessoas = frente.equipes.reduce((s, e) => s + e.alocacoes.length, 0);
@@ -403,7 +394,7 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
           {editavel ? (
             <span className="ml-auto flex gap-2">
               <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setEditando((v) => !v)}>{editando ? 'Fechar edição' : 'Editar frente'}</button>
-              <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => executar(() => criarEquipe(frente.id, { disciplina: '' }))}><Plus className="h-3.5 w-3.5" /> Equipe</button>
+              <button type="button" className="btn-neutro !px-2 !py-1 text-xs" onClick={() => setNovaEquipe(true)}><Plus className="h-3.5 w-3.5" /> Equipe</button>
               <button type="button" className="rounded p-1 text-slate-400 hover:text-red-600" aria-label="Excluir frente" title="Excluir frente"
                 onClick={() => window.confirm(`Excluir a frente "${frente.titulo}" com todas as equipes?`) && executar(() => excluirFrente(frente.id))}>
                 <Trash2 className="h-4 w-4" />
@@ -432,7 +423,9 @@ function Frente({ frente, editavel, obras, executar, totais, efetivoPorMatricula
         <ModalSeletorObra aberto={Boolean(seletor)} obras={obras} atualId={frente.obra_id}
           titulo={`Vincular obra · ${frente.titulo}`} onFechar={() => setSeletor(null)} onEscolher={vincular} />
 
-        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} efetivoPorMatricula={efetivoPorMatricula} obraId={frente.obra_id} />)}
+        <ModalNovaEquipe aberto={novaEquipe} frente={frente} prog={prog} efetivo={efetivo} onFechar={() => setNovaEquipe(false)}
+          onCriar={(dados) => executar(() => criarEquipe(frente.id, dados))} />
+        {frente.equipes.map((e) => <Equipe key={e.id} equipe={e} editavel={editavel} executar={executar} prog={prog} efetivo={efetivo} obraId={frente.obra_id} />)}
         {frente.equipes.length === 0 ? <p className="text-sm text-slate-500">Nenhuma equipe nesta frente.</p> : null}
       </div>
     </Secao>
@@ -1210,8 +1203,6 @@ export default function ProgramacaoS1() {
     obterProgramacao(selecionadaId).then(setProg).catch((err) => toast.erro(err.message)).finally(() => setCarregando(false));
   }, [selecionadaId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const efetivoPorMatricula = useMemo(() => new Map(efetivo.filter((c) => c.matricula).map((c) => [c.matricula, c])), [efetivo]);
-
   /** Executa uma alteração e recarrega a programação. Retorna true se deu certo. */
   const executar = useCallback(async (operacao) => {
     try {
@@ -1276,6 +1267,38 @@ export default function ProgramacaoS1() {
     await recarregar();
   }, [recarregar]);
 
+  /** PDF da reunião S+1 (com a logo); `id` para baixar logo depois de emitir. */
+  const baixarPdf = async (id = prog.id) => {
+    setOcupado('pdf');
+    try {
+      const { blob, nome } = await baixarPdfProgramacao(id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = nome;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      toast.erro(err.message);
+    } finally {
+      setOcupado('');
+    }
+  };
+
+  /** Consolidar: emite a revisão (trava a edição) e já baixa o PDF da reunião. */
+  const emitirEConsolidar = async () => {
+    if (!window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão, e o PDF da reunião S+1 é gerado.`)) return;
+    try {
+      const p = await emitirProgramacao(prog.id);
+      setProg(p);
+      await carregarLista(p.id);
+      toast.sucesso(`${nomeSemana(p)} emitida. Gerando o PDF da reunião...`);
+      await baixarPdf(p.id);
+    } catch (err) {
+      toast.erro(err.message);
+    }
+  };
+
   const exportar = async () => {
     setOcupado('exportar');
     try {
@@ -1327,10 +1350,6 @@ export default function ProgramacaoS1() {
 
   return (
     <div className="w-full space-y-4">
-      {/* Lista do efetivo do contrato para os campos de matrícula. */}
-      <datalist id={ID_LISTA_EFETIVO}>
-        {efetivo.filter((c) => c.matricula).map((c) => <option key={c.id} value={c.matricula}>{`${c.nome} · ${c.funcao || ''}`}</option>)}
-      </datalist>
       <datalist id={ID_LISTA_FUNCOES}>
         {[...new Set(efetivoCompleto.map((c) => c.funcao).filter(Boolean))].sort().map((f) => <option key={f} value={f} />)}
       </datalist>
@@ -1358,9 +1377,14 @@ export default function ProgramacaoS1() {
               <Download className="h-4 w-4" /> {ocupado === 'exportar' ? 'Gerando...' : 'Exportar .xlsx'}
             </button>
           ) : null}
+          {prog ? (
+            <button type="button" className="btn-neutro" disabled={Boolean(ocupado)} onClick={() => baixarPdf()} title="PDF detalhado da reunião S+1, com a logo">
+              <FileText className="h-4 w-4" /> {ocupado === 'pdf' ? 'Gerando PDF...' : 'PDF da reunião'}
+            </button>
+          ) : null}
           {prog && editavel ? (
-            <button type="button" className="btn-neutro" onClick={() => window.confirm(`Emitir a ${nomeSemana(prog)}? A edição fica travada até abrir uma nova revisão.`) && mudarStatus(emitirProgramacao, (p) => `${nomeSemana(p)} emitida.`)}>
-              <Lock className="h-4 w-4" /> Emitir {rev(prog.revisao)}
+            <button type="button" className="btn-neutro" disabled={Boolean(ocupado)} onClick={emitirEConsolidar} title="Trava a revisão e gera o PDF da reunião S+1">
+              <Lock className="h-4 w-4" /> Emitir {rev(prog.revisao)} + PDF
             </button>
           ) : null}
           {prog && !editavel ? (
@@ -1455,7 +1479,7 @@ export default function ProgramacaoS1() {
                 {editavel ? <button type="button" className="btn-primario" onClick={() => setModalFrente(true)}><Plus className="h-4 w-4" /> Frente</button> : null}
               </div>
               {frentesFiltradas.map((f) => (
-                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} efetivoPorMatricula={efetivoPorMatricula} />
+                <Frente key={f.id} frente={f} editavel={editavel} obras={obras} executar={executar} totais={resumo.total_por_frente[f.id]} prog={prog} efetivo={efetivo} />
               ))}
               {frentesFiltradas.length === 0 ? <div className="card p-8 text-center text-sm text-slate-500">Nenhuma frente encontrada.</div> : null}
             </div>

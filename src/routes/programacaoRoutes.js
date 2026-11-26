@@ -51,6 +51,7 @@ router.post('/frentes/:id/equipes', acao((req) => service.criarEquipe(req.params
 router.put('/equipes/:id', acao((req) => service.atualizarEquipe(req.params.id, req.body || {})));
 router.delete('/equipes/:id', acao((req) => service.excluirEquipe(req.params.id)));
 router.post('/equipes/:id/alocacoes', acao((req) => service.criarAlocacao(req.params.id, req.body || {}), 201));
+router.post('/equipes/:id/pessoas', acao((req) => service.adicionarPessoas(req.params.id, req.body || {}), 201));
 // Atividades programadas da equipe (linha do cronograma da obra ou texto) e o cronograma da obra.
 router.get('/cronograma/:obraId', acao((req) => service.cronogramaDaObra(req.params.obraId)));
 router.post('/equipes/:id/atividades', acao((req) => service.criarItemAtividade(req.params.id, req.body || {}), 201));
@@ -76,6 +77,21 @@ router.get('/:id/exportar', async (req, res, next) => {
     const { nome, conteudo } = await service.exportar(req.params.id);
     res.set({
       'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(nome)}"`,
+      'Cache-Control': 'no-store',
+    });
+    return res.send(conteudo);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+// PDF da reunião S+1 (gerado ao emitir e sob demanda).
+router.get('/:id/pdf', async (req, res, next) => {
+  try {
+    const { nome, conteudo } = await service.exportarPdf(req.params.id, req.user);
+    res.set({
+      'Content-Type': 'application/pdf',
       'Content-Disposition': `attachment; filename="${encodeURIComponent(nome)}"`,
       'Cache-Control': 'no-store',
     });

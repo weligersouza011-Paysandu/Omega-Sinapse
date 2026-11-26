@@ -38,6 +38,15 @@ export async function baixarExportacaoProgramacao(id) {
   return { blob: resposta.data, nome: nome ? decodeURIComponent(nome) : `programacao-${id}.xlsx` };
 }
 
+/** Baixa o PDF da reunião S+1. */
+export async function baixarPdfProgramacao(id) {
+  const resposta = await api.get(`/programacoes/${id}/pdf`, { responseType: 'blob', timeout: 120000 });
+  const nome = /filename="([^"]+)"/.exec(resposta.headers['content-disposition'] || '')?.[1];
+  return { blob: resposta.data, nome: nome ? decodeURIComponent(nome) : `reuniao-s1-${id}.pdf` };
+}
+/** Várias pessoas de uma vez numa equipe: [{ matricula, nome, funcao, dias }]. */
+export const adicionarPessoasEquipe = async (equipeId, pessoas) => (await api.post(`/programacoes/equipes/${equipeId}/pessoas`, { pessoas })).data;
+
 export async function importarPlanilhaProgramacao(arquivo, substituir = false) {
   const formulario = new FormData();
   formulario.append('arquivo', arquivo);

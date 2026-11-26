@@ -2,6 +2,7 @@
 
 const XLSX = require('xlsx');
 const { Prisma } = require('@prisma/client');
+const { gerarPdfProgramacao } = require('./programacaoPdfService');
 const AppError = require('../errors/AppError');
 const prisma = require('../config/prisma');
 const {
@@ -718,10 +719,48 @@ async function excluirFrente(id) {
 
 /* Equipes */
 
-async function criarEquipe(frenteId, payload) {
+/**
+ * Nova equipe na frente. Com `pessoas` (lista de { matricula, nome, funcao, dias }), a equipe já nasce
+ * com elas, tudo numa transação; nesse caso é preciso ao menos uma pessoa.
+ */
+async function criarEquipe(frenteId, payload = {}) {
   const f = await frenteEditavel(frenteId);
+  const dadosEquipe = camposEquipe(payload, false);
   const ordem = await prisma.programacaoEquipe.count({ where: { frente_id: f.id } });
-  return prisma.programacaoEquipe.create({ data: { ...camposEquipe(payload, false), frente_id: f.id, ordem } });
+  if (!Array.isArray(payload.pessoas)) {
+    return prisma.programacaoEquipe.create({ data: { ...dadosEquipe, frente_id: f.id, ordem } });
+  }
+  if (payload.pessoas.length === 0) throw new AppError(400, 'Coloque ao menos uma pessoa na equipe.');
+  if (!dadosEquipe.codigo && !dadosEquipe.disciplina) throw new AppError(400, 'Informe o código ou a disciplina da equipe.');
+  const pessoas = [];
+  for (const p of payload.pessoas) {
+    // eslint-disable-next-line no-await-in-loop
+    const dados = await completarPeloCadastro(camposAlocacao(p || {}, false));
+    if (!dados.nome) throw new AppError(400, 'Cada pessoa precisa de nome (ou de uma matrícula do efetivo).');
+    pessoas.push(dados);
+  }
+  return prisma.$transaction(async (tx) => {
+    const equipe = await tx.programacaoEquipe.create({ data: { ...dadosEquipe, frente_id: f.id, ordem } });
+    await tx.programacaoAlocacao.createMany({ data: pessoas.map((d, n) => ({ ...d, equipe_id: equipe.id, ordem: n })) });
+    return equipe;
+  });
+}
+
+/** Várias pessoas de uma vez numa equipe existente (modal "Adicionar pessoa"). */
+async function adicionarPessoas(equipeId, payload = {}) {
+  const e = await equipeEditavel(equipeId);
+  const lista = Array.isArray(payload.pessoas) ? payload.pessoas : [];
+  if (lista.length === 0) throw new AppError(400, 'Escolha ao menos uma pessoa.');
+  const pessoas = [];
+  for (const p of lista) {
+    // eslint-disable-next-line no-await-in-loop
+    const dados = await completarPeloCadastro(camposAlocacao(p || {}, false));
+    if (!dados.nome) throw new AppError(400, 'Cada pessoa precisa de nome (ou de uma matrícula do efetivo).');
+    pessoas.push(dados);
+  }
+  const ordem = await prisma.programacaoAlocacao.count({ where: { equipe_id: e.id } });
+  await prisma.programacaoAlocacao.createMany({ data: pessoas.map((d, n) => ({ ...d, equipe_id: e.id, ordem: ordem + n })) });
+  return { adicionadas: pessoas.length };
 }
 
 async function atualizarEquipe(id, payload) {
@@ -907,6 +946,14 @@ async function programacaoDaObra(obraIdParam, query = {}) {
 }
 
 /** Exporta a programação em .xlsx no layout da reunião. */
+/** PDF da reunião S+1 (layout detalhado, com a logo). */
+async function exportarPdf(id, usuario = null) {
+  const [programacao, efetivo] = await Promise.all([obter(id), listarEfetivo()]);
+  const conteudo = await gerarPdfProgramacao(programacao, { efetivo, geradoPor: usuario?.nome || null });
+  const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
+  return { nome: `Reuniao_S+1_Sem_${programacao.semana}_${programacao.ano}_${rev}.pdf`, conteudo };
+}
+
 async function exportar(id) {
   const programacao = await obter(id);
   const rev = `rev${String(programacao.revisao).padStart(2, '0')}`;
@@ -953,6 +1000,8 @@ module.exports = {
   excluirItemAtividade,
   excluirFrente,
   criarEquipe,
+  adicionarPessoas,
+  exportarPdf,
   atualizarEquipe,
   excluirEquipe,
   criarAlocacao,
